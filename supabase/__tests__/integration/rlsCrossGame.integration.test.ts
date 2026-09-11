@@ -353,7 +353,12 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
     it("denies a game-A session all writes to game B's rows, leaving B unchanged", async () => {
       const before = await snapshotGame(gameB.gameId);
 
-      // --- UPDATE / DELETE: hidden by the USING clause => affect zero rows. ---
+      // --- RLS-only tables: UPDATE / DELETE are hidden by the USING clause =>
+      // they affect zero rows (no error). game_events is deliberately NOT in this
+      // batch: it is append-only and has UPDATE/DELETE REVOKEd from anon (0003),
+      // so a cross-game write there raises `permission denied` rather than
+      // affecting zero rows. Running it here would abort this whole transaction
+      // and contaminate the other assertions, so it is checked separately below.
       const affected = await asGameSession(gameA.sessionId, async (tx) => {
         // UPDATE B's team name — RLS hides the row, so no rows are updated.
         const upTeam = await tx.query(
@@ -375,27 +380,34 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
           `delete from bars where id = $1 returning id`,
           [gameB.barId],
         );
-        // DELETE B's event.
-        const delEvent = await tx.query(
-          `delete from game_events where id = $1 returning id`,
-          [gameB.eventId],
-        );
 
         return {
           upTeam: upTeam.rows.length,
           upBar: upBar.rows.length,
           upGame: upGame.rows.length,
           delBar: delBar.rows.length,
-          delEvent: delEvent.rows.length,
         };
       });
 
-      // Every UPDATE/DELETE against B affected zero rows (RLS USING clause).
+      // Every UPDATE/DELETE against B's RLS-only tables affected zero rows
+      // (RLS USING clause hid the row).
       expect(affected.upTeam).toBe(0);
       expect(affected.upBar).toBe(0);
       expect(affected.upGame).toBe(0);
       expect(affected.delBar).toBe(0);
-      expect(affected.delEvent).toBe(0);
+
+      // --- game_events cross-game write: DENIED at the privilege layer. ---
+      // Unlike the RLS-only tables above, game_events has UPDATE/DELETE REVOKEd
+      // from anon (0003, append-only enforcement), so a cross-game DELETE raises
+      // `permission denied` instead of quietly affecting zero rows. Run it in its
+      // OWN transaction so the rejection cannot contaminate the assertions above,
+      // and confirm it is rejected. B's event therefore survives, keeping the
+      // snapshot comparison below valid.
+      await expect(
+        asGameSession(gameA.sessionId, (tx) =>
+          tx.query(`delete from game_events where id = $1`, [gameB.eventId]),
+        ),
+      ).rejects.toThrow();
 
       // --- INSERT into B: rejected by the WITH CHECK clause => raises. ---
       await expect(

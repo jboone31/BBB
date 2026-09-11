@@ -21,32 +21,32 @@
  *
  * ---------------------------------------------------------------------------
  * Required env vars (all three must be set, or the whole suite skips):
- *   - SUPABASE_DB_URL              Postgres connection string (service-role /
- *                                  direct DB) used ONLY for test setup/teardown:
- *                                  create a game and insert `game_events`.
- *   - NEXT_PUBLIC_SUPABASE_URL     Public Supabase URL — the browser adapter
- *                                  under test reads catch-up events through this.
+ *   - NEXT_PUBLIC_SUPABASE_URL     Public Supabase URL — the member-scoped
+ *                                  client under test reads catch-up events
+ *                                  through this.
  *   - NEXT_PUBLIC_SUPABASE_ANON_KEY  Public anon key (subject to RLS) — the
- *                                  browser adapter's read path.
+ *                                  member client's read path.
+ *   - SUPABASE_SERVICE_ROLE_KEY    Service-role key used ONLY for test
+ *                                  setup/teardown (seeding the game + events
+ *                                  through the RLS-bypassing service client).
  *
  * Run instructions (PowerShell):
- *   $env:SUPABASE_DB_URL="postgres://postgres:...@db.<ref>.supabase.co:5432/postgres"
  *   $env:NEXT_PUBLIC_SUPABASE_URL="https://<ref>.supabase.co"
  *   $env:NEXT_PUBLIC_SUPABASE_ANON_KEY="<anon-key>"
+ *   $env:SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
  *   npx vitest run supabase/__tests__/integration/resume.integration.test.ts
  *
  * Notes:
- *   - The anon read path is subject to RLS (Req 7.2). If your RLS policies gate
- *     `game_events` reads on session membership, run against an instance/policy
- *     set that lets the anon key read the seeded game (e.g. a permissive dev
- *     policy), otherwise catch-up will legitimately see zero rows.
+ *   - The read path is subject to RLS (Req 7.2). This suite authenticates as a
+ *     real game member via `createMemberSession()`, so the member client's
+ *     reads pass the `0006` membership policies. Seeding is done through the
+ *     service-role client, which bypasses RLS.
  *   - Setup/teardown insert `game_events` with explicit ascending `seq` values
  *     (the append-under-lock path is not needed to seed a fixed history).
  * ---------------------------------------------------------------------------
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import postgres from "postgres";
 
 import {
   ResumeController,
@@ -59,28 +59,29 @@ import {
   type StorageLike,
 } from "@/lib/realtime/lastSeenStore";
 import {
-  createBrowserSupabaseClient,
   supabaseRealtimeTransport,
   supabaseSnapshotSource,
 } from "@/lib/realtime/supabaseBrowser";
 import type { GameEvent } from "@/lib/events";
 import type { RealtimeChannel } from "@/lib/realtime";
 
+import { createMemberSession, type MemberSession } from "./_session";
+
 // ---------------------------------------------------------------------------
 // Environment gating: run only when a live backend is fully configured.
 // ---------------------------------------------------------------------------
 
-const DB_URL = process.env.SUPABASE_DB_URL;
 const PUBLIC_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const LIVE_ENV_READY =
-  typeof DB_URL === "string" &&
-  DB_URL.trim().length > 0 &&
   typeof PUBLIC_URL === "string" &&
   PUBLIC_URL.trim().length > 0 &&
   typeof ANON_KEY === "string" &&
-  ANON_KEY.trim().length > 0;
+  ANON_KEY.trim().length > 0 &&
+  typeof SERVICE_ROLE_KEY === "string" &&
+  SERVICE_ROLE_KEY.trim().length > 0;
 
 // ---------------------------------------------------------------------------
 // Test doubles for the DOM environment (no real document/window needed).
@@ -141,56 +142,48 @@ describe.skipIf(!LIVE_ENV_READY)(
     const PERSISTED_L = 2;
     const EXPECTED_CAUGHT_UP_SEQS = [3, 4, 5];
 
-    let sql: ReturnType<typeof postgres>;
+    // A member-authenticated session (real Supabase Auth user who administers
+    // the game), so the member client's reads pass RLS (Req 7.2). All seeding
+    // is done via the session's service-role client.
+    let session: MemberSession;
     let gameId: string;
 
-    beforeAll(async () => {
-      // DB_URL is a non-empty string here (the suite is skipped otherwise).
-      sql = postgres(String(DB_URL), { max: 1 });
+    /** Insert one game_events row (admin actor) via the RLS-bypassing service client. */
+    async function seedEvent(seq: number): Promise<void> {
+      const { error } = await session.service.from("game_events").insert({
+        game_id: gameId,
+        seq,
+        event_type: "resume_test",
+        actor_kind: "admin",
+        payload: { seq },
+      });
+      if (error !== null) {
+        throw new Error(`failed to seed event seq=${seq}: ${error.message}`);
+      }
+    }
 
-      // Minimal game row; only `id` is needed for the FK on game_events. The
-      // schema requires admin_session_id and a unique join_code, so supply
-      // throwaway unique values for this test fixture.
-      const unique = `resume-18.4-${Date.now()}-${Math.floor(
-        Math.random() * 1e9,
-      )}`;
-      const [game] = await sql<{ id: string }[]>`
-        insert into games (admin_session_id, join_code)
-        values (${unique}, ${unique})
-        returning id
-      `;
-      gameId = game.id;
+    beforeAll(async () => {
+      // Member session: creates a throwaway auth user + a game it administers,
+      // and a member-authenticated Supabase client. Events use an admin actor
+      // here, so no team/player is needed.
+      session = await createMemberSession();
+      gameId = session.gameId;
 
       // Seed a fixed, gap-free history seq 1..TOTAL_EVENTS (admin actor, so no
       // team FK is required). Explicit seq mirrors the gap-free backbone (Req 4.5).
       for (let seq = 1; seq <= TOTAL_EVENTS; seq += 1) {
-        await sql`
-          insert into game_events (game_id, seq, event_type, actor_kind, payload)
-          values (${gameId}, ${seq}, ${"resume_test"}, ${"admin"}, ${sql.json({
-            seq,
-          })})
-        `;
+        await seedEvent(seq);
       }
-    });
+    }, 30000);
 
     afterAll(async () => {
-      if (gameId) {
-        // Cascade removes the seeded game_events.
-        await sql`delete from games where id = ${gameId}`;
-      }
-      await sql?.end({ timeout: 5 });
-    });
+      // Cascade-deletes the game (events) and the throwaway auth user.
+      await session?.cleanup();
+    }, 30000);
 
     it("catches up exactly seq > Last_Seen_Sequence on a visibility cycle and a full relaunch, never going terminal", async () => {
-      const client = createBrowserSupabaseClient();
-      expect(
-        client,
-        "browser Supabase client should build from public env",
-      ).not.toBeNull();
-      if (client === null) return; // narrow for the type-checker; env-gated above.
-
-      const snapshotSource = supabaseSnapshotSource(client);
-      const transport = supabaseRealtimeTransport(client);
+      // Each ResumeController below builds its own member-authenticated client
+      // (see makeController) so their realtime channels never collide.
 
       // Shared, persisted storage: the "disk" that survives a relaunch.
       const storage = createMemoryStorage();
@@ -210,14 +203,24 @@ describe.skipIf(!LIVE_ENV_READY)(
       const openedChannels: RealtimeChannel[] = [];
       let resumeErrors = 0;
 
-      /** Build a controller that records caught-up events + opened channel. */
+      /**
+       * Build a controller that records caught-up events + opened channel.
+       *
+       * Each controller gets its OWN member client (and thus its own realtime
+       * connection), because a Supabase client keys realtime channels by name:
+       * two resumes that both open `game_events:<gameId>` on the SAME client
+       * would collide ("cannot add postgres_changes callbacks ... after
+       * subscribe()"). A fresh client per controller mirrors a real relaunch
+       * (a new client instance) and avoids that collision.
+       */
       const makeController = (store: LocalStorageLastSeenStore) => {
         const applied: GameEvent[] = [];
+        const client = session.makeMemberClient();
         const controller = new ResumeController({
           gameId,
           lastSeenStore: store,
-          snapshotSource,
-          transport,
+          snapshotSource: supabaseSnapshotSource(client),
+          transport: supabaseRealtimeTransport(client),
           onEvent: (e) => {
             applied.push(e);
           },
@@ -246,20 +249,25 @@ describe.skipIf(!LIVE_ENV_READY)(
         isVisible: () => visible,
       });
 
-      // A visibilitychange while hidden must NOT trigger resume.
+      // A visibilitychange while hidden must NOT trigger resume: the binder's
+      // `isVisible` guard (visible=false) suppresses the signal-driven onResume.
+      // We do NOT call onResume() manually here — a manual call would perform an
+      // unconditional catch-up (path (b) is always full re-init) and defeat the
+      // point of this assertion. Fire the signal, give any handler a tick, and
+      // confirm nothing was applied.
       documentTarget.fire("visibilitychange");
-      const beforeVisible = await c1.onResume(); // coalesced; nothing queued yet
-      expect(applied1).toHaveLength(0);
-      expect(beforeVisible).toBeDefined();
-      // The manual onResume above already did one catch-up; reset our record so
-      // the visibility-driven assertion below is unambiguous.
-      applied1.length = 0;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(
+        applied1,
+        "a hidden visibilitychange must not catch up (isVisible guard)",
+      ).toHaveLength(0);
 
-      // Now come back to the foreground: the signal fires resume.
+      // Now come back to the foreground: the signal passes the isVisible guard
+      // and fires resume. Await the in-flight run to settle — c1.onResume()
+      // coalesces with the signal-triggered run (shared in-flight promise), so
+      // awaiting it resolves the same catch-up rather than launching a second.
       visible = true;
       documentTarget.fire("visibilitychange");
-      // Give the async re-init a chance to run to completion (coalesced runs
-      // resolve through the same in-flight promise).
       const outcome1 = await c1.onResume();
 
       unbind();
@@ -294,10 +302,15 @@ describe.skipIf(!LIVE_ENV_READY)(
       expect(applied2.map((e) => e.seq)).toEqual(EXPECTED_CAUGHT_UP_SEQS);
       expect(resumeErrors).toBe(0);
 
-      // Resume never entered a terminal "reload required" state: after all the
-      // above it is still usable and produces an outcome again on the next signal
-      // (independent of any transient retry budget).
-      const outcomeAgain = await c2.onResume();
+      // Resume never entered a terminal "reload required" state: a subsequent
+      // resume signal still produces an outcome (independent of any transient
+      // retry budget). We model the next signal with a fresh controller (its own
+      // client), since a real relaunch/resume uses a new client instance rather
+      // than reopening the same realtime channel on the same client.
+      const { controller: c3 } = makeController(
+        new LocalStorageLastSeenStore(storage),
+      );
+      const outcomeAgain = await c3.onResume();
       expect(outcomeAgain).toBeDefined();
       expect(resumeErrors).toBe(0);
 

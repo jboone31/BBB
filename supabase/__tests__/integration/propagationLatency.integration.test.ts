@@ -8,15 +8,17 @@
  * ---------------------------------------------------------------------------
  * What it does
  * ---------------------------------------------------------------------------
- *   1. Uses the SERVICE-ROLE Supabase client to seed a throwaway game and, later,
- *      to persist exactly one `game_events` row (the `Game_State_Change`). The
- *      service role bypasses RLS so the test can arrange and tear down its own
- *      fixture without a live session/membership.
- *   2. Opens TWO independently-subscribed browser clients to the SAME game using
- *      the project's browser adapter (`lib/realtime/supabaseBrowser.ts`:
- *      `createBrowserSupabaseClient`, `supabaseRealtimeTransport`,
+ *   1. Creates a real member-authenticated session via `createMemberSession()`
+ *      (a throwaway Supabase Auth user administering a seeded game). The
+ *      session's SERVICE-ROLE client seeds the fixture and, later, persists
+ *      exactly one `game_events` row (the `Game_State_Change`), bypassing RLS.
+ *   2. Opens TWO independently-subscribed subscriptions to the SAME game through
+ *      the session's MEMBER-authenticated client so RLS (migration `0006`)
+ *      permits realtime delivery — using the project's browser adapter
+ *      (`lib/realtime/supabaseBrowser.ts`: `supabaseRealtimeTransport`,
  *      `supabaseSnapshotSource`) driven through `subscribe()` from
- *      `lib/realtime`. This is the real client path the app uses.
+ *      `lib/realtime`. Both subscribers are the same member on the same game, so
+ *      they share the one member client.
  *   3. Persists one event and asserts the SECOND client receives the
  *      corresponding `Game_State_Change` with commit-to-receive latency < 3000ms
  *      (Req 6.2), measured from the row's committed `created_at` to the instant
@@ -25,13 +27,11 @@
  * ---------------------------------------------------------------------------
  * Required environment (all must be set, or the whole suite SKIPS as a no-op)
  * ---------------------------------------------------------------------------
- *   - NEXT_PUBLIC_SUPABASE_URL        Supabase project URL (browser clients).
- *   - NEXT_PUBLIC_SUPABASE_ANON_KEY   Supabase anon key (browser clients, RLS).
- *   - SUPABASE_DB_URL                 Present as the signal that a real, writable
- *                                     Supabase project is wired for integration
- *                                     runs (see `lib/env` SERVER_DB_URL_VAR).
- *   - SUPABASE_SERVICE_ROLE_KEY       Service-role key used to seed the fixture
- *                                     and persist the event, bypassing RLS.
+ *   - NEXT_PUBLIC_SUPABASE_URL        Supabase project URL (member client).
+ *   - NEXT_PUBLIC_SUPABASE_ANON_KEY   Supabase anon key (member client, RLS).
+ *   - SUPABASE_SERVICE_ROLE_KEY       Service-role key used to mint the test
+ *                                     auth user, seed the fixture, and persist
+ *                                     the event, bypassing RLS.
  *
  * The project's Postgres realtime must have `game_events` added to the
  * `supabase_realtime` publication for INSERTs to propagate (Supabase dashboard:
@@ -42,11 +42,10 @@
  * ---------------------------------------------------------------------------
  * How to run
  * ---------------------------------------------------------------------------
- *   # From the project root, with the four env vars exported (e.g. a .env you
+ *   # From the project root, with the three env vars exported (e.g. a .env you
  *   # source, or inline):
  *   NEXT_PUBLIC_SUPABASE_URL=... \
  *   NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
- *   SUPABASE_DB_URL=... \
  *   SUPABASE_SERVICE_ROLE_KEY=... \
  *   npm test -- supabase/__tests__/integration/propagationLatency.integration.test.ts
  *
@@ -57,16 +56,16 @@
  * Validates: Requirements 6.1, 6.2, 6.10
  */
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { GameEvent } from "@/lib/events";
 import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
 import {
-  createBrowserSupabaseClient,
   supabaseRealtimeTransport,
   supabaseSnapshotSource,
 } from "@/lib/realtime/supabaseBrowser";
+
+import { createMemberSession, type MemberSession } from "./_session";
 
 /** The Latency_Budget from Req 6.2 / the glossary: 3 seconds. */
 const LATENCY_BUDGET_MS = 3000;
@@ -78,7 +77,6 @@ const LATENCY_BUDGET_MS = 3000;
 const LIVE_ENV_CONFIGURED =
   isNonEmpty(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
   isNonEmpty(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) &&
-  isNonEmpty(process.env.SUPABASE_DB_URL) &&
   isNonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 function isNonEmpty(value: string | undefined): value is string {
@@ -108,66 +106,51 @@ async function waitFor(
 describe.skipIf(!LIVE_ENV_CONFIGURED)(
   "F0.3 end-to-end propagation latency (live Supabase)",
   () => {
-    // Service-role client: seeds the fixture and persists the event, bypassing
-    // RLS. Never used from the browser; server-only, test-only here.
-    let service: SupabaseClient;
-    // Two independently-subscribed browser clients (anon key, RLS-scoped) — the
+    // A member-authenticated session (real Supabase Auth user who administers
+    // the game), so both subscriptions pass RLS (migration 0006 / Req 7.2). The
+    // session's service-role client seeds the fixture and persists the event,
+    // bypassing RLS.
+    let session: MemberSession;
+    // Two independently-subscribed subscriptions to the SAME game. Both are the
+    // same member on the same game, so they share the one member client — the
     // real app path via the project's browser adapter.
     let subA: RealtimeSubscription | null = null;
     let subB: RealtimeSubscription | null = null;
 
     let gameId = "";
-    const sessionId = `it-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     beforeAll(async () => {
-      service = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-        process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-        { auth: { persistSession: false, autoRefreshToken: false } },
-      );
-
-      // Seed a throwaway game. A game row is required so the realtime channel /
-      // snapshot have something to filter on. lifecycle 'lobby' keeps the
-      // schema's lifecycle/end-reason invariants satisfied with no live start.
-      const { data, error } = await service
-        .from("games")
-        .insert({
-          lifecycle: "lobby",
-          admin_session_id: sessionId,
-          join_code: `IT-${sessionId.slice(-8)}`,
-        })
-        .select("id")
-        .single();
-
-      if (error !== null) {
-        throw new Error(`failed to seed integration game: ${error.message}`);
-      }
-      gameId = String((data as { id: string }).id);
-    });
+      // Member session: creates a throwaway auth user + a game it administers,
+      // and a member-authenticated Supabase client whose reads/subscriptions
+      // pass RLS. The event uses an admin actor, so no team/player is needed.
+      session = await createMemberSession();
+      gameId = session.gameId;
+    }, 30000);
 
     afterAll(async () => {
-      // Tear down subscriptions first, then the fixture (cascade removes the
-      // game's events). Guard each step so a partial setup still cleans up.
+      // Tear down subscriptions first, then let the session clean up the game
+      // (cascade removes events) and the throwaway auth user.
       await subA?.close().catch(() => undefined);
       await subB?.close().catch(() => undefined);
-      if (gameId !== "") {
-        await service
-          .from("games")
-          .delete()
-          .eq("id", gameId)
-          .then(undefined, () => undefined);
-      }
-    });
+      await session?.cleanup();
+    }, 30000);
 
     it(
       "delivers a persisted Game_State_Change to a separate subscribed client within 3s",
       async () => {
-        const browserClient = createBrowserSupabaseClient();
-        expect(browserClient).not.toBeNull();
-        const client = browserClient as SupabaseClient;
+        // Both subscriptions run as the authenticated member so RLS (migration
+        // 0006) permits realtime delivery. Each Supabase client keys realtime
+        // channels by name, so two subscriptions to the SAME game must use two
+        // DISTINCT clients (sharing one throws "cannot add postgres_changes
+        // callbacks ... after subscribe()"). Client A reuses session.memberClient;
+        // client B is a second member client carrying the same token.
+        const clientA = session.memberClient;
+        const clientB = session.makeMemberClient();
 
-        const transport = supabaseRealtimeTransport(client);
-        const snapshotSource = supabaseSnapshotSource(client);
+        const transportA = supabaseRealtimeTransport(clientA);
+        const snapshotSourceA = supabaseSnapshotSource(clientA);
+        const transportB = supabaseRealtimeTransport(clientB);
+        const snapshotSourceB = supabaseSnapshotSource(clientB);
 
         // Both clients capture the first live event and the wall-clock instant
         // it was received, so we can measure commit-to-receive latency (Req 6.2).
@@ -184,8 +167,8 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         // Req 6.10 requires the change to appear on). Both subscribe to the same
         // game via the real adapter path.
         subA = await subscribe(gameId, {
-          transport,
-          snapshotSource,
+          transport: transportA,
+          snapshotSource: snapshotSourceA,
           handlers: {
             onEvent: (event) => {
               if (receivedByA.event === null) {
@@ -196,8 +179,8 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
           },
         });
         subB = await subscribe(gameId, {
-          transport,
-          snapshotSource,
+          transport: transportB,
+          snapshotSource: snapshotSourceB,
           handlers: {
             onEvent: (event) => {
               if (receivedByB.event === null) {
@@ -217,7 +200,7 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         // `created_at` gives us the committed timestamp to measure latency from
         // (Req 6.2: "from the time the Game_Event is committed ... to the time
         // the client receives it"). seq=1 is the first event for this fresh game.
-        const { data: inserted, error: insertError } = await service
+        const { data: inserted, error: insertError } = await session.service
           .from("game_events")
           .insert({
             game_id: gameId,

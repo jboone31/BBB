@@ -66,8 +66,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import postgres from "postgres";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   subscribe,
@@ -86,16 +85,18 @@ import {
 import type { GameStateSnapshot } from "@/lib/realtime/snapshot";
 import type { GameEvent } from "@/lib/events";
 
+import { createMemberSession, type MemberSession } from "./_session";
+
 /* -------------------------------------------------------------------------- *
  * Env gating — skip cleanly when no live instance is configured
  * -------------------------------------------------------------------------- */
 
-const DB_URL = process.env.SUPABASE_DB_URL;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const LIVE_ENV_CONFIGURED = Boolean(
-  DB_URL && SUPABASE_URL && SUPABASE_ANON_KEY,
+  SUPABASE_URL && SUPABASE_ANON_KEY && SERVICE_ROLE_KEY,
 );
 
 /** The 3-second Latency_Budget from Req 6.4. */
@@ -136,85 +137,67 @@ async function waitUntil(
 describe.skipIf(!LIVE_ENV_CONFIGURED)(
   "snapshot-on-subscribe and reconnect resync (live Supabase) — Req 6.4, 6.5",
   () => {
-    let sql: postgres.Sql;
+    // A member-authenticated session (real Supabase Auth user who administers
+    // the game), so the anon/member client's reads + subscriptions pass RLS
+    // (Req 7.2). All seeding is done via the session's service-role client.
+    let session: MemberSession;
     let client: SupabaseClient;
 
-    // Seeded fixture ids for this run.
     let gameId: string;
     let teamId: string;
 
     // The seq values seeded before the subscription (Req 6.4 "prior events").
     const priorSeqs = [1, 2, 3];
 
+    /** Insert one game_events row (team actor) via the RLS-bypassing service client. */
+    async function seedEvent(seq: number): Promise<void> {
+      const { error } = await session.service.from("game_events").insert({
+        game_id: gameId,
+        seq,
+        event_type: "demo_event",
+        actor_kind: "team",
+        actor_team_id: teamId,
+        payload: { seq },
+      });
+      if (error !== null) {
+        throw new Error(`failed to seed event seq=${seq}: ${error.message}`);
+      }
+    }
+
     beforeAll(async () => {
-      // Direct Postgres for seeding (bypasses RLS via the connection string's role).
-      sql = postgres(DB_URL as string, { max: 2, prepare: false });
+      // Member session: creates a throwaway auth user + a game it administers,
+      // and a member-authenticated Supabase client. withPlayer also creates a
+      // team we can use as the event actor.
+      session = await createMemberSession({ withPlayer: true });
+      client = session.memberClient;
+      gameId = session.gameId;
 
-      // Browser-style anon client for subscribe/snapshot (subject to RLS, Req 7.2).
-      client = createClient(
-        SUPABASE_URL as string,
-        SUPABASE_ANON_KEY as string,
-        {
-          auth: { persistSession: false, autoRefreshToken: false },
-        },
-      );
+      // Fetch the team id created by the session (for the team actor on events).
+      const { data: team, error: teamErr } = await session.service
+        .from("teams")
+        .select("id")
+        .eq("game_id", gameId)
+        .limit(1)
+        .single();
+      if (teamErr !== null || !team) {
+        throw new Error(
+          `failed to read seeded team: ${teamErr?.message ?? "no row"}`,
+        );
+      }
+      teamId = String((team as { id: string }).id);
 
-      const stamp = Date.now();
-      const joinCode = `it-183-${stamp}`;
-
-      // 1. Seed a game (lobby is fine; we only need the game + events backbone).
-      const [game] = await sql<{ id: string }[]>`
-        insert into games (lifecycle, admin_session_id, join_code)
-        values ('lobby', ${`admin-${stamp}`}, ${joinCode})
-        returning id
-      `;
-      gameId = game.id;
-
-      // 2. Seed a bar and designate it as the start bar (start bar is optional here
-      //    but keeps the fixture realistic; it is not required for the events fold).
-      const [bar] = await sql<{ id: string }[]>`
-        insert into bars (game_id, name)
-        values (${gameId}, 'Start Bar')
-        returning id
-      `;
-      await sql`update games set start_bar_id = ${bar.id} where id = ${gameId}`;
-
-      // 3. Seed a team so the events can carry a team actor.
-      const [team] = await sql<{ id: string }[]>`
-        insert into teams (game_id, name, color)
-        values (${gameId}, 'Team A', '#ff0000')
-        returning id
-      `;
-      teamId = team.id;
-
-      // 4. Seed the PRIOR events (Req 6.4): the snapshot must reflect exactly these.
+      // Seed the PRIOR events (Req 6.4): the snapshot must reflect exactly these.
       for (const seq of priorSeqs) {
-        await sql`
-          insert into game_events
-            (game_id, seq, event_type, actor_kind, actor_team_id, payload)
-          values
-            (${gameId}, ${seq}, 'demo_event', 'team', ${teamId}, ${sql.json({ seq })})
-        `;
+        await seedEvent(seq);
       }
     }, 30000);
 
     afterAll(async () => {
-      // Cascade-delete the seeded game (games -> bars/teams/players/events cascade).
-      // Clear the start-bar designation first so the deferred FK does not block.
-      if (gameId) {
-        try {
-          await sql`update games set start_bar_id = null where id = ${gameId}`;
-          await sql`delete from games where id = ${gameId}`;
-        } catch {
-          // Best-effort cleanup; do not fail the suite on teardown.
-        }
-      }
       if (client) {
         await client.removeAllChannels();
       }
-      if (sql) {
-        await sql.end({ timeout: 5 });
-      }
+      // Cascade-deletes the game (bars/teams/players/events) and the auth user.
+      await session?.cleanup();
     }, 30000);
 
     it("delivers a snapshot reflecting all prior events within 3s on subscribe (Req 6.4)", async () => {
@@ -242,8 +225,13 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
     }, 15000);
 
     it("reconnect + resync deliver a fresh snapshot after a forced connection drop (Req 6.5)", async () => {
-      const transport = supabaseRealtimeTransport(client);
-      const snapshotSource = supabaseSnapshotSource(client);
+      // Use a dedicated member client for the initial subscription: a Supabase
+      // client keys realtime channels by name, and the first test in this file
+      // already opened+closed `game_events:<gameId>` on session.memberClient, so
+      // reusing it here races that channel's teardown and can drop live events.
+      const subClient = session.makeMemberClient();
+      const transport = supabaseRealtimeTransport(subClient);
+      const snapshotSource = supabaseSnapshotSource(subClient);
       const lastSeenStore = new InMemoryLastSeenStore();
 
       // Track events applied by the live subscription (ascending seq, deduped).
@@ -262,15 +250,17 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         // Sanity: watermark seeded from the snapshot of prior events.
         expect(subscription.lastSeenSequence()).toBe(Math.max(...priorSeqs));
 
+        // Give the realtime channel a moment to finish JOINING before we write,
+        // so the INSERT below is observed live. `subscribe()` resolves once the
+        // snapshot has loaded, but the underlying postgres_changes channel joins
+        // asynchronously; writing too early races that join and the event is
+        // missed. channelIsolation uses the same settle window.
+        await delay(1_500);
+
         // 1. Persist a NEW event while subscribed and confirm live delivery
         //    (proves the live channel is actually flowing before we drop it).
         const liveSeq = Math.max(...priorSeqs) + 1;
-        await sql`
-            insert into game_events
-              (game_id, seq, event_type, actor_kind, actor_team_id, payload)
-            values
-              (${gameId}, ${liveSeq}, 'demo_event', 'team', ${teamId}, ${sql.json({ seq: liveSeq })})
-          `;
+        await seedEvent(liveSeq);
 
         const gotLive = await waitUntil(
           () => subscription.lastSeenSequence() >= liveSeq,
@@ -286,22 +276,21 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
 
         // 3. Persist an event that is MISSED while disconnected.
         const missedSeq = liveSeq + 1;
-        await sql`
-            insert into game_events
-              (game_id, seq, event_type, actor_kind, actor_team_id, payload)
-            values
-              (${gameId}, ${missedSeq}, 'demo_event', 'team', ${teamId}, ${sql.json({ seq: missedSeq })})
-          `;
+        await seedEvent(missedSeq);
 
         // 4. Drive the reconnect controller: it fetches events after
         //    Last_Seen_Sequence, resubscribes, and re-requests a snapshot.
         const caughtUpSeqs: number[] = [];
         let reconnectedSnapshot: GameStateSnapshot | undefined;
 
+        // The reconnect resubscribes on a FRESH member client — a real reconnect
+        // opens a new connection, and it avoids reopening the just-closed channel
+        // name on the original client (which races the removeChannel teardown).
+        const reconnectClient = session.makeMemberClient();
         const attempt = makeReconnectAttempt({
           gameId,
-          transport,
-          snapshotSource,
+          transport: supabaseRealtimeTransport(reconnectClient),
+          snapshotSource: supabaseSnapshotSource(reconnectClient),
           onEvent: (event: GameEvent) => caughtUpSeqs.push(event.seq),
         });
 

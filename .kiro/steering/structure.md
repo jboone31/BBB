@@ -13,6 +13,7 @@ BBB/
   components/       # React UI components
   lib/              # framework-free shared logic (game rules, scoring, data access)
   supabase/         # database migrations + backend config
+  scripts/          # one-off ops/dev scripts (apply migrations, enable realtime, probes)
   public/           # static assets served as-is
   test/             # cross-cutting test suites not co-located with source
   docs/             # architecture decision records and design notes
@@ -73,6 +74,13 @@ supabase/
   migrations/   # SQL schema migrations
   __tests__/    # backend/schema tests
 ```
+
+### `scripts/` — ops / dev scripts
+
+Node scripts run manually (via `node scripts/<name>.mjs`) against a live Supabase
+project — e.g. applying migrations, enabling Realtime on `game_events`, and
+connectivity/RLS probes. They load `.env.local` via `dotenv` and use the
+`postgres`/`@supabase/supabase-js` clients the app already depends on.
 
 ### `public/` — static assets
 

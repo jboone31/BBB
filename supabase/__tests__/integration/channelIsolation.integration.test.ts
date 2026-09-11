@@ -54,7 +54,6 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
 import { appendEvent, type GameEvent } from "@/lib/events";
@@ -63,6 +62,8 @@ import {
   supabaseRealtimeTransport,
   supabaseSnapshotSource,
 } from "@/lib/realtime/supabaseBrowser";
+
+import { createMemberSession, type MemberSession } from "./_session";
 
 // NOTE: `lib/db/server.ts` imports `server-only`, which only resolves inside the
 // Next.js bundler. It is therefore loaded LAZILY (dynamic import, below) so that
@@ -80,10 +81,16 @@ async function db(): Promise<ServerDb> {
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const DB_URL = process.env.SUPABASE_DB_URL?.trim();
 
-const LIVE_ENV_CONFIGURED = Boolean(SUPABASE_URL && SERVICE_ROLE_KEY && DB_URL);
+// game A is subscribed via a member-authenticated client (real Supabase Auth
+// member of game A), so realtime delivery passes RLS; game B is created via the
+// service client and appended to via the trusted DB connection.
+const LIVE_ENV_CONFIGURED = Boolean(
+  SUPABASE_URL && ANON_KEY && SERVICE_ROLE_KEY && DB_URL,
+);
 
 /** How long to wait for realtime delivery before asserting (ms). */
 const DELIVERY_WINDOW_MS = 5_000;
@@ -167,20 +174,17 @@ async function deleteGame(gameId: string): Promise<void> {
 describe.skipIf(!LIVE_ENV_CONFIGURED)(
   "Live-channel isolation (Task 18.2, Req 6.3)",
   () => {
-    let client: SupabaseClient;
+    // Game A is owned by a real member (createMemberSession), so its
+    // member-authenticated client can subscribe and receive game A's events
+    // under RLS. Game B is an unrelated game created via the service/DB path.
+    let session: MemberSession;
     let gameA: string;
     let gameB: string;
     let subscription: RealtimeSubscription | undefined;
 
     beforeAll(async () => {
-      client = createClient(
-        SUPABASE_URL as string,
-        SERVICE_ROLE_KEY as string,
-        {
-          auth: { persistSession: false, autoRefreshToken: false },
-        },
-      );
-      gameA = await createGame();
+      session = await createMemberSession();
+      gameA = session.gameId;
       gameB = await createGame();
     });
 
@@ -189,8 +193,9 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         await subscription.close();
       }
       // Best-effort cleanup; ignore failures so teardown never masks results.
+      // session.cleanup() removes game A (cascade) + the auth user.
       try {
-        if (gameA) await deleteGame(gameA);
+        await session?.cleanup();
       } catch {
         /* ignore */
       }
@@ -199,7 +204,7 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
       } catch {
         /* ignore */
       }
-      await client.removeAllChannels();
+      await session?.memberClient.removeAllChannels();
       if (serverDb) {
         await serverDb.closeDb();
       }
@@ -214,8 +219,8 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         // postgres_changes channel filtered to game_id=eq.A (Req 6.3), and the
         // snapshot source reads A's prior events (empty here).
         subscription = await subscribe(gameA, {
-          transport: supabaseRealtimeTransport(client),
-          snapshotSource: supabaseSnapshotSource(client),
+          transport: supabaseRealtimeTransport(session.memberClient),
+          snapshotSource: supabaseSnapshotSource(session.memberClient),
           handlers: {
             onEvent: (event) => {
               received.push(event);
