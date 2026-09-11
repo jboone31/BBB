@@ -1,9 +1,8 @@
 # Game Rules
 
-_Lean rules reference. The v0 section summarizes the original game; the v1 section lists
-proposed changes that are **not yet final** and will be locked during the rules
-finalization phase. For the full historical ruleset, see `v0/Beltline Bar Brawl.txt`.
-Card definitions live in `cards.md`, not here._
+_Lean rules reference. The v0 section summarizes the original game; the v1 section is the
+**finalized** ruleset that the web app implements. For the full historical ruleset, see
+`v0/Beltline Bar Brawl.txt`. Card definitions live in `cards.md`, not here._
 
 ## v0 Baseline (summary)
 
@@ -19,9 +18,9 @@ Card definitions live in `cards.md`, not here._
 See `v0/Beltline Bar Brawl.txt` for full detail (claiming, dispatching, curse resolution,
 special interactions, etc.).
 
-## Proposed v1 Changes (pending phase-2 finalization)
+## v1 Rules (finalized)
 
-These are the intended directions for v1. Treat them as proposed, not canon.
+The v1 ruleset the web app implements.
 
 - **"Curses" become "cards."** Terminology changes to reflect that some cards benefit the
   playing team, not just penalize opponents.
@@ -45,6 +44,20 @@ These are the intended directions for v1. Treat them as proposed, not canon.
 - **Card draw on claim:** unchanged in spirit — claiming a bar (including the start bar)
   lets a team draw two cards and add one to its hand, discarding the other.
 
+## Resolved v1 Edge Cases
+
+- **Claiming is binary and explicit.** A team becomes eligible to claim a bar once **at
+  least half** its members have finished a drink there, but the bar is not claimed until the
+  team taps **"claim"** in the app. If a bar has not been claimed at the moment a team
+  claims the finish bar (ending the game), it counts as unclaimed for that team.
+- **No re-claiming.** A team cannot claim the same bar twice.
+- **Claim order does not matter.** Order of claiming affects nothing except the transient
+  point split while the game is live (each bar's 12 points are always split equally among
+  its current claimers).
+- **"At least half" rounds up in the team's favor.** A team may claim once *at least half*
+  its members have finished a drink: 2 of 3 qualifies, 1 of 3 does not.
+
 ---
 
-_Barebones and proposed. Update as the v1 ruleset is finalized in phase 2._
+_v1 rules are finalized. The web-app phase will translate these into implementation detail
+(state model, timers, validation)._
