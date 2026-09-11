@@ -1,0 +1,9 @@
+# Normalize line endings to LF on checkout/commit for all text files.
+# This keeps Prettier's endOfLine:lf stable across Windows/macOS/Linux and
+# prevents recurring CRLF churn in format:check.
+* text=auto eol=lf
+
+# Explicit binary files (never normalize).
+*.png binary
+*.pdf binary
+*.docx binary

@@ -1,35 +1,45 @@
 # Tech
 
-_No application code exists yet. This file records the intended technical direction and
-open decisions. Choices are provisional and will be finalized in the web-app phase._
+_The stack is **locked** for the web-app foundation. This file records the decided
+technical direction. The AWS hosting alternative remains a documented fallback._
 
-## Intended Stack
+## Locked Stack
 
-- **Runtime:** Node.js.
-- **Hosting target:** Vercel.
-- **Backend candidate:** Supabase (managed Postgres, auth, real-time subscriptions,
-  temporary file/photo storage). Chosen as the leading option, not yet locked.
+- **Runtime & framework:** Node.js with **Next.js (App Router)** in **TypeScript**.
+- **Hosting:** **Vercel** (app + serverless routes + cron).
+- **Backend:** **Supabase** — managed **Postgres**, **Realtime**, **Auth**, and
+  **Storage** (temporary photo/file handling for card validation).
+- **Testing:** **Vitest** as the runner, **fast-check** for property-based tests.
+- **Data access:**
+  - **postgres.js** for transaction-capable server writes (a domain write and its
+    `game_events` append committed atomically in one transaction from server routes).
+  - **@supabase/supabase-js** for the browser client (RLS-scoped reads and Realtime
+    subscriptions).
 
-## Key Technical Concern: Real-Time Propagation
+## Real-Time Propagation (decided)
 
-The single biggest v0 problem was latency: cards played against a team took up to 15
-minutes to reach them over text. The app must propagate game state changes (card plays,
-bar claims, targeting/notifications, score updates) to all clients in near real time.
-This requirement should drive backend and data-layer decisions. Supabase real-time
-subscriptions are the leading approach; evaluate against alternatives.
+The core v0 problem was latency — card plays reached opposing teams up to 15 minutes late.
+The v1 approach: an **append-only `game_events` log** in Postgres. Clients subscribe via
+**Supabase Realtime Postgres-changes** on that table, so every state change (card plays,
+bar claims, targeting/notifications, score updates) propagates to all clients in near real
+time. Server routes write the domain change and append the corresponding event in a single
+transaction, keeping state and the event log consistent.
 
-## Open Decisions
+## Fallback / Deferred
 
-- **Hosting alternative — AWS:** Produce a plan for hosting on AWS as an alternative to
-  Vercel + Supabase, including a rough cost estimate. To be evaluated in the web-app phase.
-- **Bar selection mechanism:** Map API vs. a predetermined bar list (with an admin
-  approval flow for player-proposed bars). Decision depends on how heavy the map API
-  integration is.
-- **Map / claim visualization:** Map API, in-house map with hard-coded coordinates, or a
-  simple list view for showing which teams have claimed which bars.
-- **Photo handling:** Card validation may require temporary photo uploads shown in a
-  public feed; storage lifecycle and privacy still to be designed.
+- **AWS hosting alternative:** a plan for hosting on AWS instead of Vercel + Supabase,
+  with a rough cost estimate, remains a documented fallback. Deferred; not needed while
+  Vercel + Supabase is the active choice.
+
+## Still To Be Designed
+
+- **Bar selection mechanism:** map API vs. a predetermined bar list (with an admin
+  approval flow for player-proposed bars).
+- **Map / claim visualization:** map API, in-house map with hard-coded coordinates, or a
+  simple list view of which teams have claimed which bars.
+- **Photo handling:** storage lifecycle and privacy for temporary card-validation uploads
+  shown in a public feed (Supabase Storage is the target).
 
 ---
 
-_Barebones by design. Update as the stack, hosting choice, and integrations are decided._
+_Update as remaining integrations (bar selection, map, photo lifecycle) are designed._

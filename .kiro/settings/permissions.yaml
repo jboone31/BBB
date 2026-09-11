@@ -1,0 +1,14 @@
+rules:
+  - capability: shell
+    match:
+      - git log *
+      - git diff *
+      - git show *
+      - git status *
+      - git branch *
+      - git rev-parse *
+      - git merge-base *
+      - git rev-list *
+      - git shortlog *
+      - git fetch *
+      - git check-ignore *

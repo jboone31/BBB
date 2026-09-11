@@ -1,0 +1,42 @@
+{
+  "name": "bbb-web-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Beltline Bar Brawl web application — Next.js (App Router) + TypeScript, targeting Vercel with a Supabase backend.",
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "next": "16.3.5",
+    "postgres": "3.4.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
+    "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.10.0",
+    "jsdom": "25.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  }
+}

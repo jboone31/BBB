@@ -16,18 +16,30 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
 
 ## 0. Foundation & Decisions
 
-- [ ] **F0.1 — Stack & hosting decision.** Lock the backend/hosting choice: Vercel +
+- [x] **F0.1 — Stack & hosting decision.** Lock the backend/hosting choice: Vercel +
   Supabase vs. the AWS alternative (with cost estimate). Resolves open items in
   `tech.md`. Blocks most build work.
   - Depends on: nothing.
-- [ ] **F0.2 — Project scaffold.** Initialize the Node.js app (framework choice), repo
+  - _Done via the `web-app-foundation` spec. Decision recorded in
+    `docs/decisions/0001-hosting-and-stack.md` (Vercel + Supabase, locked)._
+- [x] **F0.2 — Project scaffold.** Initialize the Node.js app (framework choice), repo
   structure, linting/formatting, environment config, and a deployable "hello world."
   Updates `structure.md` with the real layout.
   - Depends on: F0.1.
-- [ ] **F0.3 — Data model & real-time backbone.** Core schema (games, teams, players, bars,
+  - _Done via the `web-app-foundation` spec. Next.js (App Router) + TypeScript, ESLint +
+    Prettier, Vitest + fast-check, `.env.example`, and a mobile-first baseline page.
+    `structure.md` reflects the real layout._
+- [x] **F0.3 — Data model & real-time backbone.** Core schema (games, teams, players, bars,
   claims, cards, card plays, events) and the real-time propagation mechanism (e.g., Supabase
   subscriptions) that every live feature relies on. Directly targets the v0 latency problem.
   - Depends on: F0.1, F0.2.
+  - _Done via the `web-app-foundation` spec. Migrations `0001`–`0007` (schema, claims,
+    append-only `game_events`, cards + catalog seed, RLS, auto-timeout sweep), the
+    `appendEvent` backbone, and the Supabase Realtime subscription client (`lib/realtime`)._
+  - **Backend activation (remaining to go live):** populate the environment variables
+    (`.env.local` locally; Vercel Preview/Production env for deploys — see `.env.example`),
+    apply migrations `0001`–`0007` to the Supabase project, and enable Realtime on the
+    `game_events` table. This connects the built backbone to a live Supabase instance.
 
 ## 1. Game Setup & Lobby
 

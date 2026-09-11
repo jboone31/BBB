@@ -19,15 +19,15 @@ environment-dependent where noted.
 
 ## Tasks
 
-- [ ] 1. Initialize scaffold, tooling, and repository structure
-  - [ ] 1.1 Initialize the Next.js (App Router) + TypeScript project targeting Vercel
+- [x] 1. Initialize scaffold, tooling, and repository structure
+  - [x] 1.1 Initialize the Next.js (App Router) + TypeScript project targeting Vercel
     - Create the Node.js project (`package.json`, `tsconfig.json`, `next.config`) as a
       Next.js App Router app on Node.js, configured for the Vercel hosting target
     - Create the directory layout: `app/`, `components/`, `lib/`, `supabase/`, `public/`
     - Add a `.nvmrc`/engines field pinning the Node version
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 1.2 Add linter and formatter configs each with a project command
+  - [x] 1.2 Add linter and formatter configs each with a project command
     - Configure ESLint (with the Next.js/TypeScript ruleset) and Prettier
     - Add `lint` and `format`/`format:check` scripts to `package.json` so each is invocable
       through a defined project command
@@ -35,12 +35,12 @@ environment-dependent where noted.
       violations
     - _Requirements: 2.4, 2.5, 2.6_
 
-  - [ ] 1.3 Configure `.gitignore` for secret-bearing files
+  - [x] 1.3 Configure `.gitignore` for secret-bearing files
     - Exclude `.env*` from version control while explicitly keeping `.env.example`
     - _Requirements: 7.1_
 
-- [ ] 2. Environment configuration and fail-fast validation
-  - [ ] 2.1 Implement `lib/env` `loadEnv()` with fail-fast validation
+- [x] 2. Environment configuration and fail-fast validation
+  - [x] 2.1 Implement `lib/env` `loadEnv()` with fail-fast validation
     - Define the required variable set: public `NEXT_PUBLIC_SUPABASE_URL`,
       `NEXT_PUBLIC_SUPABASE_ANON_KEY`; server-only `SUPABASE_SERVICE_ROLE_KEY`
     - `loadEnv()` returns a typed, frozen config object, or throws a startup error that
@@ -49,69 +49,69 @@ environment-dependent where noted.
     - Keep the service-role key server-only; expose only `NEXT_PUBLIC_*` to the browser
     - _Requirements: 2.7, 2.9, 7.3_
 
-  - [ ] 2.2 Create the committed `.env.example`
+  - [x] 2.2 Create the committed `.env.example`
     - List every required environment variable by name with placeholder (non-secret) values,
       covering local, preview, and production usage
     - _Requirements: 2.7, 2.8_
 
-  - [ ] 2.3 Wire `loadEnv()` into server startup
+  - [x] 2.3 Wire `loadEnv()` into server startup
     - Invoke validation before the server accepts any request so a missing/empty var halts
       startup before serving
     - _Requirements: 2.9_
 
-  - [ ]* 2.4 Write property test for env fail-fast validation
+  - [x] 2.4 Write property test for env fail-fast validation
     - **Property 15: Startup env validation reports exactly the missing variables**
     - Generate a random subset `S` of required vars omitted/blanked; assert validation halts
       pre-start and the reported names equal exactly `S`; when `S` is empty, validation
       succeeds
     - **Validates: Requirements 2.9**
 
-- [ ] 3. Pure scoring logic (`lib/scoring`)
-  - [ ] 3.1 Implement `computeShares(claimingTeamCount)`
+- [x] 3. Pure scoring logic (`lib/scoring`)
+  - [x] 3.1 Implement `computeShares(claimingTeamCount)`
     - Return the per-team non-finish-bar share (1→12, 2→6, 3→4, 4→3); expose the finish-bar
       solo-12 award
     - _Requirements: 3.13_
 
-  - [ ]* 3.2 Write property test for the scoring split
+  - [x] 3.2 Write property test for the scoring split
     - **Property 1: Non-finish bar 12-point split**
     - For `k` in 1..4 assert exact table values and that shares sum to exactly 12; assert the
       finish-bar award is exactly 12 for a single claimer
     - **Validates: Requirements 3.13**
 
-- [ ] 4. Pure game-end logic (`lib/gameend`)
-  - [ ] 4.1 Implement `isDueForAutoTimeout(liveStartedAt, now)` and `canEndGame(lifecycle)`
+- [x] 4. Pure game-end logic (`lib/gameend`)
+  - [x] 4.1 Implement `isDueForAutoTimeout(liveStartedAt, now)` and `canEndGame(lifecycle)`
     - `isDueForAutoTimeout` is true iff `now - liveStartedAt ≥ 12h`
     - `canEndGame` is true iff `lifecycle === 'live'`; model that `end_reason` is immutable
       once set (helper/guard that rejects re-ending)
     - _Requirements: 5.1, 5.2, 5.4, 5.5_
 
-  - [ ]* 4.2 Write property test for the auto-timeout predicate
+  - [x] 4.2 Write property test for the auto-timeout predicate
     - **Property 8: Auto-timeout is due exactly at 12 hours**
     - Generate `live_started_at` and `now` around the 12h boundary; assert due iff
       `now - t ≥ 12h`
     - **Validates: Requirements 5.1, 5.2**
 
-  - [ ]* 4.3 Write property test for the end guard and immutable end_reason
+  - [x] 4.3 Write property test for the end guard and immutable end_reason
     - **Property 9: End transition is guarded by lifecycle and end_reason is immutable**
     - Generate random lifecycle states and end attempts; assert end permitted iff `live`,
       lobby/ended rejected leaving lifecycle unchanged, and `end_reason` never changes once set
     - **Validates: Requirements 5.4, 5.5**
 
-- [ ] 5. Team-count start guard (pure)
-  - [ ] 5.1 Implement the start-eligibility guard in `lib/gameend` (or `lib/teams`)
+- [x] 5. Team-count start guard (pure)
+  - [x] 5.1 Implement the start-eligibility guard in `lib/gameend` (or `lib/teams`)
     - A pure predicate permitting a `live` transition iff `2 ≤ n ≤ 4` teams
     - _Requirements: 3.6_
 
-  - [ ]* 5.2 Write property test for the team-count bound
+  - [x] 5.2 Write property test for the team-count bound
     - **Property 2: Team-count bound per game**
     - Generate `n` including 0,1,5,6; accept iff `2 ≤ n ≤ 4`
     - **Validates: Requirements 3.6**
 
-- [ ] 6. Checkpoint - pure logic verified
+- [x] 6. Checkpoint - pure logic verified
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Database migrations: core game schema (`supabase/`)
-  - [ ] 7.1 Create the games/teams/players/bars migration
+- [x] 7. Database migrations: core game schema (`supabase/`)
+  - [x] 7.1 Create the games/teams/players/bars migration
     - `games` (lifecycle enum lobby/live/ended, nullable `start_bar_id`/`finish_bar_id` FKs,
       `live_started_at`, `end_reason` enum {finish_bar_claimed, admin_ended, auto_timeout},
       `admin_session_id`, unique `join_code`, `created_at`); start/finish must differ and
@@ -122,12 +122,12 @@ environment-dependent where noted.
     - `bars` (`game_id` FK, `name`, nullable `location`, `created_at`)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.7, 3.14, 3.15_
 
-  - [ ] 7.2 Create the claims migration
+  - [x] 7.2 Create the claims migration
     - `claims` (`game_id`, `team_id` FK, `bar_id` FK, `claimed_at`) with a **unique
       (game_id, team_id, bar_id)** constraint enforcing no re-claiming
     - _Requirements: 3.8, 3.9, 3.13, 3.14_
 
-  - [ ] 7.3 Create the card_definitions / card_instances / card_plays migration
+  - [x] 7.3 Create the card_definitions / card_instances / card_plays migration
     - `card_definitions` (unique `slug`, `name`, `card_type` enum {opponent_slowing,
       economy_boost, reactive}, `requires_target` boolean, nullable `validation_modality`,
       nullable `casting_cost` jsonb, nullable `timer_seconds`, `effect_summary`)
@@ -137,7 +137,7 @@ environment-dependent where noted.
       `target_team_id` FK, `played_at`)
     - _Requirements: 3.1, 3.10, 3.11, 3.12, 3.14_
 
-  - [ ] 7.4 Create the seed migration for the full v1 card catalog
+  - [x] 7.4 Create the seed migration for the full v1 card catalog
     - Seed `card_definitions` with EVERY finalized v1 card from `cards.md`:
       opponent_slowing (Go Piss Girl, Crop Dusting [no target], Moneybags, Use It or Lose It,
       Wired, Art School Dropout, Broad Shoulders, Bird Guide, Interested Buyer, Different
@@ -148,25 +148,25 @@ environment-dependent where noted.
       cards)
     - _Requirements: 3.10, 3.14_
 
-  - [ ]* 7.5 Write unit/example tests for schema shape and card catalog seed
+  - [x] 7.5 Write unit/example tests for schema shape and card catalog seed
     - Assert the seeded `card_definitions` set equals the finalized v1 set from `cards.md`,
       each row has a valid `card_type` and boolean `requires_target`, and no-target cards are
       `false`
     - Assert enum shapes for lifecycle, card-instance state, and end_reason
     - _Requirements: 3.2, 3.4, 3.10, 3.11_
 
-  - [ ]* 7.6 Write unit/example tests for start/finish designation
+  - [x] 7.6 Write unit/example tests for start/finish designation
     - Setting `finish == start` is rejected; each of start and finish is exactly one per game
     - _Requirements: 3.7_
 
-  - [ ]* 7.7 Write property test for no-duplicate-claim (pure model)
+  - [x] 7.7 Write property test for no-duplicate-claim (pure model)
     - **Property 3: No duplicate claim**
     - Model repeated claims for a (game, team, bar); first accepted, subsequent rejected,
       count stays 1
     - **Validates: Requirements 3.9**
 
-- [ ] 8. Database migrations: append-only game_events backbone (`supabase/`)
-  - [ ] 8.1 Create the game_events migration with immutability and sequence constraints
+- [x] 8. Database migrations: append-only game_events backbone (`supabase/`)
+  - [x] 8.1 Create the game_events migration with immutability and sequence constraints
     - `game_events` (`id`, `game_id` FK, `seq` bigint, `event_type`, `actor` [team id |
       `admin` | `system`], `payload` jsonb with a **≤ 16 KB** check, `created_at` timestamptz
       UTC ms), **unique (game_id, seq)**
@@ -174,33 +174,33 @@ environment-dependent where noted.
       that raises to reject any modification
     - _Requirements: 3.1, 4.1, 4.2, 4.5, 4.6, 3.14_
 
-  - [ ]* 8.2 Write property test for event immutability / insert-only (pure model)
+  - [x] 8.2 Write property test for event immutability / insert-only (pure model)
     - **Property 4: Game events are immutable and insert-only**
     - For random committed events in a non-ended game, every update/delete attempt is
       rejected and fields remain unchanged
     - **Validates: Requirements 4.1, 4.6**
 
-- [ ] 9. Event backbone (`lib/events`)
-  - [ ] 9.1 Implement `appendEvent(tx, { gameId, type, actor, payload })`
+- [x] 9. Event backbone (`lib/events`)
+  - [x] 9.1 Implement `appendEvent(tx, { gameId, type, actor, payload })`
     - Executes inside the caller's transaction; assigns the next per-game `seq` under a
       per-game lock (game-row `FOR UPDATE` or advisory lock); enforces payload ≤ 16 KB and a
       UTC-ms timestamp; returns the created event
     - _Requirements: 4.1, 4.2, 4.5_
 
-  - [ ]* 9.2 Write property test for payload size bound
+  - [x] 9.2 Write property test for payload size bound
     - **Property 5: Event payload size bound**
     - Generate payloads around the 16 KB boundary; append succeeds iff ≤ 16 KB, else rejected
       with no event written
     - **Validates: Requirements 4.2**
 
-  - [ ]* 9.3 Write property test for per-game sequence contiguity/order
+  - [x] 9.3 Write property test for per-game sequence contiguity/order
     - **Property 7: Per-game sequence is contiguous, gap-free, and matches write order**
     - Model random interleavings/concurrency of N appends; assert seqs are contiguous,
       strictly increasing, duplicate-free, and ordering by `seq` reproduces commit order
     - **Validates: Requirements 4.5**
 
-- [ ] 10. Server mutation route + atomic state-change-plus-event write
-  - [ ] 10.1 Implement a demonstration server mutation route (`app/.../route`)
+- [x] 10. Server mutation route + atomic state-change-plus-event write
+  - [x] 10.1 Implement a demonstration server mutation route (`app/.../route`)
     - Server-only route using the service key; accepts an authenticated game-scoped request,
       performs the domain write and exactly one `appendEvent` inside one transaction, returns
       the new event's `seq` on success or a structured "not applied" error on failure
@@ -208,187 +208,187 @@ environment-dependent where noted.
       unchanged)
     - _Requirements: 4.3, 4.4_
 
-  - [ ] 10.2 Implement the game-end transition as a Game_State_Change
+  - [x] 10.2 Implement the game-end transition as a Game_State_Change
     - An end transition (admin-ended / auto-timeout) writes `ended` + `end_reason` AND appends
       exactly one `game_event` in the same transaction; guarded by `canEndGame` (reject
       non-live and already-ended, leaving lifecycle/end_reason unchanged)
     - _Requirements: 5.1, 5.3, 5.4, 5.5_
 
-  - [ ] 10.3 Implement the scheduled auto-timeout sweep
+  - [x] 10.3 Implement the scheduled auto-timeout sweep
     - A Supabase scheduled function / pg_cron job that selects live games with
       `live_started_at` older than 12h and ends each via the same atomic end transition
     - _Requirements: 5.2, 5.3_
 
-  - [ ]* 10.4 Write property test for atomic state+event write (incl. end transitions)
+  - [x] 10.4 Write property test for atomic state+event write (incl. end transitions)
     - **Property 6: Atomic state-change-plus-event write**
     - Model random mutations including end transitions with an injected event-write failure;
       success → exactly +1 event; failure → 0 new events, both state and log unchanged, error
       returned
     - **Validates: Requirements 4.3, 4.4, 5.3**
 
-- [ ] 11. Row-Level Security policies (`supabase/`)
-  - [ ] 11.1 Add RLS policies for per-game isolation
+- [x] 11. Row-Level Security policies (`supabase/`)
+  - [x] 11.1 Add RLS policies for per-game isolation
     - Enable RLS on every game-scoped table; policies allow a session to read/write a row only
       when its game membership matches the row's `game_id`; the anon key is always subject to
       RLS while the service key (server routes) bypasses it for trusted writes
     - _Requirements: 7.2_
 
-- [ ] 12. Checkpoint - schema, backbone, and access control verified
+- [x] 12. Checkpoint - schema, backbone, and access control verified
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. Realtime client: subscribe, snapshot, ordered apply (`lib/realtime`)
-  - [ ] 13.1 Implement the snapshot loader
+- [x] 13. Realtime client: subscribe, snapshot, ordered apply (`lib/realtime`)
+  - [x] 13.1 Implement the snapshot loader
     - Load an initial state snapshot that reflects all events with `seq ≤ N` persisted before
       the subscription (folded in ascending order)
     - _Requirements: 6.4_
 
-  - [ ] 13.2 Implement `subscribe(gameId, handlers)` and `onEvent(event)`
+  - [x] 13.2 Implement `subscribe(gameId, handlers)` and `onEvent(event)`
     - Subscribe to Supabase Postgres-changes on `game_events` filtered by `game_id`; request
       the snapshot in the same flow; `onEvent` applies events in ascending `seq`, buffering /
       reordering / de-duplicating out-of-order arrivals; update `Last_Seen_Sequence` to the
       highest applied `seq`
     - _Requirements: 6.1, 6.3, 6.4, 6.6, 6.9_
 
-  - [ ] 13.3 Persist `Last_Seen_Sequence` client-side
+  - [x] 13.3 Persist `Last_Seen_Sequence` client-side
     - Persist to local storage so it survives app open/close
     - _Requirements: 6.6, 6.7_
 
-  - [ ]* 13.4 Write property test for snapshot fold
+  - [x] 13.4 Write property test for snapshot fold
     - **Property 10: Snapshot equals the fold of all prior events**
     - For random event logs up to `N`, snapshot == reduce(applyEvent, events with seq ≤ N) in
       ascending order
     - **Validates: Requirements 6.4**
 
-  - [ ]* 13.5 Write property test for ordered apply
+  - [x] 13.5 Write property test for ordered apply
     - **Property 13: Client applies events in sequence order**
     - For random permutations/duplicates of an event batch, applied order == ascending `seq`,
       deduped
     - **Validates: Requirements 6.9**
 
-- [ ] 14. Realtime client: dual-path recovery (`lib/realtime`)
-  - [ ] 14.1 Implement transient in-app reconnect (path a)
+- [x] 14. Realtime client: dual-path recovery (`lib/realtime`)
+  - [x] 14.1 Implement transient in-app reconnect (path a)
     - On connection loss while the app is open, retry at intervals ≤ 5s, max 12 attempts; each
       reconnect fetches events after `Last_Seen_Sequence`, resubscribes, and re-requests a
       snapshot; only after exhausting 12 attempts surface a terminal "reload" state
     - _Requirements: 6.5_
 
-  - [ ] 14.2 Implement `onResume()` resume/relaunch re-initialization (path b)
+  - [x] 14.2 Implement `onResume()` resume/relaunch re-initialization (path b)
     - A `visibilitychange` / foreground / relaunch hook that ALWAYS re-initializes regardless
       of any prior retry budget: fetch all `Game_Events` with `seq > Last_Seen_Sequence`,
       resubscribe, and load a current snapshot; never enter a terminal "reload required" state
     - _Requirements: 6.7, 6.8_
 
-  - [ ]* 14.3 Write property test for reconnect schedule bounds (transient path)
+  - [x] 14.3 Write property test for reconnect schedule bounds (transient path)
     - **Property 11: Reconnect schedule stays within bounds**
     - For attempt index `i` (incl. > 12) on the transient path, delay ≤ 5000ms and no attempt
       scheduled once `i > 12`
     - **Validates: Requirements 6.5**
 
-  - [ ]* 14.4 Write property test for resume catch-up completeness
+  - [x] 14.4 Write property test for resume catch-up completeness
     - **Property 12: Resume catch-up delivers exactly the missed events**
     - For random `Last_Seen_Sequence` `L`, random persisted event set, and arbitrary retry
       budget state, delivered == events with `seq > L`, ascending, no gaps/dupes, independent
       of the transient retry budget
     - **Validates: Requirements 6.7**
 
-- [ ] 15. Per-game isolation property (delivery + data access)
-  - [ ]* 15.1 Write property test for per-game isolation
+- [x] 15. Per-game isolation property (delivery + data access)
+  - [x] 15.1 Write property test for per-game isolation
     - **Property 14: Per-game isolation of delivery and data access**
     - For distinct games A/B and a client scoped to G, delivered/authorized set == events with
       `game_id == G`; cross-game access is denied and leaves B's data unchanged
     - **Validates: Requirements 6.3, 7.2**
 
-- [ ] 16. Deployable baseline + propagation demo page (`app`, `components`)
-  - [ ] 16.1 Implement the mobile-first "hello world" baseline page
+- [x] 16. Deployable baseline + propagation demo page (`app`, `components`)
+  - [x] 16.1 Implement the mobile-first "hello world" baseline page
     - A page reachable at the public Vercel URL that renders a running indicator and reports no
       server error; mobile-first so content fits 320–375px viewports with no horizontal scroll
       or clipping
     - _Requirements: 2.10, 2.11_
 
-  - [ ] 16.2 Implement the end-to-end propagation demo view
+  - [x] 16.2 Implement the end-to-end propagation demo view
     - A small view that subscribes via `lib/realtime` and, when a `Game_State_Change` is
       persisted via the demo mutation, renders the received event — the F0.3 demonstration
     - _Requirements: 6.10_
 
-  - [ ]* 16.3 Write unit/example tests for the mobile viewport
+  - [x] 16.3 Write unit/example tests for the mobile viewport
     - Render the baseline at 320px and 375px widths; assert no horizontal overflow and no
       clipped content
     - _Requirements: 2.11_
 
-- [ ] 17. Checkpoint - realtime client and baseline verified
+- [x] 17. Checkpoint - realtime client and baseline verified
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ]* 18. Integration tests against a live Supabase/Postgres instance (environment-dependent)
-  - [ ]* 18.1 End-to-end propagation latency (also the F0.3 demonstration)
+- [x] 18. Integration tests against a live Supabase/Postgres instance (environment-dependent)
+  - [x] 18.1 End-to-end propagation latency (also the F0.3 demonstration)
     - With two subscribed clients, persist one `Game_State_Change` and assert the second
       client receives the corresponding event with commit-to-receive latency < 3 seconds
     - _Requirements: 6.1, 6.2, 6.10_
 
-  - [ ]* 18.2 Live-channel isolation
+  - [x] 18.2 Live-channel isolation
     - A client subscribed to game A receives no events from game B (1–2 representative cases)
     - _Requirements: 6.3_
 
-  - [ ]* 18.3 Snapshot-on-subscribe and reconnect resync
+  - [x] 18.3 Snapshot-on-subscribe and reconnect resync
     - Subscribe returns a snapshot reflecting all prior events within 3s; force-drop the
       connection and confirm reconnect + resync deliver a fresh snapshot
     - _Requirements: 6.4, 6.5_
 
-  - [ ]* 18.4 Resume after background/relaunch
+  - [x] 18.4 Resume after background/relaunch
     - With `Last_Seen_Sequence` persisted, simulate a visibility cycle and a full relaunch;
       confirm catch-up on all events with `seq > Last_Seen_Sequence` and no terminal "reload
       required" state, independent of the transient retry budget
     - _Requirements: 6.7, 6.8_
 
-  - [ ]* 18.5 RLS cross-game denial
+  - [x] 18.5 RLS cross-game denial
     - A session scoped to game A is denied read/write on game B rows via the live database and
       B's data is unchanged
     - _Requirements: 7.2_
 
-- [ ]* 19. Smoke / config checks (environment-dependent where noted)
-  - [ ]* 19.1 Lint and format-check smoke checks
+- [x] 19. Smoke / config checks (environment-dependent where noted)
+  - [x] 19.1 Lint and format-check smoke checks
     - Assert the lint command reports zero errors and format-check reports zero violations
     - _Requirements: 2.5, 2.6_
 
-  - [ ]* 19.2 `.env.example` completeness check
+  - [x] 19.2 `.env.example` completeness check
     - Assert `.env.example` lists every required variable name (matching `loadEnv`'s required
       set) with placeholder values
     - _Requirements: 2.8_
 
-  - [ ]* 19.3 Migrations-apply and schema smoke check
+  - [x] 19.3 Migrations-apply and schema smoke check
     - Assert migrations apply cleanly and create the expected tables, enums, and constraints
     - _Requirements: 3.14_
 
-  - [ ]* 19.4 Baseline URL responds check
+  - [x] 19.4 Baseline URL responds check
     - Assert the baseline URL returns a running, non-error response
     - _Requirements: 2.10_
 
-  - [ ]* 19.5 Secret-safety checks
+  - [x] 19.5 Secret-safety checks
     - Assert `.gitignore` excludes `.env*` while keeping `.env.example`; the browser bundle
       exposes only `NEXT_PUBLIC_*` (no service-role key); and a secret-scanning check reports
       no findings on the repository
     - _Requirements: 7.1, 7.3, 7.4_
 
-- [ ] 20. Documentation artifacts and steering updates (manual verification)
-  - [ ]* 20.1 Record the Hosting_Decision_Record as a decision doc (manual)
+- [x] 20. Documentation artifacts and steering updates (manual verification)
+  - [x] 20.1 Record the Hosting_Decision_Record as a decision doc (manual)
     - Capture the locked Vercel + Supabase decision (per-capability verdicts, real-time
       verdict, rough monthly USD cost per option, locked choice + rationale, no-deviation
       note, Identity_Model and Photo_Lifecycle_Policy resolutions, deferred items naming
       F2.1/F2.3) as an ADR/decision doc mirroring design.md's Architecture section
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
 
-  - [ ] 20.2 Update `structure.md` and `tech.md` steering docs
+  - [x] 20.2 Update `structure.md` and `tech.md` steering docs
     - Update `structure.md` to the real foundation layout (`app/`, `components/`, `lib/`,
       `supabase/`, `public/`, `.env.example`) so every documented directory exists and every
       top-level source directory is documented (bidirectional consistency); update `tech.md`
       to reflect the locked stack
     - _Requirements: 2.3_
 
-  - [ ]* 20.3 Write the structure.md consistency check
+  - [x] 20.3 Write the structure.md consistency check
     - A check that every directory named in `structure.md` exists in the repo and every
       top-level source directory is listed in `structure.md`
     - _Requirements: 2.3_
 
-- [ ] 21. Final checkpoint - ensure all tests pass
+- [x] 21. Final checkpoint - ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
