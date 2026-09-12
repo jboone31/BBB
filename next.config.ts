@@ -10,6 +10,13 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Allow cross-origin access to dev resources (the client JS/HMR bundle) from
+  // other devices on the LAN during `next dev` — e.g. testing the join flow on a
+  // phone at http://<lan-ip>:3000. Without this, Next.js blocks the dev bundle
+  // cross-origin, the client never hydrates, and forms fall back to a native GET
+  // submission (you land back on `/?joinCode=…` instead of the lobby). Dev-only;
+  // has no effect on the production build.
+  allowedDevOrigins: ["192.168.86.226"],
 };
 
 export default nextConfig;

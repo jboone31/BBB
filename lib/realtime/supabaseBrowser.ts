@@ -101,10 +101,16 @@ export function createBrowserSupabaseClient(): SupabaseClient | null {
   }
   cachedClient = createClient(env.url, env.anonKey, {
     auth: {
-      // The demo is session-based and does not use Supabase Auth sessions; keep
-      // the client stateless so it never touches browser storage for auth.
-      persistSession: false,
-      autoRefreshToken: false,
+      // BBB identity is bridged into Supabase Anonymous Auth (see
+      // lib/session/supabaseSession.ts): the browser signs in anonymously and
+      // the resulting UID is the BBB session id AND the JWT `sub` that RLS
+      // matches. Persist + auto-refresh the session so that anonymous identity
+      // survives reload (matching the old localStorage durability) and the
+      // access token stays valid; the persisted session also authorizes
+      // RLS-scoped PostgREST reads automatically. The realtime socket is
+      // authorized separately via `realtime.setAuth` (see bindRealtimeAuth).
+      persistSession: true,
+      autoRefreshToken: true,
     },
   });
   return cachedClient;
@@ -125,6 +131,32 @@ interface GameEventRow {
   readonly created_at: string;
 }
 
+/**
+ * Normalize a `game_events.payload` value into the parsed object the lobby fold
+ * expects.
+ *
+ * The column is `jsonb`. Depending on the client/transport, PostgREST can hand
+ * it back either already parsed (an object) OR as a raw JSON string — and the
+ * browser observably receives a **string** here (e.g. `'{"joinCode":"ABC"}'`).
+ * The pure lobby reducer (`lib/lobby/events.ts`) reads payload fields only when
+ * `typeof payload === "object"`, so an unparsed string silently yields no
+ * `joinCode`/`startBarId`/etc. and the folded view comes back empty. Parse a
+ * string payload here (mirroring the server-side `parsePayload` in
+ * `lib/events/index.ts`) so both the snapshot read and the realtime
+ * `postgres_changes` path deliver a parsed object. A non-string (already parsed)
+ * value passes through unchanged; an unparseable string is returned as-is.
+ */
+function parsePayload(value: unknown): unknown {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
 /** Map a raw `game_events` row to the domain {@link GameEvent} the client uses. */
 function rowToGameEvent(row: GameEventRow): GameEvent {
   return {
@@ -134,7 +166,7 @@ function rowToGameEvent(row: GameEventRow): GameEvent {
     eventType: String(row.event_type),
     actorKind: row.actor_kind as GameEvent["actorKind"],
     actorTeamId: row.actor_team_id == null ? null : String(row.actor_team_id),
-    payload: row.payload,
+    payload: parsePayload(row.payload),
     createdAt: String(row.created_at),
   };
 }
