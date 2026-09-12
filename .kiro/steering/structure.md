@@ -82,6 +82,33 @@ project — e.g. applying migrations, enabling Realtime on `game_events`, and
 connectivity/RLS probes. They load `.env.local` via `dotenv` and use the
 `postgres`/`@supabase/supabase-js` clients the app already depends on.
 
+Current scripts and how to run them:
+
+```
+scripts/
+  apply-migrations.mjs      # apply all supabase/migrations/*.sql in order (run once, fresh DB)
+  check-db.mjs              # connectivity check: connect + `select 1`, prints host only
+  enable-realtime.mjs       # enable Supabase Realtime on game_events
+  probe-member-session.mjs  # RLS / member-session probe
+  verify-schema.mjs         # verify the applied schema matches expectations
+  db-size-report.mjs        # storage breakdown by schema/table + dead-tuple bloat (read-only)
+  vacuum-now.mjs            # VACUUM (ANALYZE) to reclaim bloat + refresh stats; prints size before/after
+  purge-ended-games.mjs     # delete ended games older than a retention window (cascades to all rows)
+```
+
+Storage maintenance (free-tier hygiene):
+
+- `node scripts/db-size-report.mjs` — see where storage is going before deciding to
+  clean up. Read-only; changes nothing.
+- `node scripts/vacuum-now.mjs` — reclaim dead-tuple bloat and refresh planner stats.
+  Safe/routine (not `VACUUM FULL`); superuser-only shared catalogs are skipped with
+  harmless warnings.
+- `node scripts/purge-ended-games.mjs` — purge aged **ended** games. Because everything
+  cascades from `games`, deleting a game removes all its bars/teams/players/claims/cards/
+  events; the static `card_definitions` catalog is never touched. **Defaults to a DRY RUN**
+  (reports what it would delete + table sizes, changes nothing). Flags: `--apply` to
+  actually delete and VACUUM, `--days=N` to set the retention window (default 7).
+
 ### `public/` — static assets
 
 Files served verbatim (logo, icons, etc.).
