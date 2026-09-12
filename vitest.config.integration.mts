@@ -32,5 +32,17 @@ export default defineConfig({
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**", ".next/**", "out/**", "build/**", "v0/**"],
     setupFiles: ["./vitest.setup.integration.ts"],
+    // The integration suites all share ONE live Supabase project. Running them
+    // in parallel causes two problems: (1) suites that assert "writes nothing"
+    // via GLOBAL row counts (createGameLifecycle) see counts drift as other
+    // suites insert concurrently, and (2) the many simultaneous auth/DB
+    // connections overwhelm the Supabase pooler ("Gateway Timeout" during
+    // fixture seeding). Run the suites sequentially against the shared backend:
+    // `fileParallelism: false` serializes files and `maxWorkers: 1` caps
+    // concurrency to one worker (the Vitest 4 replacement for the removed
+    // `poolOptions.forks.singleFork`). The default `npm test` config is
+    // unaffected and stays fully parallel/hermetic.
+    fileParallelism: false,
+    maxWorkers: 1,
   },
 });
