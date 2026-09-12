@@ -1,60 +1,68 @@
 // @vitest-environment jsdom
 //
-// Mobile-viewport tests for the Deployable_Baseline home page (Task 16.3).
+// Mobile-viewport tests for the branded Landing_Page (Task 10.1).
 //
-// Requirement 2.11: WHILE displayed on a mobile viewport between 320 and 375
-// CSS pixels wide, the baseline SHALL present all content within the viewport
-// width with no horizontal scrolling and no content clipped beyond the edges.
+// This file replaces the foundation "baseline is running" viewport suite: the
+// baseline splash was retired in Task 8, and `app/page.tsx` is now the branded
+// Landing_Page that renders Host_Entry plus the Join_Entry client component
+// (which calls `useRouter` from `next/navigation`). The suite is retargeted at
+// the new page and the requirements it must satisfy:
 //
-// SCOPING NOTE — DOM environment:
-//   The project's Vitest harness defaults to the `node` environment (see
-//   vitest.config.mts) because the foundation logic is framework-free. This
-//   file opts into `jsdom` for THIS FILE ONLY via the `@vitest-environment
-//   jsdom` docblock directive on line 1. The global config is untouched, so the
-//   existing node-environment tests keep running exactly as before.
+//   Requirement 7.1 — WHILE rendered on a viewport between 320 and 430 CSS
+//     pixels wide, THE Landing_Page SHALL fit its content without horizontal
+//     scrolling.
+//   Requirement 7.3 — THE Join_Entry submit control and Host_Entry control
+//     SHALL each present a touch target of at least 44×44 CSS pixels.
+//
+// NEXT/NAVIGATION MOCK:
+//   Join_Entry is a client component that calls `useRouter()` from
+//   `next/navigation` at render time. Outside the Next.js App Router runtime
+//   that hook throws ("invariant expected app router to be mounted"), so we
+//   `vi.mock("next/navigation")` with a stub `useRouter` returning a no-op
+//   `push`. That lets the whole Landing_Page render under jsdom without pulling
+//   in the router runtime; these tests never navigate, so a no-op is faithful.
 //
 // JSDOM LAYOUT LIMITATION:
 //   jsdom implements the DOM API but performs NO real layout — it does not
 //   compute box sizes, so `scrollWidth`, `clientWidth`, `offsetWidth`, and
 //   `getBoundingClientRect()` all return 0 and can never detect real horizontal
 //   overflow. A faithful "does the page overflow at 320px?" assertion needs a
-//   real rendering engine (browser / Playwright), which is exercised by the
-//   environment-dependent integration tasks, not here.
+//   real rendering engine (browser / Playwright), exercised elsewhere, not here.
 //
-//   So these unit/example tests assert what IS meaningfully testable in jsdom:
-//     1. The page renders at narrow viewport widths without throwing, and the
-//        running-indicator content is present and reachable (not clipped away).
-//     2. The mobile-first CSS guards that PREVENT horizontal overflow at
-//        320–375px are actually present in globals.css and wired to the
-//        elements the page renders (border-box sizing, overflow-x guard,
-//        max-width caps, word wrapping, and no fixed pixel widths wider than the
-//        viewport).
+//   So, mirroring the repo's existing viewport-test convention, these tests
+//   assert what IS meaningfully checkable in jsdom:
+//     1. The Landing_Page renders at each narrow width without throwing and its
+//        content (branding + both entry points) is present and reachable.
+//     2. No rendered element declares a fixed inline px width larger than the
+//        viewport (the most direct cause of horizontal scroll), and the fluid
+//        `maxWidth: 100%` guards are wired onto the layout containers (R7.1).
+//     3. The Host_Entry and Join_Entry submit controls each declare a
+//        ≥ 44×44 CSS px touch target via their inline min-width/min-height
+//        (R7.3) — inline styles jsdom can read directly.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// Join_Entry calls useRouter() at render; stub next/navigation so the client
+// component mounts under jsdom without the App Router runtime. push is a no-op —
+// these viewport tests never navigate.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 import HomePage from "./page";
 
-// The two mobile viewport widths called out by Requirement 2.11.
-const MOBILE_WIDTHS = [320, 375] as const;
+// The mobile viewport width band called out by Requirement 7.1/7.2. We sample
+// the two boundaries plus a common mid-band width.
+const MOBILE_WIDTHS = [320, 375, 430] as const;
 
-// Load globals.css once — the overflow guards live in CSS, and jsdom does not
-// apply stylesheets to layout, so we assert on the stylesheet source directly.
-// Resolve relative to the project root (Vitest runs with cwd = project root).
-// jsdom rewrites `import.meta.url` to a non-file URL, so we avoid it here.
-const GLOBALS_CSS = readFileSync(
-  join(process.cwd(), "app", "globals.css"),
-  "utf8",
-);
+// Minimum touch-target edge required by Requirement 7.3.
+const MIN_TOUCH_PX = 44;
 
 /**
  * Set the jsdom "viewport" to a given CSS-pixel width. jsdom does not lay out,
- * so this only affects `window.innerWidth` / `matchMedia`-style reads; it lets
- * us document the width under test and guard against any width-dependent render
- * logic the page might grow later.
+ * so this only affects `window.innerWidth` reads; it documents the width under
+ * test and guards against any width-dependent render logic the page may grow.
  */
 function setViewportWidth(width: number): void {
   Object.defineProperty(window, "innerWidth", {
@@ -69,34 +77,47 @@ function setViewportWidth(width: number): void {
   });
 }
 
+/**
+ * Parse a CSS px length (e.g. "44px") to a number, or null if the value is not
+ * a plain px length (e.g. "100%", "44", "", undefined).
+ */
+function parsePx(value: string | undefined): number | null {
+  if (value === undefined) {
+    return null;
+  }
+  const match = /^(\d+(?:\.\d+)?)px$/.exec(value.trim());
+  return match ? Number(match[1]) : null;
+}
+
 afterEach(() => {
   cleanup();
 });
 
-describe("Deployable_Baseline mobile viewport (Requirement 2.11)", () => {
+describe("Landing_Page mobile viewport (Requirements 7.1, 7.3)", () => {
   describe.each(MOBILE_WIDTHS)("at %dpx wide", (width) => {
-    it("renders the running indicator so content is present and not clipped away", () => {
+    it("renders the landing branding and both entry points, present and not clipped away", () => {
       setViewportWidth(width);
+      render(<HomePage />);
 
-      const { container } = render(<HomePage />);
-
-      // The "running" indicator content renders and is reachable in the DOM —
-      // i.e. it is not clipped out of existence. (role="status" is the running
-      // indicator required by Requirement 2.10 and carried through here.)
-      // Uses plain DOM assertions (no jest-dom matchers) to keep the added test
-      // dependency surface minimal.
-      const status = screen.getByRole("status");
-      expect(status.textContent ?? "").toMatch(/running/i);
-
-      // The heading and note also render, confirming no content was dropped.
+      // The branded hero renders (logo + heading) — content is present, not
+      // clipped out of existence.
+      expect(screen.getByAltText("Beltline Bar Brawl")).not.toBeNull();
       expect(
         screen.getByRole("heading", { name: /beltline bar brawl/i }),
       ).not.toBeNull();
-      expect(screen.getByText(/game features are on the way/i)).not.toBeNull();
 
-      // The status region contains its dot marker — nested content survives.
-      expect(within(status).queryByText).toBeDefined();
-      expect(container.querySelector(".baseline__dot")).not.toBeNull();
+      // Host_Entry renders as a button-role link to the create surface (R2.1).
+      const hostEntry = screen.getByRole("button", { name: /host a game/i });
+      expect(hostEntry).not.toBeNull();
+
+      // Join_Entry renders its code input and submit control (R2.1/R4.1).
+      expect(
+        screen.getByRole("textbox", { name: /join code/i }),
+      ).not.toBeNull();
+      expect(screen.getByRole("button", { name: /join game/i })).not.toBeNull();
+
+      // The retired foundation splash text is gone.
+      expect(screen.queryByText(/game features are on the way/i)).toBeNull();
     });
 
     it("renders without throwing at the narrow viewport width", () => {
@@ -104,7 +125,7 @@ describe("Deployable_Baseline mobile viewport (Requirement 2.11)", () => {
       expect(() => render(<HomePage />)).not.toThrow();
     });
 
-    it("declares no fixed pixel width that would exceed the viewport", () => {
+    it("declares no fixed inline px width that would exceed the viewport (R7.1)", () => {
       setViewportWidth(width);
       const { container } = render(<HomePage />);
 
@@ -113,67 +134,55 @@ describe("Deployable_Baseline mobile viewport (Requirement 2.11)", () => {
       // which would be the most direct way to force horizontal scrolling.
       const all = container.querySelectorAll<HTMLElement>("*");
       for (const el of all) {
-        const inlineWidth = el.style.width;
-        const pxMatch = /^(\d+(?:\.\d+)?)px$/.exec(inlineWidth.trim());
-        if (pxMatch) {
-          expect(Number(pxMatch[1])).toBeLessThanOrEqual(width);
+        const px = parsePx(el.style.width);
+        if (px !== null) {
+          expect(px).toBeLessThanOrEqual(width);
         }
       }
     });
+
+    it("caps the layout containers at fluid width so the column never exceeds the viewport (R7.1)", () => {
+      setViewportWidth(width);
+      const { container } = render(<HomePage />);
+
+      // The <main> landing column is fluid (width:100%) and capped by a
+      // max-width, so it scales down to a narrow viewport rather than forcing
+      // horizontal scroll.
+      const main = container.querySelector<HTMLElement>("main");
+      expect(main).not.toBeNull();
+      expect(main?.style.width).toBe("100%");
+      // A max-width cap is declared so the column never grows unbounded. Because
+      // width:100% dominates below the cap, the column always shrinks to fit a
+      // narrow viewport regardless of the cap's unit.
+      expect(main?.style.maxWidth).not.toBe("");
+    });
   });
 
-  // These assertions are viewport-independent: they verify the CSS guards that
-  // KEEP the page within a 320–375px viewport are present and applied. Because
-  // jsdom cannot lay out boxes, this is how we meaningfully cover "no horizontal
-  // scrolling / no clipping" without a real rendering engine.
-  describe("mobile-first CSS guards are present and applied", () => {
-    it("applies a universal border-box box model", () => {
-      // With border-box, padding never pushes an element past its width cap,
-      // which is what keeps padded content inside a 320px viewport.
-      expect(GLOBALS_CSS).toMatch(/box-sizing:\s*border-box/);
+  // Touch-target assertions are viewport-independent: the inline min-width/
+  // min-height declare the ≥44×44 CSS px floor jsdom can read directly.
+  describe("entry controls expose ≥ 44×44 CSS px touch targets (Requirement 7.3)", () => {
+    it("Host_Entry declares a ≥ 44×44px touch target", () => {
+      render(<HomePage />);
+
+      const hostEntry = screen.getByRole("button", { name: /host a game/i });
+      const minWidth = parsePx(hostEntry.style.minWidth);
+      const minHeight = parsePx(hostEntry.style.minHeight);
+      expect(minWidth).not.toBeNull();
+      expect(minHeight).not.toBeNull();
+      expect(minWidth ?? 0).toBeGreaterThanOrEqual(MIN_TOUCH_PX);
+      expect(minHeight ?? 0).toBeGreaterThanOrEqual(MIN_TOUCH_PX);
     });
 
-    it("guards html/body against horizontal overflow", () => {
-      // overflow-x: hidden on the root elements is the direct guard against
-      // horizontal scrolling required by Requirement 2.11.
-      expect(GLOBALS_CSS).toMatch(/overflow-x:\s*hidden/);
-      expect(GLOBALS_CSS).toMatch(/max-width:\s*100%/);
-    });
+    it("Join_Entry submit control declares a ≥ 44×44px touch target", () => {
+      render(<HomePage />);
 
-    it("caps media and the baseline container at 100% width", () => {
-      // Images/media and the main container never exceed their parent, so
-      // nothing extends past the viewport edge (no clipping past the edge).
-      expect(GLOBALS_CSS).toMatch(
-        /img,\s*svg,\s*video,\s*canvas\s*\{[^}]*max-width:\s*100%/,
-      );
-      expect(GLOBALS_CSS).toMatch(/\.baseline\s*\{[^}]*max-width:\s*100%/);
-    });
-
-    it("wraps long words rather than overflowing", () => {
-      // Long unbreakable strings wrap instead of forcing horizontal scroll.
-      expect(GLOBALS_CSS).toMatch(/overflow-wrap:\s*anywhere/);
-      expect(GLOBALS_CSS).toMatch(/word-break:\s*break-word/);
-    });
-
-    it("uses no fixed pixel widths in the baseline layout", () => {
-      // Extract the CSS rules that style the baseline component and confirm
-      // none pin a fixed px width — fixed widths are the classic cause of
-      // horizontal overflow on narrow viewports.
-      const baselineRules =
-        GLOBALS_CSS.match(/\.baseline[^{]*\{[^}]*\}/g) ?? [];
-      expect(baselineRules.length).toBeGreaterThan(0);
-      for (const rule of baselineRules) {
-        expect(rule).not.toMatch(/(?<!max-|min-)width:\s*\d+px/);
-      }
-    });
-
-    it("connects the rendered markup to the guarded CSS classes", () => {
-      // The overflow guards above only help if the page actually uses those
-      // classes; assert the render wires them up.
-      const { container } = render(<HomePage />);
-      expect(container.querySelector(".baseline")).not.toBeNull();
-      expect(container.querySelector(".baseline__status")).not.toBeNull();
-      expect(container.querySelector(".baseline__title")).not.toBeNull();
+      const submit = screen.getByRole("button", { name: /join game/i });
+      const minWidth = parsePx(submit.style.minWidth);
+      const minHeight = parsePx(submit.style.minHeight);
+      expect(minWidth).not.toBeNull();
+      expect(minHeight).not.toBeNull();
+      expect(minWidth ?? 0).toBeGreaterThanOrEqual(MIN_TOUCH_PX);
+      expect(minHeight ?? 0).toBeGreaterThanOrEqual(MIN_TOUCH_PX);
     });
   });
 });

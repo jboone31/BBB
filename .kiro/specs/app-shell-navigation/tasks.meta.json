@@ -1,0 +1,358 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Add the served logo asset": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094309
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219102302
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219208213
+      }
+    ],
+    "2.1 Implement `HeaderNav` server component": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094359
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219215747
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219335518
+      }
+    ],
+    "2.2 Write component render test `components/shell/HeaderNav.test.tsx`": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094411
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219484593
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219587290
+      }
+    ],
+    "3. Extend the root layout into the App_Shell (`app/layout.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094440
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219485023
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219588359
+      }
+    ],
+    "4. Checkpoint - shell renders on every route": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094469
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219744086
+      }
+    ],
+    "5.1 Implement `POST` handler (`runtime = \"nodejs\"`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094495
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219103852
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219210183
+      }
+    ],
+    "5.2 Write property test `app/api/games/resolve/route.property.test.ts` for uniform not-found": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094522
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219216697
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219333170
+      }
+    ],
+    "5.3 Write property test in `app/api/games/resolve/route.property.test.ts` for only-id-in-response": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094549
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219343334
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219411273
+      }
+    ],
+    "5.4 Write property test in `app/api/games/resolve/route.property.test.ts` for normalization invariance": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094587
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219412311
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219479419
+      }
+    ],
+    "5.5 Write unit tests for resolution edge cases": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094635
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219218093
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219336320
+      }
+    ],
+    "6. Implement the Host entry control (`components/shell/HostEntry.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094661
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219104561
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219210681
+      }
+    ],
+    "7.1 Implement `JoinEntry` client component": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094689
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219218907
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219334078
+      }
+    ],
+    "7.2 Write property test `components/shell/JoinEntry.property.test.tsx` for malformed-code short-circuit": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094717
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219485759
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219584949
+      }
+    ],
+    "7.3 Write interaction tests for JoinEntry (mocked router + fetch)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094745
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219486972
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219585905
+      }
+    ],
+    "8.1 Write landing render test (`app/page.smoke.test.tsx` or a new render test)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094772
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219751908
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219972900
+      }
+    ],
+    "9.1 Write interaction test for lobby prefill precedence": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094800
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219750507
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219973864
+      }
+    ],
+    "10.1 Write viewport tests (`app/page.viewport.test.tsx` + `components/shell/HeaderNav.viewport.test.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094840
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219753177
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219975069
+      }
+    ],
+    "11. Final checkpoint - shell, entry points, and resolution wired end to end": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219094877
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789220091944
+      }
+    ],
+    "5. Implement the code → gameId resolution route (`app/api/games/resolve/route.ts`, NEW)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219479464
+      }
+    ],
+    "7. Implement the Join-by-code entry control (`components/shell/JoinEntry.tsx`, client component)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219585957
+      }
+    ],
+    "2. Implement the persistent branded header (`components/shell/HeaderNav.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219587332
+      }
+    ],
+    "8. Implement the branded Landing_Page (`app/page.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219600503
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219715173
+      }
+    ],
+    "9. Wire the lobby `?code=` prefill (`app/games/[gameId]/lobby/page.tsx`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219601952
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219714223
+      }
+    ],
+    "10. Add mobile-first shell + landing CSS (`app/globals.css`)": [
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219602822
+      },
+      {
+        "executionId": "76ed11d1-0d51-4d44-8e7d-bbc8879d0fac",
+        "chatSessionId": "sess_689e3047-87a3-4bd9-b364-732901ed0f41",
+        "timestamp": 1789219716407
+      }
+    ]
+  }
+}

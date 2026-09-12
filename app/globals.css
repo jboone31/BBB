@@ -86,3 +86,72 @@ canvas {
   font-size: clamp(0.875rem, 3.75vw, 1rem);
   color: #555555;
 }
+/* ---------------------------------------------------------------------------
+   App shell + landing styles (app-shell-navigation, Task 10;
+   Requirements 7.1, 7.2, 7.3).
+
+   These rules are additive and complementary to the inline styles the shell
+   components (HeaderNav, HostEntry, JoinEntry) and the Landing_Page already
+   carry. Inline styles win the cascade, so the rules here never fight them —
+   they are structural backstops that guarantee the shell and landing fit a
+   320–430px viewport with no horizontal scrolling, plus a floor for touch
+   targets in case an inline style is ever dropped.
+
+   The base reset above already provides border-box sizing, max-width:100%,
+   and an overflow-x guard on html/body; the rules below extend that guarantee
+   to the shell's structural containers (header, main) and the landing column.
+   No fixed pixel widths are introduced anywhere, so nothing can exceed a
+   narrow viewport (R7.1, R7.2).
+   --------------------------------------------------------------------------- */
+
+/* Every top-level structural region of the shell stays within the viewport
+   and never establishes a horizontal scroll of its own. Full-width, fluid,
+   no fixed widths (R7.1, R7.2). */
+header,
+main {
+  width: 100%;
+  max-width: 100%;
+  /* Long unbroken content wraps instead of widening the region. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Header_Nav: a single fluid row that fits 320–430px with no horizontal
+   scroll (R7.2). The tagline is allowed to wrap/ellipsize rather than push
+   the header wide; these mirror (and back up) the component's inline styles. */
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* The brand link row inside the header shares the same wrap/fit behavior so
+   the logo + tagline never force horizontal scroll on a narrow viewport. */
+header a {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Landing_Page: a mobile-first single column. Fluid padding, centered, capped
+   so it reads well on larger screens while never exceeding a narrow viewport
+   (R7.1). No fixed widths — the column is width:100% up to a max-width. */
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+/* Interactive-control touch-target floor (R7.3): a low-specificity backstop so
+   the Host_Entry and Join_Entry submit controls always expose at least a
+   44×44 CSS px target even if an inline dimension is ever removed. The shell
+   components set these inline too (inline wins); this only fills a gap, it does
+   not override the component styling. */
+main button[type="submit"],
+main a[role="button"] {
+  min-width: 44px;
+  min-height: 44px;
+}

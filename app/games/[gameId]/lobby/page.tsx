@@ -50,7 +50,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import CreateGame, { type BarDesignation } from "@/components/lobby/CreateGame";
 import JoinGame, { type JoinSubmission } from "@/components/lobby/JoinGame";
@@ -127,6 +127,12 @@ function writeLocal(key: string, value: string): void {
 export default function LobbyPage(): React.JSX.Element {
   const router = useRouter();
   const params = useParams<{ gameId: string }>();
+  const searchParams = useSearchParams();
+  // Share_Link / Join_Entry prefill carrier (R4.4/R5.2): the code typed on the
+  // landing page (or embedded in a share link) arrives as `?code=`. It seeds the
+  // join form before the snapshot resolves; the authoritative `view.joinCode`
+  // takes precedence once folded (see the prefill derivation below).
+  const codeParam = searchParams?.get("code") ?? null;
   const rawGameId = params?.gameId ?? "";
   const gameId = typeof rawGameId === "string" ? rawGameId : "";
   const isCreateMode = gameId === NEW_GAME_PARAM;
@@ -316,6 +322,13 @@ export default function LobbyPage(): React.JSX.Element {
     return view.players.find((p) => p.id === myPlayerId)?.teamId ?? null;
   }, [view.players, myPlayerId]);
   const barsDesignated = view.startBarId !== null && view.finishBarId !== null;
+
+  // Join-form prefill precedence (R4.4/R5.1/R5.2): prefer the authoritative
+  // folded `view.joinCode` once the snapshot resolves it; until then fall back
+  // to the `?code=` carried by a Join_Entry submission or share link. A
+  // Share_Link with no `?code=` still prefills from `view.joinCode` (existing
+  // behavior) once it loads.
+  const joinCodePrefill = view.joinCode ?? codeParam ?? "";
 
   // --- Route wiring: the six POSTs ----------------------------------------
 
@@ -563,7 +576,7 @@ export default function LobbyPage(): React.JSX.Element {
           {!hasJoined ? (
             <JoinGame
               onJoin={handleJoin}
-              initialJoinCode={view.joinCode ?? ""}
+              initialJoinCode={joinCodePrefill}
               submitting={busy}
               error={formError}
             />

@@ -1,86 +1,79 @@
-// Baseline-URL "responds" smoke test for the Deployable_Baseline home page
-// (Task 19.4).
+// @vitest-environment jsdom
 //
-// Requirement 2.10: WHEN the deployed baseline is reached at its public URL, it
-// SHALL return a running, non-error response and render a clear "running"
-// indicator.
+// Landing render test for the branded Landing_Page (Task 8.1;
+// Requirements 2.1, 2.4, 3.2, 4.1).
 //
-// TWO APPROACHES:
+// This file replaces the former Deployable_Baseline "baseline is running"
+// splash smoke test. `app/page.tsx` is now the branded Landing_Page: a
+// mobile-first server component that renders the two entry points, Host_Entry
+// (a `<Link>` to `/games/new/lobby`) and Join_Entry (a client component with a
+// code input + submit). This test asserts that render.
 //
-//   (a) ALWAYS-RUN, env-free check (the primary assertion here):
-//       `app/page.tsx` is a synchronous server component with no data
-//       dependencies, so on the server it renders to HTTP 200 with static
-//       markup. We reproduce exactly that server render path by rendering the
-//       component to a string with `react-dom/server`'s renderToStaticMarkup and
-//       assert:
-//         - rendering does not throw (a throw is what would turn into a 5xx
-//           server-error response), and
-//         - the produced markup contains the running indicator (/running/i)
-//           inside a role="status" region, and
-//         - the markup shows no error surface.
-//       This runs in the default `node` environment (renderToStaticMarkup needs
-//       no DOM), is fast, and requires no deployed URL.
+// WHY jsdom + a mocked router:
+//   The Landing_Page renders `JoinEntry`, a `"use client"` component that calls
+//   `next/navigation`'s `useRouter()` at render time. Outside a Next.js router
+//   context `useRouter()` throws, so we mock `next/navigation` (the same shape
+//   the JoinEntry interaction tests use) and opt this file into a DOM via the
+//   `@vitest-environment jsdom` docblock directive on line 1. The project's
+//   default Vitest environment is `node`; this directive scopes the DOM to this
+//   file only, leaving the global config untouched.
 //
-//   (b) OPTIONAL live check, gated behind BASELINE_URL:
-//       When BASELINE_URL is set, fetch it and assert an HTTP 2xx (non-error)
-//       response whose body carries the running indicator. Skipped entirely when
-//       BASELINE_URL is unset so the default test run stays hermetic.
+// WHAT this asserts:
+//   R2.1 — requesting `/` renders the Host_Entry control and the Join_Entry area.
+//   R3.2 — Host_Entry links to the create-game surface at `/games/new/lobby`.
+//   R4.1 — Join_Entry renders a code text input and a submit control.
+//   R2.4 — the foundation "baseline is running" splash content is gone.
 
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// JoinEntry (rendered by the landing page) calls useRouter() at render time;
+// mock next/navigation so it renders under jsdom without a router context.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 import HomePage from "./page";
 
-describe("Deployable_Baseline responds (Requirement 2.10)", () => {
-  describe("(a) server-render smoke check (always runs, env-free)", () => {
-    it("renders to static markup without throwing", () => {
-      // A throw during render is what would produce a 5xx server error at the
-      // baseline URL; not throwing is the render-path proxy for a non-error
-      // response.
-      expect(() => renderToStaticMarkup(<HomePage />)).not.toThrow();
-    });
+afterEach(() => {
+  cleanup();
+});
 
-    it("produces markup containing a running indicator", () => {
-      const markup = renderToStaticMarkup(<HomePage />);
+describe("Landing_Page renders the entry points (Requirements 2.1, 3.2, 4.1)", () => {
+  it("renders the Host_Entry control linking to /games/new/lobby (R2.1, R3.2)", () => {
+    render(<HomePage />);
 
-      // The clear "running" indicator required by Requirement 2.10.
-      expect(markup).toMatch(/running/i);
-      // The indicator is exposed as a status region (role="status").
-      expect(markup).toMatch(/role="status"/);
-    });
-
-    it("shows no error surface in the rendered markup", () => {
-      const markup = renderToStaticMarkup(<HomePage />);
-
-      // A non-error response should not render error language. Guard against the
-      // common error surfaces without being so broad that legitimate copy trips
-      // it.
-      expect(markup).not.toMatch(/\berror\b/i);
-      expect(markup).not.toMatch(/something went wrong/i);
-      // Non-empty body — an empty render would not be a meaningful response.
-      expect(markup.trim().length).toBeGreaterThan(0);
-    });
+    // Host_Entry is a Next.js <Link role="button"> labeled to indicate hosting.
+    const host = screen.getByRole("button", { name: /host a game/i });
+    // R3.2: it navigates to the existing create-game surface.
+    expect(host.getAttribute("href")).toBe("/games/new/lobby");
   });
 
-  describe("(b) live baseline URL check (gated by BASELINE_URL)", () => {
-    const baselineUrl = process.env.BASELINE_URL;
+  it("renders the Join_Entry code input and submit control (R2.1, R4.1)", () => {
+    render(<HomePage />);
 
-    it.runIf(Boolean(baselineUrl))(
-      "returns a non-error HTTP response with a running indicator",
-      async () => {
-        // Guaranteed defined by runIf, but narrow for the type checker.
-        const url = baselineUrl as string;
+    // R4.1: a text input for the Join_Code…
+    expect(screen.getByRole("textbox", { name: /join code/i })).not.toBeNull();
+    // …and a submit control.
+    expect(screen.getByRole("button", { name: /join game/i })).not.toBeNull();
+  });
+});
 
-        const response = await fetch(url);
+describe("Landing_Page replaces the foundation splash (Requirement 2.4)", () => {
+  it("no longer renders the 'baseline is running' splash content", () => {
+    const { container } = render(<HomePage />);
 
-        // A "running, non-error response" is a 2xx status.
-        expect(response.ok).toBe(true);
-        expect(response.status).toBeGreaterThanOrEqual(200);
-        expect(response.status).toBeLessThan(300);
-
-        const body = await response.text();
-        expect(body).toMatch(/running/i);
-      },
-    );
+    // R2.4: the foundation splash copy and its status region are gone.
+    expect(container.textContent ?? "").not.toMatch(/baseline is running/i);
+    expect(container.textContent ?? "").not.toMatch(/running/i);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(container.querySelector(".baseline")).toBeNull();
   });
 });
