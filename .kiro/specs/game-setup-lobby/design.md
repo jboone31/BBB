@@ -340,10 +340,20 @@ verified by a viewport test.
 
 ## Data Models
 
-**No schema changes are required.** The foundation schema (migration 0001) already models
-everything this feature persists:
+**One schema change is required (migration 0008).** The foundation schema (migration 0001)
+models everything this feature persists *except* one thing: it declares `players.team_id`
+`not null`, which cannot represent a Player who has joined a Game but not yet chosen a Team.
+The lobby flow is join-first, team-select-second (R3.9), so this feature adds a small
+migration making `players.team_id` **nullable** (R10.1). The composite FK is retained and its
+null handling matches the existing pattern already used by `card_instances.holder_team_id` and
+`card_plays.target_team_id` (nullable + composite FK to `teams (id, game_id)`): a null team is
+allowed, and a non-null team must belong to the Player's Game (R10.2). The migration preserves
+every existing Player's current Team association (R10.3 — dropping a `not null` constraint does
+not alter data).
 
-| Concept | Table / column (existing) | Notes |
+Everything else this feature persists is already modeled:
+
+| Concept | Table / column | Notes |
 |---|---|---|
 | Game + lifecycle | `games.lifecycle` (`lobby`/`live`/`ended`) | R1.1 sets `lobby`; R5.1 sets `live` |
 | Admin identity | `games.admin_session_id text not null` | R1.2, R8.1 |
@@ -352,10 +362,16 @@ everything this feature persists:
 | Start/finish bars | `games.start_bar_id`, `games.finish_bar_id` | R2; `games_start_finish_differ` CHECK = R2.3 |
 | Bars | `bars (id, game_id, name, location)` | referenced by id; discovery deferred (F2.1) |
 | Teams | `teams (id, game_id, name, color)` | R4; color distinctness enforced by app logic |
-| Players | `players (id, team_id, game_id, session_id, display_name)` | R3/R4 |
+| Players | `players (id, team_id **nullable**, game_id, session_id, display_name)` | R3/R4; `team_id` made nullable by migration 0008 (R10.1) so a joined Player can be teamless |
 | One player per session/game | `players_game_session_unique (game_id, session_id)` | R3.8, R8.2 |
-| Player's team in same game | `players_team_fk (team_id, game_id) → teams` | R4.1/R4.5 integrity |
+| Player's team in same game | `players_team_fk (team_id, game_id) → teams` | R4.1/R4.5 integrity; null `team_id` allowed after 0008 (R10.2) |
 | Event log | `game_events` (migration 0003) | R6, R7 propagation source |
+
+**Migration 0008 (`players.team_id` nullable).** A forward-only migration in
+`supabase/migrations/` that runs `alter table players alter column team_id drop not null;`.
+No data change and no FK change are needed — the existing `players_team_fk` composite FK
+already permits a null `team_id` (a null value is not FK-checked), so the only edit is dropping
+the `not null` constraint. Existing rows keep their team (R10.3).
 
 ### Lobby event payloads
 
@@ -368,7 +384,7 @@ model.
 |---|---|---|---|
 | `game_created` | `admin` | `{ joinCode }` | create route (R1.6) |
 | `bars_designated` | `admin` | `{ startBarId, finishBarId }` | bars route (R2.7) |
-| `player_joined` | `admin` (or team once assigned) | `{ playerId, displayName }` | join route (R4.6) |
+| `player_joined` | `admin` | `{ playerId, displayName }` | join route (R4.6); player is teamless at join (R3.9) |
 | `team_created` | `admin` | `{ teamId, name, color }` | teams route (R4.6) |
 | `team_changed` | team | `{ playerId, fromTeamId, toTeamId }` | teams/select route (R4.6) |
 | `game_started` | `admin` | `{ liveStartedAt }` | start route (R5.8) |
@@ -377,9 +393,22 @@ model.
 
 - Player identity is the `(game_id, session_id)` pair; a repeat join for the same pair returns
   the existing player (R3.8) rather than inserting — the route reads the unique row first.
-- Team switch (R4.5) is a single `UPDATE players SET team_id = $new` — the composite FK keeps
-  the new team in the same game; the previous association is replaced atomically with its one
-  `team_changed` event.
+- Join inserts a player with `team_id = null` (R3.9): a Player exists in the Game before
+  choosing a side. The `player_joined` event carries `{ playerId, displayName }` and no team;
+  the Player appears in the roster as teamless until a team is selected/created.
+- Team join or switch (R4.1/R4.5) is a single `UPDATE players SET team_id = $new` — the
+  composite FK keeps the new team in the same game; any previous association is replaced
+  atomically with its one `team_changed` event. From a teamless player this is the first
+  association (`fromTeamId` is null); from a player already on a team it is a switch.
+- Start-game teamless exclusion (R5.9): when the Admin starts a Game, the start route counts
+  only **teams** for the 2–4 bound (R5.10) and marks the Game live, but **players with
+  `team_id = null` are silently excluded** from live play — they are neither counted as
+  participants nor able to claim once live. This is enforced by leaving teamless players
+  unassociated at the moment of the `lobby → live` transition (no team means no side to play
+  for); the start route does not delete or block them, and the client may still show a teamless
+  player a prompt to pick a team, but a game that is already `live` no longer accepts lobby
+  team-selection (R4.8 lobby-phase gate). No extra event beyond the single `game_started` is
+  written for the exclusion.
 
 ## Correctness Properties
 
@@ -518,11 +547,22 @@ name).
 
 ### Property 16: Team switch yields exactly one team association
 
-*For any* Player currently on some Team and any target Team in the same Game, after a switch the
-Player is associated with exactly the target Team and is no longer associated with the previous
-Team.
+*For any* Player — teamless or already on some Team — and any target Team in the same Game,
+after a join/switch the Player is associated with exactly the target Team and is no longer
+associated with any previous Team. From a teamless Player the prior association is empty
+(`fromTeamId` is null); the result is still exactly one association.
 
-**Validates: Requirements 4.5**
+**Validates: Requirements 4.1, 4.5**
+
+### Property 16b: Start excludes teamless players and counts only teams
+
+*For any* Lobby roster of Players (some associated with a Team, some teamless) over a Game with
+2–4 Teams, starting the Game (a) evaluates the 2–4 start bound against the Team count only,
+independently of any teamless Players, and (b) yields a started Game whose set of participating
+Players is exactly the Players with a non-null Team association at the moment of the
+`lobby → live` transition — every teamless Player is excluded.
+
+**Validates: Requirements 5.9, 5.10**
 
 ### Property 17: Atomic single-event append per lobby change
 

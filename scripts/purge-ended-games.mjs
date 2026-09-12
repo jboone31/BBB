@@ -51,7 +51,9 @@ const daysArg = args.find((a) => a.startsWith("--days="));
 const RETENTION_DAYS = daysArg ? Number(daysArg.split("=")[1]) : 7;
 
 if (!Number.isFinite(RETENTION_DAYS) || RETENTION_DAYS < 0) {
-  console.error(`ERROR: --days must be a non-negative number (got "${daysArg}").`);
+  console.error(
+    `ERROR: --days must be a non-negative number (got "${daysArg}").`,
+  );
   process.exit(1);
 }
 
@@ -65,7 +67,8 @@ const sql = postgres(dbUrl, { max: 1, prepare: false });
 
 /** Print per-table size + total DB size so you can see what's using space. */
 async function reportSizes(label) {
-  const total = await sql`select pg_size_pretty(pg_database_size(current_database())) as size`;
+  const total =
+    await sql`select pg_size_pretty(pg_database_size(current_database())) as size`;
   const tables = await sql`
     select
       relname as table,
@@ -130,7 +133,9 @@ try {
       where id in ${sql(ids)}
       returning id
     `;
-    console.log(`\nDeleted ${deleted.length} game(s) (cascaded to all related rows).`);
+    console.log(
+      `\nDeleted ${deleted.length} game(s) (cascaded to all related rows).`,
+    );
 
     // Reclaim disk so the reported storage actually drops. VACUUM can't run in a
     // transaction; postgres.js sends this as its own simple query.

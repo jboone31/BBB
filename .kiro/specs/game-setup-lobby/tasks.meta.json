@@ -1,0 +1,1157 @@
+{
+  "pbtResults": {
+    "5.2 Write property test `lib/lobby/gate.property.test.ts` for the start-both-bars gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213341241
+    },
+    "5.3 Write property test in `lib/lobby/gate.property.test.ts` for the lobby-phase gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213342691
+    },
+    "5.4 Write property test in `lib/lobby/gate.property.test.ts` for the admin-authorization gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213343654
+    },
+    "5.5 Write property test in `lib/lobby/gate.property.test.ts` for the membership-authorization gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213344908
+    },
+    "10.2 Write property test `lib/session/sessionStore.property.test.ts`": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213394112
+    },
+    "7.2 Write property test `lib/lobby/events.property.test.ts` for snapshot == ordered fold": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213435611
+    },
+    "7.3 Write property test in `lib/lobby/events.property.test.ts` for apply-once-in-order under duplicates/reordering": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213436681
+    },
+    "3.2 Write property test `lib/lobby/displayName.property.test.ts`": {
+      "status": "passed",
+      "lastRunTimestamp": 1789213542900
+    },
+    "15.2 Write property test for join recording session + trimmed name": {
+      "status": "passed",
+      "lastRunTimestamp": 1789215495159
+    },
+    "15.1 Write property test for join idempotence (one player per session per game)": {
+      "status": "passed",
+      "lastRunTimestamp": 1789215516621
+    },
+    "19.1 Write property test for atomic single-event append per lobby change (reuses foundation `withTransaction` + `appendEvent` seam)": {
+      "status": "passed",
+      "lastRunTimestamp": 1789215781241
+    }
+  },
+  "executionHistory": {
+    "1. Scaffold `lib/lobby/` pure-logic modules and shared constants": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569767
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212577468
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212960502
+      }
+    ],
+    "2.1 Implement `generateJoinCode`, `isValidGeneratedCode`, `isValidSubmittedCode`, `normalizeSubmittedCode`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569810
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212964533
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213120260
+      }
+    ],
+    "2.2 Write property test `lib/lobby/joinCode.property.test.ts` for generated-code shape": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569845
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213248515
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213490658
+      }
+    ],
+    "2.3 Write property test in `lib/lobby/joinCode.property.test.ts` for submitted-code acceptance": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569878
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213249943
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213492046
+      }
+    ],
+    "2.4 Write unit tests for Join_Code edge cases": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569931
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213250862
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213493007
+      }
+    ],
+    "3.1 Implement `validateDisplayName` (trim, then require 1–40 chars, discriminated result)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569962
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212965976
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213121213
+      }
+    ],
+    "3.2 Write property test `lib/lobby/displayName.property.test.ts`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212569992
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213497394
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213652617
+      }
+    ],
+    "4.1 Implement `validateTeamName` and `decideCreateTeam`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570023
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212966872
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213122610
+      }
+    ],
+    "4.2 Write property test `lib/lobby/team.property.test.ts` for team-name validation": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570061
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213252284
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213480261
+      }
+    ],
+    "4.3 Write property test in `lib/lobby/team.property.test.ts` for the create-team count gate": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570090
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213253686
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213481218
+      }
+    ],
+    "4.4 Write property test in `lib/lobby/team.property.test.ts` for distinct color assignment": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570119
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213254649
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213482652
+      }
+    ],
+    "4.5 Write unit test for color-assignment ordering (first free palette color) and result shapes": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570150
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213256050
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213484060
+      }
+    ],
+    "5.1 Implement pure gates: `isLobbyPhase(lifecycle)`, `isAdmin(adminSessionId, requesterSessionId)`, `isMember(memberSessionIds, requesterSessionId)`, and the start-bar-designation gate (`bothBarsDesignated`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570182
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212968771
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213124442
+      }
+    ],
+    "5.2 Write property test `lib/lobby/gate.property.test.ts` for the start-both-bars gate": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570211
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213257441
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213485445
+      }
+    ],
+    "5.3 Write property test in `lib/lobby/gate.property.test.ts` for the lobby-phase gate": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570244
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213258887
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213486847
+      }
+    ],
+    "5.4 Write property test in `lib/lobby/gate.property.test.ts` for the admin-authorization gate": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570278
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213259802
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213487816
+      }
+    ],
+    "5.5 Write property test in `lib/lobby/gate.property.test.ts` for the membership-authorization gate": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570333
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213261249
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213489221
+      }
+    ],
+    "6.1 Add a reference test/comment in `lib/lobby/` citing the reused bar-designation and start-count suites (do NOT re-implement)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570368
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213498800
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213653612
+      }
+    ],
+    "7.1 Define `LOBBY_EVENT_TYPES`, `LobbyView`/`LobbyTeamView`/`LobbyPlayerView`, and implement `initialLobbyView`, `applyLobbyEvent` (seq-ordered, idempotent at/below `lastSeenSequence`), `foldLobbyEvents`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570418
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212970565
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213126419
+      }
+    ],
+    "7.2 Write property test `lib/lobby/events.property.test.ts` for snapshot == ordered fold": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570450
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213262646
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213477462
+      }
+    ],
+    "7.3 Write property test in `lib/lobby/events.property.test.ts` for apply-once-in-order under duplicates/reordering": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570492
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213264054
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213478862
+      }
+    ],
+    "8.1 Add a reference test/comment citing the reused `lib/realtime` suites (do NOT re-implement)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570524
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213499836
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213651180
+      }
+    ],
+    "9. Checkpoint - pure lobby logic and reducer": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570563
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213661510
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213670813
+      }
+    ],
+    "10.1 Create `lib/session/sessionStore.ts` mirroring `LocalStorageLastSeenStore`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570603
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213127716
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213242088
+      }
+    ],
+    "10.2 Write property test `lib/session/sessionStore.property.test.ts`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570634
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213265440
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213474619
+      }
+    ],
+    "10.3 Write unit tests for absent/corrupt/unusable storage fallback behavior": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570669
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213266332
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213476065
+      }
+    ],
+    "11. Implement shared route auth/session helpers (`app/api/games/_shared.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570702
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213675186
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789214137572
+      }
+    ],
+    "12.1 Implement POST handler: `requireSession` → `withTransaction` → generate Join_Code + retry up to `MAX_CODE_GEN_ATTEMPTS` on unique-violation → insert game (`lifecycle=lobby`, `admin_session_id=session`) → `appendEvent` `game_created` → return `{ gameId, joinCode, seq }`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570735
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789214161842
+      }
+    ],
+    "12.2 Write property test for admin session recorded verbatim on create": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570770
+      }
+    ],
+    "13. Implement designate-bars route (`app/api/games/[gameId]/bars/route.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570801
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789214163232
+      }
+    ],
+    "14.1 Write property test for join idempotence (one player per session per game)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570834
+      }
+    ],
+    "14.2 Write property test for join recording session + trimmed name": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570872
+      }
+    ],
+    "15. Implement create-team route (`app/api/games/[gameId]/teams/route.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570910
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789214164632
+      }
+    ],
+    "16.1 Write property test for team switch yielding exactly one association": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570946
+      }
+    ],
+    "17. Implement start-game route (`app/api/games/[gameId]/start/route.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212570976
+      },
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789214165710
+      }
+    ],
+    "18.1 Write property test for atomic single-event append per lobby change (reuses foundation `withTransaction` + `appendEvent` seam)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571005
+      }
+    ],
+    "18.2 Write property test for rollback leaving nothing persisted on failure": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571044
+      }
+    ],
+    "18.3 Add reference test/comment citing the reused gap-free per-game sequence suite (do NOT re-implement)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571081
+      }
+    ],
+    "19. Checkpoint - server routes and transactional guarantees": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571118
+      }
+    ],
+    "20.1 Implement `CreateGame.tsx` (create form + bar designation) and `JoinGame.tsx` (code entry + display-name form)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571153
+      }
+    ],
+    "20.2 Implement `TeamSelection.tsx` (team list, create-team, join/switch) and `StartGame.tsx` (admin start button, enabled only when eligible)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571194
+      }
+    ],
+    "20.3 Implement `LobbyRoster.tsx` (Join_Code display, teams with colors, players per team)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571234
+      }
+    ],
+    "21.1 Write viewport test `app/games/[gameId]/lobby/page.viewport.test.tsx`": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571265
+      }
+    ],
+    "21.2 Write component render tests for roster and live update": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571301
+      }
+    ],
+    "22.1 Create/lifecycle/join-code integration tests": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571341
+      }
+    ],
+    "22.2 Bars, join, team, and start integration tests": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571375
+      }
+    ],
+    "22.3 Atomic-result-shape and realtime/RLS integration tests": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571405
+      }
+    ],
+    "23. Final checkpoint - full lobby lifecycle": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789212571441
+      }
+    ],
+    "10. Implement durable client session store (`lib/session/`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213476100
+      }
+    ],
+    "7. Implement lobby event types and reducer (`lib/lobby/events.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213478905
+      }
+    ],
+    "4. Implement team validation and creation decision (`lib/lobby/team.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213484097
+      }
+    ],
+    "5. Implement lobby-phase and authorization gate helpers (`lib/lobby/gate.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213489278
+      }
+    ],
+    "2. Implement Join_Code generation and validation (`lib/lobby/joinCode.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213493039
+      }
+    ],
+    "8. Reference reused realtime property suites (ordered apply, isolation, reconnect, resume)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213651216
+      }
+    ],
+    "3. Implement display-name validation (`lib/lobby/displayName.ts`)": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213652665
+      }
+    ],
+    "6. Reference reused foundation property suites for bar-differ and start-count": [
+      {
+        "executionId": "41bc88a5-506b-4ccc-88eb-3d7b465a2861",
+        "chatSessionId": "sess_e15c6a34-7002-4f0b-b20a-27c7515b8c92",
+        "timestamp": 1789213653648
+      }
+    ],
+    "12. Add migration 0008 making `players.team_id` nullable": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115275
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215122506
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215250257
+      }
+    ],
+    "13.1 Implement POST handler: `requireSession` → `withTransaction` → generate Join_Code + retry up to `MAX_CODE_GEN_ATTEMPTS` on unique-violation → insert game (`lifecycle=lobby`, `admin_session_id=session`) → `appendEvent` `game_created` → return `{ gameId, joinCode, seq }`": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115328
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215259562
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215353922
+      }
+    ],
+    "13.2 Write property test for admin session recorded verbatim on create": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115358
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215364463
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215605271
+      }
+    ],
+    "14. Implement designate-bars route (`app/api/games/[gameId]/bars/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115388
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215260524
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215355307
+      }
+    ],
+    "15.1 Write property test for join idempotence (one player per session per game)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115416
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215365890
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215603871
+      }
+    ],
+    "15.2 Write property test for join recording session + trimmed name": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115454
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215366807
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215606220
+      }
+    ],
+    "16. Implement create-team route (`app/api/games/[gameId]/teams/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115525
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215261642
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215356097
+      }
+    ],
+    "17.1 Write property test for team join/switch yielding exactly one association": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115558
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215368230
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215607617
+      }
+    ],
+    "18.1 Write property test for start counting teams only and excluding teamless players": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115587
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215369021
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215608679
+      }
+    ],
+    "19.1 Write property test for atomic single-event append per lobby change (reuses foundation `withTransaction` + `appendEvent` seam)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115616
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215613990
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215804158
+      }
+    ],
+    "19.2 Write property test for rollback leaving nothing persisted on failure": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115647
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215614921
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215806577
+      }
+    ],
+    "19.3 Add reference test/comment citing the reused gap-free per-game sequence suite (do NOT re-implement)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115676
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215616304
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215805622
+      }
+    ],
+    "20. Checkpoint - server routes and transactional guarantees": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115706
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216006403
+      }
+    ],
+    "21.1 Implement `CreateGame.tsx` (create form + bar designation) and `JoinGame.tsx` (code entry + display-name form)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115737
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215617710
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215802763
+      }
+    ],
+    "21.2 Implement `TeamSelection.tsx` (team list, create-team, join/switch) and `StartGame.tsx` (admin start button, enabled only when eligible)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115774
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215808098
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215960732
+      }
+    ],
+    "21.3 Implement `LobbyRoster.tsx` (Join_Code display, teams with colors, players per team)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115813
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215618963
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215801389
+      }
+    ],
+    "22.1 Write viewport test `app/games/[gameId]/lobby/page.viewport.test.tsx`": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115841
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216648183
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216807967
+      }
+    ],
+    "22.2 Write component render tests for roster and live update": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115872
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216649312
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216807053
+      }
+    ],
+    "23.1 Create/lifecycle/join-code integration tests": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115902
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216016468
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216641783
+      }
+    ],
+    "23.2 Bars, join, team, and start integration tests": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115933
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216017849
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216640875
+      }
+    ],
+    "23.3 Atomic-result-shape and realtime/RLS integration tests": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115964
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216018718
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216643198
+      }
+    ],
+    "24. Final checkpoint - full lobby lifecycle": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215115994
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216836810
+      }
+    ],
+    "13. Implement create-game route (`app/api/games/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215605312
+      }
+    ],
+    "15. Implement join-game route (`app/api/games/[gameId]/join/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215606255
+      }
+    ],
+    "17. Implement team-select/switch route (`app/api/games/[gameId]/teams/select/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215607667
+      }
+    ],
+    "18. Implement start-game route (`app/api/games/[gameId]/start/route.ts`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215608710
+      }
+    ],
+    "19. Add transactional-atomicity property coverage across routes": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215806614
+      }
+    ],
+    "21. Implement Lobby_Client presentational components (`components/lobby/`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789215960770
+      }
+    ],
+    "22. Implement the lobby page and wire everything together (`app/games/[gameId]/lobby/page.tsx`)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216015497
+      },
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216644600
+      }
+    ],
+    "23. Write DB-backed integration tests (Supabase, `supabase/__tests__` convention)": [
+      {
+        "executionId": "c8e96fe3-c02d-43c3-b82b-522a6064d133",
+        "chatSessionId": "sess_9b88ff7f-b7f3-462d-a9f1-d3144f1ca2c4",
+        "timestamp": 1789216643259
+      }
+    ]
+  }
+}

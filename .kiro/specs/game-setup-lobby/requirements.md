@@ -114,6 +114,7 @@ ends via the foundation's auto-timeout.
 6. IF a Player submits a join request whose display name, after trimming leading and trailing whitespace, contains fewer than 1 or more than 40 characters, THEN THE Lobby_Service SHALL reject the join request and return an invalid-display-name result while creating no Player record.
 7. WHEN a Player joins a Game with a valid display name, THE Lobby_Service SHALL record the Player with the joining Session and the trimmed display name.
 8. IF a Session that is already a Player in a Game submits a join request for the same Game, THEN THE Lobby_Service SHALL return the existing Player record rather than creating a second Player for that Session.
+9. WHEN a Player joins a Game, THE Lobby_Service SHALL record the Player with no Team association until the Player selects or creates a Team; a joined Player without a Team is valid Lobby state.
 
 ### Requirement 4: Team Selection and Creation (F1.2)
 
@@ -144,6 +145,8 @@ ends via the foundation's auto-timeout.
 6. IF a Session other than the Game's Admin attempts to start a Game, THEN THE Lobby_Service SHALL reject the start request, leave the Game's `lifecycle` unchanged, and return a start-rejected result indicating the requester is not the Admin.
 7. IF the Admin attempts to start a Game whose `lifecycle` is not `lobby`, THEN THE Lobby_Service SHALL reject the start request, leave the Game's `lifecycle` unchanged, and return a start-rejected result indicating the Game is not in the Lobby.
 8. WHEN the Lobby_Service sets a Game's `lifecycle` to `live`, THE Lobby_Service SHALL append exactly one Game_Event recording the start, within the same transaction as the lifecycle write.
+9. WHEN the Admin starts a Game, THE Lobby_Service SHALL include in the started Game only Players who are associated with a Team, and SHALL exclude every Player who has no Team association at the moment the Game goes `live` so that a teamless Player does not participate in play.
+10. WHEN the Lobby_Service evaluates the 2-to-4 Team-count requirement to start a Game, THE Lobby_Service SHALL count only Teams in the Game, independently of whether any Player is teamless.
 
 ### Requirement 6: Atomic Lobby State Changes
 
@@ -198,3 +201,13 @@ ends via the foundation's auto-timeout.
 3. WHILE a Game is in the Lobby, THE Lobby_Client SHALL display the Game's Join_Code.
 4. WHILE a Game is in the Lobby, THE Lobby_Client SHALL display the current Teams, each Team's color, and the Players on each Team.
 5. WHEN a lobby Game_Event that changes Teams or Players is applied, THE Lobby_Client SHALL update the displayed Teams and Players within 5 seconds.
+
+### Requirement 10: Player-Team Association Schema
+
+**User Story:** As a developer, I want a joined player to exist without a team until they pick one, so that the join-then-select flow is representable and teamless players can be handled explicitly at start.
+
+#### Acceptance Criteria
+
+1. THE Data_Schema SHALL allow a Player row to have no Team association (a null team reference) so that a Player can exist in a Game before selecting or creating a Team.
+2. WHERE a Player is associated with a Team, THE Data_Schema SHALL require that Team to belong to the same Game as the Player.
+3. WHEN the Data_Schema is migrated to allow a null Team association, THE migration SHALL preserve every existing Player's current Team association.

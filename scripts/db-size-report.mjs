@@ -51,7 +51,7 @@ try {
     limit 15
   `;
   for (const r of topRel) {
-    console.log(`  ${(`${r.schema}.${r.name}`).padEnd(40)} ${r.size}`);
+    console.log(`  ${`${r.schema}.${r.name}`.padEnd(40)} ${r.size}`);
   }
 
   console.log("\n=== Dead tuples (bloat candidates for VACUUM) ===");
@@ -71,7 +71,7 @@ try {
   } else {
     for (const b of bloat) {
       console.log(
-        `  ${(`${b.schema}.${b.name}`).padEnd(40)} live=${b.live_rows} dead=${b.dead_rows}`,
+        `  ${`${b.schema}.${b.name}`.padEnd(40)} live=${b.live_rows} dead=${b.dead_rows}`,
       );
     }
   }
