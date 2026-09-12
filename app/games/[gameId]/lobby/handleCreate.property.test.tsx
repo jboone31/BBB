@@ -54,6 +54,7 @@ import {
   isValidSubmittedCode,
   normalizeSubmittedCode,
 } from "@/lib/lobby/joinCode";
+import { establishBrowserSession } from "@/lib/session/supabaseSession";
 
 // --- next/navigation: create-mode route param + inert router ---------------
 //
@@ -74,10 +75,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// --- Realtime seams: fully inert (create mode never subscribes anyway) ------
+// --- Realtime seams: create mode never subscribes, but the session bootstrap
+// still runs when configured. Report configured with a NON-null client so the
+// async session bootstrap resolves and sets `sessionId` — POSTs are gated on it,
+// so the create→bars→join chain only fires once the session is known. The
+// realtime subscription itself still short-circuits in create mode.
 vi.mock("@/lib/realtime/supabaseBrowser", () => ({
-  isSupabaseConfigured: () => false,
-  createBrowserSupabaseClient: () => null,
+  isSupabaseConfigured: () => true,
+  createBrowserSupabaseClient: () => ({}) as unknown,
   supabaseRealtimeTransport: () => ({
     channel: () => ({ unsubscribe: async () => {} }),
   }),
@@ -91,6 +96,17 @@ vi.mock("@/lib/realtime", () => ({
     snapshot: { lastSeenSequence: 0 },
     close: async () => {},
   }),
+}));
+
+// Mock the Supabase-auth session bridge so the async identity bootstrap resolves
+// a fixed session id; until it does, `postJson` refuses to fire, so the create
+// form's create→bars→join chain depends on this resolving first.
+vi.mock("@/lib/session/supabaseSession", () => ({
+  establishBrowserSession: vi.fn(async () => ({
+    sessionId: "sess-create",
+    accessToken: "test-token",
+  })),
+  bindRealtimeAuth: vi.fn(() => () => {}),
 }));
 
 import LobbyPage from "./page";
@@ -173,6 +189,12 @@ afterEach(() => {
  * displayName, submit, and wait for the create→bars→join fetch chain to settle.
  */
 async function submitCreateForm(): Promise<void> {
+  // Defensively unmount any prior iteration's tree so queries below resolve
+  // against a single render (fast-check reruns this within one test).
+  cleanup();
+  // The bootstrap mock accumulates calls across iterations, so gate on THIS
+  // render's fresh call by capturing the count before mounting.
+  const callsBefore = vi.mocked(establishBrowserSession).mock.calls.length;
   render(<LobbyPage />);
 
   const start = screen.getByRole("textbox", { name: /start bar/i });
@@ -182,6 +204,15 @@ async function submitCreateForm(): Promise<void> {
   fireEvent.change(start, { target: { value: "Ladybird Grove" } });
   fireEvent.change(finish, { target: { value: "New Realm Brewing" } });
   fireEvent.change(name, { target: { value: "Host" } });
+
+  // Identity is established asynchronously now: the page gates POSTs on the
+  // resolved session id, so wait for THIS render's bootstrap to settle before
+  // submitting or the create→bars→join chain no-ops as `session_not_ready`.
+  await waitFor(() => {
+    expect(
+      vi.mocked(establishBrowserSession).mock.calls.length,
+    ).toBeGreaterThan(callsBefore);
+  });
 
   fireEvent.click(screen.getByRole("button", { name: /create game/i }));
 

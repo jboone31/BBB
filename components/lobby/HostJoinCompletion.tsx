@@ -49,7 +49,19 @@ export interface HostJoinCompletionProps {
    * validation errors take priority and are shown inline.
    */
   readonly error?: string | null;
+  /**
+   * Optional heading text. Defaults to the host wording; a code-arriving
+   * visitor (who is not the host) passes their own.
+   */
+  readonly heading?: string;
+  /** Optional descriptive text shown under the heading. */
+  readonly description?: string;
 }
+
+/** Default heading/description for the host's own create-then-join flow. */
+const DEFAULT_HEADING = "Finish joining your game";
+const DEFAULT_DESCRIPTION =
+  "You created this game, so you already have the join code. Pick a display name to join as a player and choose your team.";
 
 /** Shared inline style for full-width, ≥44px-tall text inputs. */
 const inputStyle: React.CSSProperties = {
@@ -65,6 +77,8 @@ export default function HostJoinCompletion({
   onComplete,
   submitting = false,
   error = null,
+  heading = DEFAULT_HEADING,
+  description = DEFAULT_DESCRIPTION,
 }: HostJoinCompletionProps): React.JSX.Element {
   const [displayName, setDisplayName] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -111,11 +125,10 @@ export default function HostJoinCompletion({
         id="host-join-completion-heading"
         style={{ margin: 0, fontSize: "1.15rem" }}
       >
-        Finish joining your game
+        {heading}
       </h2>
       <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.4 }}>
-        You created this game, so you already have the join code. Pick a display
-        name to join as a player and choose your team.
+        {description}
       </p>
 
       <form

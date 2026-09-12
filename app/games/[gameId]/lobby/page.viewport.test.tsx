@@ -127,10 +127,11 @@ afterEach(() => {
 
 describe("Lobby page mobile viewport (Requirements 9.1, 9.2)", () => {
   // The create surface (`/games/new/lobby`) renders the create-game interface;
-  // the default lobby route renders the roster + the join-game interface. Both
-  // are exercised across the 360–430px band. TeamSelection and StartGame are
-  // role/phase-gated inside the page but are the same presentational family
-  // with identical ≥44px controls, covered by the component tests.
+  // the default lobby route (a bare, not-yet-joined, non-admin visitor with no
+  // `?code=`) renders the full join-game interface. Both are exercised across
+  // the 360–430px band. TeamSelection and StartGame are role/phase-gated inside
+  // the page but are the same presentational family with identical ≥44px
+  // controls, covered by the component tests.
   describe.each(MOBILE_WIDTHS)("at %dpx wide", (width) => {
     it("renders the create-game interface without throwing", () => {
       routeParams.gameId = "new";
@@ -141,16 +142,23 @@ describe("Lobby page mobile viewport (Requirements 9.1, 9.2)", () => {
       ).not.toBeNull();
     });
 
-    it("renders the join-game interface and roster without throwing", () => {
+    it("renders the join-game interface without throwing", () => {
       routeParams.gameId = "game-123";
       setViewportWidth(width);
       expect(() => render(<LobbyPage />)).not.toThrow();
-      // Roster is always present while in the lobby (R9.3/9.4).
-      expect(screen.getByRole("heading", { name: /^lobby$/i })).not.toBeNull();
-      // A visitor who has not joined sees the join-game interface (R9.1).
+      // The page shell heading is always present.
+      expect(
+        screen.getByRole("heading", { name: /beltline bar brawl/i }),
+      ).not.toBeNull();
+      // A bare visitor who has not joined and is not the admin (no `?code=`)
+      // sees the full join-game interface (R9.1). The roster is member-gated —
+      // it is intentionally NOT shown to a not-yet-joined, non-admin visitor
+      // (RLS prevents them reading game state pre-join), so we do not assert it
+      // here.
       expect(
         screen.getByRole("heading", { name: /join a game/i }),
       ).not.toBeNull();
+      expect(screen.queryByRole("heading", { name: /^lobby$/i })).toBeNull();
     });
 
     it("lays out the page as a single column (flex column container)", () => {

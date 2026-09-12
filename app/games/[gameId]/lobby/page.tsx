@@ -10,10 +10,13 @@
  * and the feature's pure lobby reducer. It owns four things the presentational
  * components deliberately do not:
  *
- *   1. **Session identity (R8.6/8.7).** A durable {@link SessionStore} mints or
- *      reuses the per-device Session id and this page sends it as the
- *      `x-bbb-session-id` header on *every* POST, so the server re-recognizes the
- *      Admin (R8.8) and enforces membership without extra client state.
+ *   1. **Session identity (R8.6/8.7).** The per-device Session id is the Supabase
+ *      Anonymous Auth UID (see {@link establishBrowserSession}): the browser
+ *      signs in anonymously and that UID is BOTH the id sent as the
+ *      `x-bbb-session-id` header on *every* POST (so the server re-recognizes the
+ *      Admin, R8.8) AND the JWT `sub` that RLS matches, so RLS-scoped reads and
+ *      realtime work. Establishing it is async, so the page gates POSTs and the
+ *      subscription on the resolved session id.
  *   2. **Subscribe + snapshot + ordered apply (R7.1/7.2/7.3).** On mount it loads
  *      a snapshot by folding the game's `game_events` (`foldLobbyEvents` ==
  *      ordered fold, R7.2), then opens the per-game channel via
@@ -92,7 +95,10 @@ import {
   supabaseRealtimeTransport,
   supabaseSnapshotSource,
 } from "@/lib/realtime/supabaseBrowser";
-import { SessionStore } from "@/lib/session/sessionStore";
+import {
+  bindRealtimeAuth,
+  establishBrowserSession,
+} from "@/lib/session/supabaseSession";
 
 /** Header carrying the per-game session id (session-based Identity_Model). */
 const SESSION_HEADER = "x-bbb-session-id";
@@ -150,25 +156,23 @@ export default function LobbyPage(): React.JSX.Element {
   const gameId = typeof rawGameId === "string" ? rawGameId : "";
   const isCreateMode = gameId === NEW_GAME_PARAM;
 
-  // --- Durable Session identity (R8.6/8.7) --------------------------------
-  // This is a client-rendered page, so the SessionStore is resolved once in a
-  // lazy initializer: on the client it reuses the persisted id or mints one
-  // (R8.7/8.9); during SSR the store degrades to in-memory and yields a
-  // provisional id that the client render re-resolves from storage. POSTs send
-  // whatever id this holds as the `x-bbb-session-id` header (R8.6).
-  const [sessionId] = useState<string>(() => new SessionStore().getOrCreate());
+  // --- Supabase-auth Session identity (R8.6/8.7) --------------------------
+  // BBB identity is bridged into Supabase Anonymous Auth: the browser signs in
+  // anonymously and the resulting UID is BOTH the BBB session id sent as
+  // `x-bbb-session-id` AND the JWT `sub` that RLS matches, so RLS-scoped reads
+  // and realtime work. Establishing the session is ASYNC (a sign-in), so
+  // `sessionId` starts null and is filled by the bootstrap effect below; the
+  // persisted, auto-refreshed anonymous session keeps the identity stable across
+  // reloads (R8.6/8.7). Until it resolves, POSTs and the subscription are gated.
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // --- Local role facts (per-game, durable) -------------------------------
-  // Resolved lazily from durable per-game storage so no synchronous setState is
-  // needed on mount; both survive reload alongside the session.
-  const [isAdmin] = useState<boolean>(() =>
-    gameId !== "" && !isCreateMode
-      ? readLocal(adminFlagKey(gameId)) === sessionId
-      : false,
-  );
-  const [myPlayerId, setMyPlayerId] = useState<string | null>(() =>
-    gameId !== "" && !isCreateMode ? readLocal(playerIdKey(gameId)) : null,
-  );
+  // Both are recomputed once the async session resolves (see the bootstrap
+  // effect): `isAdmin` compares the durable per-game admin flag to this
+  // session id, and `myPlayerId` is the durable per-game player id. They stay
+  // null/false until the session is known.
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
 
   // --- Folded lobby view (R7.2/7.3) ---------------------------------------
   const [view, setView] = useState<LobbyView>(() => initialLobbyView(gameId));
@@ -186,9 +190,17 @@ export default function LobbyPage(): React.JSX.Element {
 
   const configured = isSupabaseConfigured();
 
-  /** POST JSON to a lobby route, always sending the session header. */
+  /**
+   * POST JSON to a lobby route, always sending the session header. The session
+   * is established asynchronously (Supabase anonymous auth), so this refuses to
+   * fire until the session id is known — every write must carry the same id the
+   * server persists to `admin_session_id`/`session_id` and that RLS matches.
+   */
   const postJson = useCallback(
     async (path: string, body: unknown): Promise<LobbyResponse> => {
+      if (sessionId === null) {
+        return { applied: false, error: "session_not_ready" };
+      }
       const res = await fetch(path, {
         method: "POST",
         headers: {
@@ -202,6 +214,53 @@ export default function LobbyPage(): React.JSX.Element {
     [sessionId],
   );
 
+  // --- Establish the Supabase-auth session (async identity bootstrap) ------
+  // Sign in anonymously (or reuse the persisted anonymous session), adopt the
+  // UID as the BBB session id, and derive the per-game role facts from it. This
+  // must complete before any create/join write and before the subscription
+  // opens, so `sessionId` gates both. When Supabase is not configured there is
+  // no auth to establish and the page runs in its disabled (no-realtime) mode.
+  useEffect(() => {
+    if (!configured) {
+      return;
+    }
+    const client = createBrowserSupabaseClient();
+    if (client === null) {
+      return;
+    }
+
+    let cancelled = false;
+    let unbindRealtimeAuth: (() => void) | null = null;
+    (async () => {
+      try {
+        const session = await establishBrowserSession(client);
+        if (cancelled) {
+          return;
+        }
+        // Authorize the realtime socket with the access token and keep it fresh
+        // on refresh (PostgREST reads are authorized by the persisted session).
+        unbindRealtimeAuth = bindRealtimeAuth(client, session.accessToken);
+        setSessionId(session.sessionId);
+        // Recompute the durable per-game role facts against the resolved id.
+        if (gameId !== "" && !isCreateMode) {
+          setIsAdmin(readLocal(adminFlagKey(gameId)) === session.sessionId);
+          setMyPlayerId(readLocal(playerIdKey(gameId)));
+        }
+      } catch {
+        if (!cancelled) {
+          setStatus("error");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unbindRealtimeAuth !== null) {
+        unbindRealtimeAuth();
+      }
+    };
+  }, [configured, gameId, isCreateMode]);
+
   // --- Subscribe + snapshot + ordered apply + reconnect + resume ----------
   // Everything realtime lives in one effect keyed by the active game so it tears
   // down cleanly on navigation. Applied events fold into the LobbyView (R7.3);
@@ -210,7 +269,10 @@ export default function LobbyPage(): React.JSX.Element {
   const reconnectRef = useRef<ReconnectController | null>(null);
 
   useEffect(() => {
-    if (isCreateMode || gameId === "" || !configured) {
+    // Wait for the async Supabase-auth session: without it the anon client
+    // carries no JWT `sub`, so RLS denies every `game_events` read and the
+    // snapshot/subscription would come back empty.
+    if (isCreateMode || gameId === "" || !configured || sessionId === null) {
       return;
     }
 
@@ -323,7 +385,12 @@ export default function LobbyPage(): React.JSX.Element {
         void sub.close();
       }
     };
-  }, [gameId, isCreateMode, configured]);
+    // `myPlayerId` is a dependency so that when a visitor joins (becoming a
+    // member), the effect tears down and re-runs: the pre-join snapshot read was
+    // RLS-denied (empty), so we must re-read once membership is established to
+    // populate the join code, teams, and roster (R7.2). `isAdmin` likewise, so a
+    // host who completes their join re-reads.
+  }, [gameId, isCreateMode, configured, sessionId, myPlayerId, isAdmin]);
 
   // --- Derived role / phase for rendering ---------------------------------
   const inLobby = view.lifecycle === "lobby";
@@ -493,6 +560,46 @@ export default function LobbyPage(): React.JSX.Element {
     [postJson, gameId, view.joinCode],
   );
 
+  /**
+   * Complete a code-arriving visitor's join (name-only). A visitor who reached
+   * this lobby via a resolved Join_Code (`?code=`) already has the code, so we
+   * ask only for a Display_Name and join with the code they arrived with —
+   * rather than the full code-entry form. This differs from
+   * {@link handleHostComplete} in the code source: a not-yet-joined visitor is
+   * not a member, so RLS prevents them from reading `view.joinCode`; the
+   * `codeParam` they carried is the authoritative code for the join.
+   */
+  const handleCodeComplete = useCallback(
+    async (displayName: string): Promise<void> => {
+      if (codeParam === null || !isValidSubmittedCode(codeParam)) {
+        setFormError("join_failed");
+        return;
+      }
+      setBusy(true);
+      setFormError(null);
+      try {
+        const res = await postJson(`/api/games/${gameId}/join`, {
+          joinCode: normalizeSubmittedCode(codeParam),
+          displayName,
+        });
+        if (!res.applied) {
+          setFormError(res.error);
+          return;
+        }
+        const playerId = String((res as { playerId?: unknown }).playerId ?? "");
+        if (playerId !== "") {
+          writeLocal(playerIdKey(gameId), playerId);
+          setMyPlayerId(playerId);
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "join_failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [postJson, gameId, codeParam],
+  );
+
   /** Create a new team (R4.2–R4.4). */
   const handleCreateTeam = useCallback(
     async (name: string): Promise<void> => {
@@ -632,13 +739,19 @@ export default function LobbyPage(): React.JSX.Element {
         </p>
       ) : null}
 
-      {/* Read-only roster: Join_Code, teams + colors, players (R9.3/9.4/9.5). */}
-      <LobbyRoster
-        gameId={gameId}
-        joinCode={view.joinCode}
-        teams={view.teams}
-        players={view.players}
-      />
+      {/* Read-only roster: Join_Code, teams + colors, players (R9.3/9.4/9.5).
+          Only members (the admin, or a joined player) can read the game's events
+          under RLS, so the roster is shown only once this session is a member.
+          A not-yet-joined visitor sees just the join prompt below; the roster
+          populates after they join (the subscription re-reads on membership). */}
+      {isAdmin || hasJoined ? (
+        <LobbyRoster
+          gameId={gameId}
+          joinCode={view.joinCode}
+          teams={view.teams}
+          players={view.players}
+        />
+      ) : null}
 
       {/* Lobby-phase controls only while the game is in the lobby (R4.8 mirror). */}
       {inLobby ? (
@@ -670,7 +783,9 @@ export default function LobbyPage(): React.JSX.Element {
               joined → team selection (R4); not-yet-joined Admin → host
               completion (R3.2/R3.3); everyone else → join form (R3). */}
           {(() => {
-            switch (selectLobbyEntry(isAdmin, hasJoined)) {
+            const hasResolvedCode =
+              codeParam !== null && isValidSubmittedCode(codeParam);
+            switch (selectLobbyEntry(isAdmin, hasJoined, hasResolvedCode)) {
               case "team":
                 return (
                   <TeamSelection
@@ -688,6 +803,18 @@ export default function LobbyPage(): React.JSX.Element {
                     onComplete={handleHostComplete}
                     submitting={busy}
                     error={formError}
+                  />
+                );
+              case "code-complete":
+                // A code-arriving visitor already has the code: ask only for a
+                // display name, then join with the code they arrived with.
+                return (
+                  <HostJoinCompletion
+                    onComplete={handleCodeComplete}
+                    submitting={busy}
+                    error={formError}
+                    heading="Join this game"
+                    description="You're in the right place. Pick a display name to join and choose your team."
                   />
                 );
               case "join":

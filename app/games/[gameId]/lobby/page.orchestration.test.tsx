@@ -60,7 +60,13 @@ import {
 
 import type { GameEvent } from "@/lib/events";
 import { normalizeSubmittedCode } from "@/lib/lobby/joinCode";
-import { SESSION_STORAGE_KEY } from "@/lib/session/sessionStore";
+import { establishBrowserSession } from "@/lib/session/supabaseSession";
+
+// The session id the mocked Supabase-auth bootstrap resolves. A mutable holder
+// lets the host-completion test align it with the `bbb:admin:{gameId}` fact so
+// the page computes isAdmin === true. Every POST carries this as its
+// `x-bbb-session-id` header (the page adopts the resolved id as the session id).
+let mockSessionId = "sess-orchestration";
 
 // --- next/navigation: route param + router.push capture ---------------------
 //
@@ -98,6 +104,9 @@ let snapshotEvents: GameEvent[] = [];
 
 vi.mock("@/lib/realtime/supabaseBrowser", () => ({
   isSupabaseConfigured: () => supabaseConfigured,
+  // Always hand back a non-null stub client when configured: the session
+  // bootstrap effect early-returns on a null client, so both create mode and the
+  // host-completion path need a real object for the async identity to resolve.
   createBrowserSupabaseClient: () =>
     supabaseConfigured ? ({} as unknown) : null,
   supabaseRealtimeTransport: () => ({
@@ -113,6 +122,20 @@ vi.mock("@/lib/realtime", () => ({
     snapshot: { lastSeenSequence: 0 },
     close: async () => {},
   }),
+}));
+
+// Mock the Supabase-auth session bridge. The page adopts the resolved
+// `sessionId` as its BBB session id (the `x-bbb-session-id` header on every POST)
+// and derives isAdmin by comparing `bbb:admin:{gameId}` to it. The mutable
+// `mockSessionId` lets the host-completion test line the resolved id up with the
+// seeded admin fact. Until this resolves, POSTs are gated, so the create flow
+// waits for it.
+vi.mock("@/lib/session/supabaseSession", () => ({
+  establishBrowserSession: vi.fn(async () => ({
+    sessionId: mockSessionId,
+    accessToken: "test-token",
+  })),
+  bindRealtimeAuth: vi.fn(() => () => {}),
 }));
 
 import LobbyPage from "./page";
@@ -190,18 +213,31 @@ function installFetch(
     });
 }
 
-/** Fill the CreateGame form and submit it. */
-function fillAndSubmitCreate(opts: {
+/**
+ * Fill the CreateGame form and submit it. Because identity is now established
+ * asynchronously (the Supabase-auth bootstrap), the page gates POSTs on the
+ * resolved session id — a `session_not_ready` no-op fires if we submit before it
+ * settles. So we wait for the mocked bootstrap to resolve and its `setSessionId`
+ * to apply before clicking Create.
+ */
+async function fillAndSubmitCreate(opts: {
   start: string;
   finish: string;
   displayName: string;
-}): void {
+}): Promise<void> {
   const start = screen.getByPlaceholderText(/ladybird grove/i);
   const finish = screen.getByPlaceholderText(/new realm brewing/i);
   const name = screen.getByPlaceholderText(/captain of team/i);
   fireEvent.change(start, { target: { value: opts.start } });
   fireEvent.change(finish, { target: { value: opts.finish } });
   fireEvent.change(name, { target: { value: opts.displayName } });
+  // Let the async session bootstrap run and its state update flush so the click
+  // handler sees a ready session id (POSTs are gated on it). The mock accumulates
+  // calls across tests, so gate on it having been called at least once for THIS
+  // render (each test renders exactly one create page before calling this).
+  await waitFor(() => {
+    expect(establishBrowserSession).toHaveBeenCalled();
+  });
   fireEvent.click(screen.getByRole("button", { name: /create game/i }));
 }
 
@@ -251,7 +287,11 @@ beforeEach(() => {
   supabaseConfigured = false;
   snapshotEvents = [];
   routeParams.gameId = "";
+  mockSessionId = "sess-orchestration";
   pushMock.mockClear();
+  // Reset the accumulated bootstrap call count so each test's readiness gate
+  // (waitFor establishBrowserSession called) reflects only THIS test's render.
+  vi.mocked(establishBrowserSession).mockClear();
   installMemoryLocalStorage();
 });
 
@@ -263,6 +303,10 @@ afterEach(() => {
 describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 6.3)", () => {
   it("issues create → bars → join in order, on the same session header, with a normalized code + trimmed name", async () => {
     routeParams.gameId = "new";
+    // Configured so the async session bootstrap runs and resolves the session id
+    // that POSTs are gated on (the realtime subscription still short-circuits in
+    // create mode via isCreateMode).
+    supabaseConfigured = true;
     // Create returns a lowercase, space-padded code so we can prove the join
     // request carries the NORMALIZED (trim+uppercase) form.
     installFetch((req) => {
@@ -279,7 +323,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
     });
 
     render(<LobbyPage />);
-    fillAndSubmitCreate({
+    await fillAndSubmitCreate({
       start: "Start Bar",
       finish: "Finish Bar",
       displayName: "  Alex  ",
@@ -312,9 +356,9 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
     const sessionIds = captured.map((r) => r.sessionHeader);
     expect(sessionIds.every((s) => s !== null && s !== "")).toBe(true);
     expect(new Set(sessionIds).size).toBe(1);
-    // And it matches the durable session store value.
-    const storedSession = globalThis.localStorage.getItem(SESSION_STORAGE_KEY);
-    expect(sessionIds[0]).toBe(storedSession);
+    // And it matches the id the async Supabase-auth bootstrap resolved (the page
+    // adopts that UID as the BBB session id).
+    expect(sessionIds[0]).toBe(mockSessionId);
 
     // Bars body carries the raw (un-normalized) bar names.
     const bars = requestsTo("/bars")[0];
@@ -324,6 +368,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
   it("writes bbb:player and navigates to the created lobby on a successful join (R2.3)", async () => {
     routeParams.gameId = "new";
+    supabaseConfigured = true;
     installFetch((req) => {
       if (req.url === "/api/games") {
         return { applied: true, gameId: "game-ok", joinCode: "ROOM99" };
@@ -338,7 +383,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
     });
 
     render(<LobbyPage />);
-    fillAndSubmitCreate({
+    await fillAndSubmitCreate({
       start: "Alpha",
       finish: "Omega",
       displayName: "Host",
@@ -359,6 +404,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
   it("on join failure after create: exactly one POST /api/games, still navigates, writes bbb:admin, leaves bbb:player absent (R3.1)", async () => {
     routeParams.gameId = "new";
+    supabaseConfigured = true;
     installFetch((req) => {
       if (req.url === "/api/games") {
         return { applied: true, gameId: "game-jf", joinCode: "ROOM99" };
@@ -373,7 +419,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
     });
 
     render(<LobbyPage />);
-    fillAndSubmitCreate({
+    await fillAndSubmitCreate({
       start: "Alpha",
       finish: "Omega",
       displayName: "Host",
@@ -419,12 +465,13 @@ describe("Lobby host-completion recovery (Requirement 3.3)", () => {
     ];
     routeParams.gameId = gameId;
 
-    // Seed a durable session id, then mark THIS session as the game's Admin with
-    // no Player_Fact — the exact "created-but-not-joined Admin" shape the render
-    // selection keys on. The page mints/reuses the session via SessionStore, so
-    // pre-seeding the session key guarantees isAdmin === true.
+    // Mark THIS session as the game's Admin with no Player_Fact — the exact
+    // "created-but-not-joined Admin" shape the render selection keys on. The page
+    // adopts the async-resolved Supabase-auth UID as its session id and computes
+    // isAdmin by comparing `bbb:admin:{gameId}` to it, so aligning the mocked
+    // resolved id with the seeded admin fact guarantees isAdmin === true.
     const sessionId = "session-under-test";
-    globalThis.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    mockSessionId = sessionId;
     globalThis.localStorage.setItem(`bbb:admin:${gameId}`, sessionId);
     // bbb:player intentionally absent.
 
