@@ -314,6 +314,33 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     expect(active[0].textContent).toBe("Bars");
   });
 
+  // Regression (board bounce): a live game must NOT redirect to the lobby.
+  // The bug: the redirect effect fired on the INITIAL view.lifecycle === "lobby"
+  // placeholder (before the async snapshot folded the game to `live`), bouncing
+  // a live-game visitor straight back to the lobby. The fix gates the redirect
+  // on the snapshot having loaded (viewLoaded). This asserts that for a live
+  // game whose snapshot resolves asynchronously, router.push is NEVER called and
+  // the board renders.
+  it("R1.3 (regression): a live game never redirects to the lobby, even though the initial lifecycle is the 'lobby' placeholder", async () => {
+    const gameId = "game-live-no-bounce";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    // A live game: created + started. The page mounts with the initial
+    // view.lifecycle === "lobby" placeholder and only folds to `live` after the
+    // (async) snapshot resolves — the exact window the bug redirected in.
+    snapshotEvents = [gameCreatedEvent(gameId), gameStartedEvent(gameId)];
+
+    render(<BoardPage />);
+
+    // The board renders (snapshot folded to live → access `board`).
+    await waitFor(() => {
+      expect(queryRegionNav()).not.toBeNull();
+    });
+
+    // It must NEVER have redirected to the lobby during the load window.
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it("R1.3: a lobby-phase visitor is redirected to the lobby and renders no Regions", async () => {
     const gameId = "game-lobby";
     routeParams.gameId = gameId;

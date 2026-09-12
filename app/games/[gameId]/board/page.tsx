@@ -168,6 +168,12 @@ export default function BoardPage(): React.JSX.Element {
   const [view, setView] = useState<GameBoardView>(() =>
     initialGameBoardView(gameId),
   );
+  // Whether the initial event snapshot has been fetched and folded. Until
+  // this is true, view.lifecycle is still the initial "lobby" placeholder and
+  // does NOT reflect the game's actual lifecycle, so the access gate must not
+  // treat a "lobby" reading as authoritative (see the redirect effect below).
+  // It flips true once the snapshot fold completes.
+  const [viewLoaded, setViewLoaded] = useState<boolean>(false);
   // Seed the status from the environment so no synchronous setState is needed on
   // mount: unconfigured env starts terminal; a real subscription starts
   // "connecting" and advances via its async callbacks.
@@ -333,6 +339,9 @@ export default function BoardPage(): React.JSX.Element {
           return;
         }
         setView(foldGameBoardEvents(gameId, priorEvents));
+        // The snapshot has loaded and folded: view.lifecycle now reflects the
+        // game's real state, so the access gate may act on it (R1.3 redirect).
+        setViewLoaded(true);
         // Resolve the current player's Team id from the same snapshot using the
         // lobby reducer (which folds players + their team). Team membership is
         // fixed once the game is live, so this mount-time derivation is stable.
@@ -410,10 +419,13 @@ export default function BoardPage(): React.JSX.Element {
   // Redirect a lobby-phase visitor to the game's lobby (R1.3). Done as an effect
   // so navigation happens after render, and never renders the Regions.
   useEffect(() => {
-    if (access === "redirect-lobby" && gameId !== "") {
+    // Only redirect once the snapshot has loaded (viewLoaded): before that, a
+    // "lobby" lifecycle is the initial placeholder, not the game's real state,
+    // so redirecting on it would bounce a live-game visitor back to the lobby.
+    if (viewLoaded && access === "redirect-lobby" && gameId !== "") {
       router.push(`/games/${gameId}/lobby`);
     }
-  }, [access, gameId, router]);
+  }, [viewLoaded, access, gameId, router]);
 
   // --- The one POST: confirm a targeting card play (R7.1/7.7) --------------
   const handleConfirmPlay = useCallback(
@@ -485,6 +497,32 @@ export default function BoardPage(): React.JSX.Element {
       </p>
     </header>
   );
+
+  // Loading guard: once a Session is established but before the event snapshot
+  // has loaded and folded (viewLoaded), view.lifecycle is still the initial
+  // "lobby" placeholder. Acting on it would render the redirect-lobby (or a
+  // stale ended) branch and bounce a live-game visitor back to the lobby. So
+  // while a live subscription is still resolving, show a neutral loading state
+  // rather than a lifecycle-derived branch. (A snapshot/subscription failure
+  // sets status to "error" and is handled by the error branch below; the
+  // no-session case, where the Session itself never resolves, is unaffected
+  // because it does not depend on the snapshot.)
+  if (
+    access !== "no-session" &&
+    access !== "not-authorized" &&
+    !viewLoaded &&
+    status !== "error" &&
+    status !== "disabled"
+  ) {
+    return (
+      <main style={containerStyle}>
+        {header}
+        <p role="status" style={noticeStyle}>
+          Loading the game board…
+        </p>
+      </main>
+    );
+  }
 
   // Access-gate branches (R1). Only the `board` decision renders the Regions.
   if (access === "no-session") {
