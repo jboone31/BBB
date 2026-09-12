@@ -61,6 +61,7 @@ const GREEN_RGB = rgb(22, 163, 74); // #16a34a
 function renderRoster(view: LobbyView) {
   return render(
     <LobbyRoster
+      gameId={GAME_ID}
       joinCode={view.joinCode}
       teams={view.teams}
       players={view.players}
@@ -220,6 +221,7 @@ describe("LobbyRoster updates when a lobby event is applied (Requirement 9.5)", 
     );
     rerender(
       <LobbyRoster
+        gameId={GAME_ID}
         joinCode={view.joinCode}
         teams={view.teams}
         players={view.players}
@@ -251,6 +253,7 @@ describe("LobbyRoster updates when a lobby event is applied (Requirement 9.5)", 
     );
     rerender(
       <LobbyRoster
+        gameId={GAME_ID}
         joinCode={view.joinCode}
         teams={view.teams}
         players={view.players}
@@ -287,6 +290,7 @@ describe("LobbyRoster updates when a lobby event is applied (Requirement 9.5)", 
     );
     rerender(
       <LobbyRoster
+        gameId={GAME_ID}
         joinCode={view.joinCode}
         teams={view.teams}
         players={view.players}

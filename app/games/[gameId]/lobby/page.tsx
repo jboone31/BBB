@@ -36,10 +36,14 @@
  * {@link LobbyView} plus two durable local facts (kept per-game in the same
  * storage as the session, so they survive reload): whether this Session created
  * the game (Admin), and this Session's player id once it has joined. An Admin
- * with no bars yet sees the create/designate surface; a visitor who has not
- * joined sees {@link JoinGame}; a joined player sees {@link TeamSelection}; and
- * everyone sees the {@link LobbyRoster}. When the game has gone `live` the lobby
- * controls are hidden (the lobby-phase gate closes server-side too).
+ * with no bars yet sees the create/designate surface. The single lobby-entry
+ * surface is then chosen exhaustively by {@link selectLobbyEntry} over those two
+ * facts: a joined player sees {@link TeamSelection}; a host who created the game
+ * but has no player row yet sees the name-only {@link HostJoinCompletion}
+ * surface (the created-but-not-joined recovery/entry case); and any other
+ * visitor sees {@link JoinGame}. Everyone sees the {@link LobbyRoster}. When the
+ * game has gone `live` the lobby controls are hidden (the lobby-phase gate
+ * closes server-side too).
  *
  * The special route param `new` renders {@link CreateGame}: on success the page
  * navigates to `/games/{newId}/lobby` where the created Admin lands in the lobby.
@@ -52,11 +56,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import CreateGame, { type BarDesignation } from "@/components/lobby/CreateGame";
+import CreateGame, {
+  type CreateSubmission,
+} from "@/components/lobby/CreateGame";
+import HostJoinCompletion from "@/components/lobby/HostJoinCompletion";
 import JoinGame, { type JoinSubmission } from "@/components/lobby/JoinGame";
 import LobbyRoster from "@/components/lobby/LobbyRoster";
 import StartGame from "@/components/lobby/StartGame";
 import TeamSelection from "@/components/lobby/TeamSelection";
+
+import { selectLobbyEntry } from "./selectLobbyEntry";
 
 import type { GameEvent } from "@/lib/events";
 import {
@@ -65,6 +74,10 @@ import {
   initialLobbyView,
   type LobbyView,
 } from "@/lib/lobby/events";
+import {
+  isValidSubmittedCode,
+  normalizeSubmittedCode,
+} from "@/lib/lobby/joinCode";
 import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
 import { LocalStorageLastSeenStore } from "@/lib/realtime/lastSeenStore";
 import {
@@ -332,12 +345,24 @@ export default function LobbyPage(): React.JSX.Element {
 
   // --- Route wiring: the six POSTs ----------------------------------------
 
-  /** Create a game, then designate its bars by name, then land in its lobby (R1, R2). */
+  /**
+   * Create a game, designate its bars, join the host as a Player, then land in
+   * its lobby — all on the same `x-bbb-session-id` header (R2.1/2.2/2.3, R3.1,
+   * R6.2/6.3/6.4).
+   *
+   * The three writes run in sequence and never re-issue `POST /api/games`: a
+   * failure at bars or join stops the chain but still navigates to the created
+   * lobby (the game exists), where the Admin can recover. On a successful join
+   * the host becomes a Player (`bbb:player` written, `myPlayerId` set); on join
+   * failure `bbb:player` is left unset and the lobby's host-completion path
+   * (Task 7.2) lets the Admin retry.
+   */
   const handleCreate = useCallback(
-    async (designation: BarDesignation): Promise<void> => {
+    async (submission: CreateSubmission): Promise<void> => {
       setBusy(true);
       setFormError(null);
       try {
+        // 1. Create the game (single POST; never retried below, R6.4).
         const created = await postJson("/api/games", {});
         if (!created.applied) {
           setFormError(created.error);
@@ -352,16 +377,44 @@ export default function LobbyPage(): React.JSX.Element {
         }
         // This session owns the created game (Admin, R8.1/8.8).
         writeLocal(adminFlagKey(newGameId), sessionId ?? "");
+        const joinCode = String(
+          (created as { joinCode?: unknown }).joinCode ?? "",
+        );
 
-        // Designate start/finish bars by name in the same flow (R2.1/R2.2).
+        // 2. Designate start/finish bars by name in the same flow (R2.1/R2.2).
         const bars = await postJson(`/api/games/${newGameId}/bars`, {
-          startBarName: designation.startBarName,
-          finishBarName: designation.finishBarName,
+          startBarName: submission.startBarName,
+          finishBarName: submission.finishBarName,
         });
         if (!bars.applied) {
           setFormError(bars.error);
           // The game still exists; send the Admin to its lobby to retry bars.
+          router.push(`/games/${newGameId}/lobby`);
+          return;
         }
+
+        // 3. Join the host as a Player with the returned code + Display_Name
+        //    (R2.3/R3.1/R6.2/R6.3). Guard the code's shape before submitting;
+        //    if it is somehow invalid, skip the join and still navigate.
+        if (isValidSubmittedCode(joinCode)) {
+          const joined = await postJson(`/api/games/${newGameId}/join`, {
+            joinCode: normalizeSubmittedCode(joinCode),
+            displayName: submission.displayName,
+          });
+          if (joined.applied) {
+            const playerId = String(
+              (joined as { playerId?: unknown }).playerId ?? "",
+            );
+            if (playerId !== "") {
+              writeLocal(playerIdKey(newGameId), playerId);
+              setMyPlayerId(playerId);
+            }
+          } else {
+            // Leave `bbb:player` unset; recovery handled in the lobby (Task 7.2).
+            setFormError(joined.error);
+          }
+        }
+
         router.push(`/games/${newGameId}/lobby`);
       } catch (err) {
         setFormError(err instanceof Error ? err.message : "create_failed");
@@ -398,6 +451,46 @@ export default function LobbyPage(): React.JSX.Element {
       }
     },
     [postJson, gameId],
+  );
+
+  /**
+   * Complete the host's join into the game they created (R3.2/R3.3). The Admin
+   * already owns the authoritative Join_Code (folded into `view.joinCode`), so
+   * this collects only a Display_Name and joins the *current* game with that
+   * code — no code entry needed. On success it writes `bbb:player` and sets
+   * `myPlayerId`, moving the Admin onto the team-selection surface.
+   */
+  const handleHostComplete = useCallback(
+    async (displayName: string): Promise<void> => {
+      // The host owns the code; if the folded view hasn't resolved it, there is
+      // nothing to join with — surface the failure and issue no request.
+      if (view.joinCode === null) {
+        setFormError("join_failed");
+        return;
+      }
+      setBusy(true);
+      setFormError(null);
+      try {
+        const res = await postJson(`/api/games/${gameId}/join`, {
+          joinCode: view.joinCode,
+          displayName,
+        });
+        if (!res.applied) {
+          setFormError(res.error);
+          return;
+        }
+        const playerId = String((res as { playerId?: unknown }).playerId ?? "");
+        if (playerId !== "") {
+          writeLocal(playerIdKey(gameId), playerId);
+          setMyPlayerId(playerId);
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "join_failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [postJson, gameId, view.joinCode],
   );
 
   /** Create a new team (R4.2–R4.4). */
@@ -541,6 +634,7 @@ export default function LobbyPage(): React.JSX.Element {
 
       {/* Read-only roster: Join_Code, teams + colors, players (R9.3/9.4/9.5). */}
       <LobbyRoster
+        gameId={gameId}
         joinCode={view.joinCode}
         teams={view.teams}
         players={view.players}
@@ -572,25 +666,41 @@ export default function LobbyPage(): React.JSX.Element {
             />
           ) : null}
 
-          {/* Visitor who has not joined: join form (R3). */}
-          {!hasJoined ? (
-            <JoinGame
-              onJoin={handleJoin}
-              initialJoinCode={joinCodePrefill}
-              submitting={busy}
-              error={formError}
-            />
-          ) : (
-            /* Joined player: pick / switch team (R4). */
-            <TeamSelection
-              teams={view.teams}
-              currentTeamId={myTeamId}
-              onSelectTeam={handleSelectTeam}
-              onCreateTeam={handleCreateTeam}
-              submitting={busy}
-              error={formError}
-            />
-          )}
+          {/* Exhaustive lobby-entry selection over (isAdmin, hasJoined):
+              joined → team selection (R4); not-yet-joined Admin → host
+              completion (R3.2/R3.3); everyone else → join form (R3). */}
+          {(() => {
+            switch (selectLobbyEntry(isAdmin, hasJoined)) {
+              case "team":
+                return (
+                  <TeamSelection
+                    teams={view.teams}
+                    currentTeamId={myTeamId}
+                    onSelectTeam={handleSelectTeam}
+                    onCreateTeam={handleCreateTeam}
+                    submitting={busy}
+                    error={formError}
+                  />
+                );
+              case "host-complete":
+                return (
+                  <HostJoinCompletion
+                    onComplete={handleHostComplete}
+                    submitting={busy}
+                    error={formError}
+                  />
+                );
+              case "join":
+                return (
+                  <JoinGame
+                    onJoin={handleJoin}
+                    initialJoinCode={joinCodePrefill}
+                    submitting={busy}
+                    error={formError}
+                  />
+                );
+            }
+          })()}
 
           {/* Admin: start control, enabled only when eligible (R5). */}
           {isAdmin ? (

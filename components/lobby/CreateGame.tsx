@@ -25,24 +25,34 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { validateDisplayName } from "@/lib/lobby/displayName";
+
 /** Minimum touch-target size for interactive controls (R9.2). */
 const TOUCH_TARGET = "44px";
 
-/** The bar names an Admin designates when creating a Game. */
-export interface BarDesignation {
-  /** The Start_Bar name (worth 0 points). */
+/**
+ * What the Admin submits when creating a Game (was: `BarDesignation`).
+ *
+ * Carries the designated bar names plus the Admin's Display_Name so the page
+ * can create the Game, designate its bars, and immediately join the host as a
+ * Player (Requirements 1.1–1.5).
+ */
+export interface CreateSubmission {
+  /** The Start_Bar name (worth 0 points). Trimmed, non-empty. */
   readonly startBarName: string;
   /** The Finish_Bar name (claiming it ends the Game). Must differ from start. */
   readonly finishBarName: string;
+  /** The Admin's Display_Name, trimmed to 1–40 chars (`validateDisplayName`). */
+  readonly displayName: string;
 }
 
 export interface CreateGameProps {
   /**
    * Called when the Admin submits a valid create-game form. The page wires this
-   * to the create + bar-designation POSTs. May be async; the component reflects
-   * the in-flight state via {@link submitting}.
+   * to the create + bar-designation + host-join POSTs. May be async; the
+   * component reflects the in-flight state via {@link submitting}.
    */
-  readonly onCreate: (designation: BarDesignation) => void | Promise<void>;
+  readonly onCreate: (submission: CreateSubmission) => void | Promise<void>;
   /**
    * True while the page-owned submission is in flight; disables the submit
    * control and shows a busy label so the Admin cannot double-submit.
@@ -73,6 +83,7 @@ export default function CreateGame({
 }: CreateGameProps): React.JSX.Element {
   const [startBarName, setStartBarName] = useState("");
   const [finishBarName, setFinishBarName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   // Only surface validation messages after a submit attempt, so the form does
   // not scold the Admin before they have had a chance to fill it in.
   const [attempted, setAttempted] = useState(false);
@@ -80,9 +91,11 @@ export default function CreateGame({
   const trimmedStart = startBarName.trim();
   const trimmedFinish = finishBarName.trim();
 
-  // Mirror the visible server rules for inline feedback: both bars are required
-  // and the Finish_Bar must differ from the Start_Bar (R2.3 as the Admin sees
-  // it). The authoritative check still runs server-side.
+  // Mirror the visible server rules for inline feedback: both bars are required,
+  // the Finish_Bar must differ from the Start_Bar (R2.3 as the Admin sees it),
+  // and the Display_Name must satisfy `validateDisplayName` so client feedback
+  // matches the join route's enforced range (R1.2–R1.4, R6.1). The
+  // authoritative checks still run server-side.
   const validationError = useMemo<string | null>(() => {
     if (trimmedStart.length === 0) {
       return "Enter a start bar name.";
@@ -93,8 +106,11 @@ export default function CreateGame({
     if (trimmedStart.toLowerCase() === trimmedFinish.toLowerCase()) {
       return "The start and finish bars must be different.";
     }
+    if (!validateDisplayName(displayName).ok) {
+      return "Enter a display name (1–40 characters).";
+    }
     return null;
-  }, [trimmedStart, trimmedFinish]);
+  }, [trimmedStart, trimmedFinish, displayName]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
@@ -103,12 +119,23 @@ export default function CreateGame({
       if (validationError !== null || submitting) {
         return;
       }
+      // Emit the trimmed Display_Name (R1.5); `validationError` already
+      // guarantees the name is valid here.
+      const nameResult = validateDisplayName(displayName);
       void onCreate({
         startBarName: trimmedStart,
         finishBarName: trimmedFinish,
+        displayName: nameResult.ok ? nameResult.value : displayName.trim(),
       });
     },
-    [validationError, submitting, onCreate, trimmedStart, trimmedFinish],
+    [
+      validationError,
+      submitting,
+      onCreate,
+      trimmedStart,
+      trimmedFinish,
+      displayName,
+    ],
   );
 
   const shownValidation = attempted ? validationError : null;
@@ -166,6 +193,25 @@ export default function CreateGame({
             onChange={(e) => setFinishBarName(e.target.value)}
             placeholder="e.g. New Realm Brewing"
             autoComplete="off"
+            disabled={submitting}
+            style={inputStyle}
+          />
+        </label>
+
+        <label
+          style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+        >
+          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+            Display name
+          </span>
+          <input
+            type="text"
+            name="displayName"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="e.g. Captain of Team Ladybird"
+            autoComplete="off"
+            maxLength={40}
             disabled={submitting}
             style={inputStyle}
           />
