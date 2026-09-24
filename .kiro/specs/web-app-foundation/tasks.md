@@ -138,12 +138,12 @@ environment-dependent where noted.
     - _Requirements: 3.1, 3.10, 3.11, 3.12, 3.14_
 
   - [x] 7.4 Create the seed migration for the full v1 card catalog
-    - Seed `card_definitions` with EVERY finalized v1 card from `cards.md`:
+    - Seed `card_definitions` with EVERY finalized v1 card from `cards.md` (23 cards):
       opponent_slowing (Go Piss Girl, Crop Dusting [no target], Moneybags, Use It or Lose It,
       Wired, Art School Dropout, Broad Shoulders, Bird Guide, Interested Buyer, Different
-      Tastes, Everyone's a Critic, Quit Nursing, Cancel Culture [no target], Spin Cycle,
-      Dirty Bird, Scenic Route); economy_boost (Heavyweight, Insured, Happy Hour, Power Hour,
-      Party Crasher, Patient Investor, Window Shopping); reactive (Fairest of Them All)
+      Tastes, Everyone's a Critic, Pioneer, Cancel Culture [no target], Spin Cycle,
+      Dirty Bird, Scenic Route, Voted Off the Island); economy_boost (Insurance, Happy Hour,
+      Power Hour, Party Crasher, Patient Investor); reactive (Fairest of Them All)
     - Set `requires_target` correctly (false for Crop Dusting, Cancel Culture, and self/economy
       cards)
     - _Requirements: 3.10, 3.14_

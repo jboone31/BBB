@@ -67,9 +67,9 @@ interface ExpectedCard {
 }
 
 /**
- * The finalized v1 card set. 24 cards total:
- *   * 16 opponent_slowing (14 targeting + 2 no-target: Crop Dusting, Cancel Culture)
- *   *  7 economy_boost (all self/economy -> requires_target = false)
+ * The finalized v1 card set. 23 cards total:
+ *   * 17 opponent_slowing (15 targeting + 2 no-target: Crop Dusting, Cancel Culture)
+ *   *  5 economy_boost (all self/economy -> requires_target = false)
  *   *  1 reactive (Fairest of Them All -> requires_target = false)
  */
 const EXPECTED_CARDS: ExpectedCard[] = [
@@ -108,10 +108,15 @@ const EXPECTED_CARDS: ExpectedCard[] = [
     cardType: "opponent_slowing",
     requiresTarget: true,
   },
-  { name: "Quit Nursing", cardType: "opponent_slowing", requiresTarget: true },
+  { name: "Pioneer", cardType: "opponent_slowing", requiresTarget: true },
   { name: "Spin Cycle", cardType: "opponent_slowing", requiresTarget: true },
   { name: "Dirty Bird", cardType: "opponent_slowing", requiresTarget: true },
   { name: "Scenic Route", cardType: "opponent_slowing", requiresTarget: true },
+  {
+    name: "Voted Off the Island",
+    cardType: "opponent_slowing",
+    requiresTarget: true,
+  },
   // opponent_slowing — no target (requires_target = false)
   { name: "Crop Dusting", cardType: "opponent_slowing", requiresTarget: false },
   {
@@ -120,8 +125,7 @@ const EXPECTED_CARDS: ExpectedCard[] = [
     requiresTarget: false,
   },
   // economy_boost — self/economy (requires_target = false)
-  { name: "Heavyweight", cardType: "economy_boost", requiresTarget: false },
-  { name: "Insured", cardType: "economy_boost", requiresTarget: false },
+  { name: "Insurance", cardType: "economy_boost", requiresTarget: false },
   { name: "Happy Hour", cardType: "economy_boost", requiresTarget: false },
   { name: "Power Hour", cardType: "economy_boost", requiresTarget: false },
   { name: "Party Crasher", cardType: "economy_boost", requiresTarget: false },
@@ -130,7 +134,6 @@ const EXPECTED_CARDS: ExpectedCard[] = [
     cardType: "economy_boost",
     requiresTarget: false,
   },
-  { name: "Window Shopping", cardType: "economy_boost", requiresTarget: false },
   // reactive (requires_target = false)
   { name: "Fairest of Them All", cardType: "reactive", requiresTarget: false },
 ];
@@ -204,9 +207,9 @@ describe("card catalog seed — 0005_seed_card_catalog.sql (Req 3.10)", () => {
   const seedSql = readMigration("0005_seed_card_catalog.sql");
   const rows = parseSeededRows(seedSql);
 
-  it("seeds exactly the 24 finalized v1 cards with no duplicates", () => {
+  it("seeds exactly the 23 finalized v1 cards with no duplicates", () => {
     expect(rows).toHaveLength(EXPECTED_CARDS.length);
-    expect(rows.length).toBe(24);
+    expect(rows.length).toBe(23);
 
     const slugs = rows.map((r) => r.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
@@ -221,14 +224,14 @@ describe("card catalog seed — 0005_seed_card_catalog.sql (Req 3.10)", () => {
     expect(seededNames).toEqual(expectedNames);
   });
 
-  it("has the expected type distribution (16 opponent_slowing, 7 economy_boost, 1 reactive)", () => {
+  it("has the expected type distribution (17 opponent_slowing, 5 economy_boost, 1 reactive)", () => {
     const counts = rows.reduce<Record<string, number>>((acc, r) => {
       acc[r.cardType] = (acc[r.cardType] ?? 0) + 1;
       return acc;
     }, {});
     expect(counts).toEqual({
-      opponent_slowing: 16,
-      economy_boost: 7,
+      opponent_slowing: 17,
+      economy_boost: 5,
       reactive: 1,
     });
   });
@@ -268,13 +271,11 @@ describe("card catalog seed — 0005_seed_card_catalog.sql (Req 3.10)", () => {
       "Crop Dusting",
       "Cancel Culture",
       // all economy_boost
-      "Heavyweight",
-      "Insured",
+      "Insurance",
       "Happy Hour",
       "Power Hour",
       "Party Crasher",
       "Patient Investor",
-      "Window Shopping",
       // reactive
       "Fairest of Them All",
     ];

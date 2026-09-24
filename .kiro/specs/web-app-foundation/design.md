@@ -482,7 +482,7 @@ card from `cards.md`.
 | `card_type` | enum `opponent_slowing` \| `economy_boost` \| `reactive` | Req 3.10 enumeration. |
 | `requires_target` | boolean | Whether the card targets a team (Req 3.10). |
 | `validation_modality` | enum/text nullable | `photo` \| `location` \| `timer` \| `none` — room for F3.3 validation. |
-| `casting_cost` | jsonb nullable | Room for per-card cost metadata (e.g., Heavyweight's "claimed 5 & most bars"). |
+| `casting_cost` | jsonb nullable | Room for per-card precondition metadata (e.g., Voted Off the Island's "all four teams claimed a non-starting bar"). |
 | `timer_seconds` | integer nullable | Room for timed cards (Cancel Culture, Power Hour, Happy Hour). |
 | `effect_summary` | text | Human-readable summary. |
 
@@ -490,15 +490,15 @@ The extra nullable metadata columns (`validation_modality`, `casting_cost`, `tim
 are included now so F3.x card logic **extends** the catalog rather than migrating it, per the
 "model the full game" requirement.
 
-**Seeded v1 catalog (every finalized card must be present, Req 3.10):**
+**Seeded v1 catalog (every finalized card must be present, Req 3.10 — 23 cards):**
 
 - **opponent_slowing:** Go Piss Girl, Crop Dusting *(no target)*, Moneybags, Use It or Lose
   It, Wired, Art School Dropout, Broad Shoulders, Bird Guide, Interested Buyer, Different
-  Tastes, Everyone's a Critic, Quit Nursing *(reworked)*, Cancel Culture *(reworked, no
-  target, location+timer)*, Spin Cycle, Dirty Bird, Scenic Route.
-- **economy_boost:** Heavyweight *(self)*, Insured *(self)*, Happy Hour, Power Hour, Party
-  Crasher, Patient Investor *(self)*, Window Shopping.
-- **reactive:** Fairest of Them All *(reworked from Uno Reverse)*.
+  Tastes, Everyone's a Critic, Pioneer, Cancel Culture *(no target, location+timer)*, Spin
+  Cycle, Dirty Bird, Scenic Route, Voted Off the Island.
+- **economy_boost:** Insurance *(self)*, Happy Hour *(bar)*, Power Hour *(no target)*, Party
+  Crasher *(bar)*, Patient Investor *(self)*.
+- **reactive:** Fairest of Them All.
 
 `requires_target` is true for the opponent-slowing cards that target a team and false for
 no-target cards (Crop Dusting, Cancel Culture) and self/economy cards.

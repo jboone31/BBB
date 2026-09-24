@@ -130,8 +130,8 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
   teams. Admin can **challenge** a completion, resetting the conditions.
   - Depends on: F3.2.
 - [ ] **F3.4 — Card catalog implementation.** Encode each finalized v1 card's effect, casting
-  cost, and validation logic (see `cards.md`), including economy/boost effects (Insured, Happy
-  Hour, Power Hour, Party Crasher, Patient Investor, Window Shopping) and their interactions.
+  cost, and validation logic (see `cards.md`), including economy/boost effects (Insurance,
+  Happy Hour, Power Hour, Party Crasher, Patient Investor) and their interactions.
   - Depends on: F3.3.
 
 - [ ] **U3.1 — Cards & photo-feed UI.** Wire the F3 backend into the app: the hand + draw/keep

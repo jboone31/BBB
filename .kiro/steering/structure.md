@@ -18,6 +18,7 @@ BBB/
   test/             # cross-cutting test suites not co-located with source
   docs/             # architecture decision records and design notes
   v0/               # preserved original game design + assets
+  v1/               # finalized v1 ruleset source + design docs (redux/v2)
   .kiro/            # steering, specs, hooks
 ```
 
