@@ -5,7 +5,7 @@
  * Requirements 2.1, 2.4, 2.5, 9.2).
  *
  * This presentational component renders the three primary navigation controls
- * of the Game_Board — one each for the Bars_Region, the Scoreboard_Region, and
+ * of the Game_Board — one each for the Map_Region, the Scoreboard_Region, and
  * the Cards_Region ({@link Region}, R2.1). It is intentionally *presentational*:
  * it owns no active-Region state and performs no navigation itself. The active
  * {@link Region} is passed in, and every activation is delegated to the
@@ -35,7 +35,7 @@ const TOUCH_TARGET = "44px";
 /** The three Regions in display order, each with its human-readable label (R2.1). */
 const REGIONS: readonly { readonly region: Region; readonly label: string }[] =
   [
-    { region: "bars", label: "Bars" },
+    { region: "map", label: "Map" },
     { region: "scoreboard", label: "Scoreboard" },
     { region: "cards", label: "Cards" },
   ];

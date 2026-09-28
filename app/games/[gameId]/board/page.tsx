@@ -6,7 +6,7 @@
  * 8.1, 8.2, 8.3, 8.5, 8.6, 8.7, 8.8).
  *
  * This is the one client surface that composes the presentational board
- * components ({@link RegionNav}, {@link BarsRegion}, {@link ScoreboardRegion},
+ * components ({@link RegionNav}, {@link MapRegion}, {@link ScoreboardRegion},
  * {@link CardsRegion}, {@link CardPlayWireframe}, {@link TargetedNotification})
  * with the foundation's realtime client, the feature's pure Game_Board reducer,
  * and the access/region helpers. It mirrors the lobby page's structure exactly —
@@ -47,7 +47,7 @@
  * created the game (Admin, `bbb:admin:{gameId}`), and its player id once it has
  * joined (`bbb:player:{gameId}`). `isAdmin` compares the admin fact to the
  * resolved session id; `isPlayer` is simply "has a player id". The
- * **admin-not-player** flag passed to the Bars/Cards Regions (R3.6/R5.4) is
+ * **admin-not-player** flag passed to the Cards_Region (R5.4) is
  * `isAdmin && !isPlayer`. The **current Team id** is not carried by the
  * (team-agnostic) Game_Board reducer, so it is derived by folding the same
  * snapshot events with the lobby reducer ({@link foldLobbyEvents}) and reading
@@ -63,9 +63,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import BarsRegion from "@/components/board/BarsRegion";
 import CardPlayWireframe from "@/components/board/CardPlayWireframe";
 import CardsRegion from "@/components/board/CardsRegion";
+import MapRegion from "@/components/board/MapRegion";
 import RegionNav from "@/components/board/RegionNav";
 import ScoreboardRegion from "@/components/board/ScoreboardRegion";
 import TargetedNotification from "@/components/board/TargetedNotification";
@@ -89,6 +89,7 @@ import {
 } from "@/lib/gameboard/region";
 
 import { foldLobbyEvents } from "@/lib/lobby/events";
+import { WIREFRAME_TEAMS } from "@/lib/map/claims";
 
 import type { GameEvent } from "@/lib/events";
 import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
@@ -185,7 +186,7 @@ export default function BoardPage(): React.JSX.Element {
   });
 
   // --- Active Region (R2.3) -----------------------------------------------
-  // Initialized to the Bars_Region and transitioned by the pure `selectRegion`
+  // Initialized to the Map_Region and transitioned by the pure `selectRegion`
   // (re-selecting the active Region is a no-op, R2.7).
   const [activeRegion, setActiveRegion] = useState<Region>(INITIAL_REGION);
   const handleSelectRegion = useCallback((target: Region): void => {
@@ -388,7 +389,7 @@ export default function BoardPage(): React.JSX.Element {
 
   // --- Derived role / access ----------------------------------------------
   const isPlayer = myPlayerId !== null;
-  // The admin-not-player flag the Bars/Cards Regions consume (R3.6/R5.4).
+  // The admin-not-player flag the Cards_Region consumes (R5.4).
   const adminNotPlayer = isAdmin && !isPlayer;
   const access = selectBoardAccess(
     view.lifecycle,
@@ -415,6 +416,17 @@ export default function BoardPage(): React.JSX.Element {
     () => (myPlayerId === null ? [] : placeholderHand(myPlayerId)),
     [myPlayerId],
   );
+
+  // Teams shown on the Map_Region so any team's claim can be colored. Prefer the
+  // game's real folded Teams; fall back to the wireframe teams when the game
+  // exposes none (e.g. no realtime backend configured) so the map's claim/split
+  // interaction still works as a wireframe.
+  const mapTeams = view.teams.length > 0 ? view.teams : WIREFRAME_TEAMS;
+  // The one Team this client may claim/unclaim bars for: your own Team (R: you
+  // can only claim for the team you are on). When the current player's Team is
+  // known, that is it; otherwise (wireframe/demo with no resolved Team) default
+  // to the first available Team so the map stays operable as a wireframe.
+  const ownTeamId = myTeamId ?? mapTeams[0]?.id ?? "";
 
   // Redirect a lobby-phase visitor to the game's lobby (R1.3). Done as an effect
   // so navigation happens after render, and never renders the Regions.
@@ -642,8 +654,8 @@ export default function BoardPage(): React.JSX.Element {
       <RegionNav active={activeRegion} onSelect={handleSelectRegion} />
 
       {/* The active Region (exactly one displayed, R2.6). */}
-      {activeRegion === "bars" ? (
-        <BarsRegion adminNotPlayer={adminNotPlayer} />
+      {activeRegion === "map" ? (
+        <MapRegion teams={mapTeams} ownTeamId={ownTeamId} />
       ) : null}
       {activeRegion === "scoreboard" ? (
         <ScoreboardRegion teams={view.teams} />

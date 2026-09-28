@@ -17,7 +17,7 @@ import { INITIAL_REGION, selectRegion, type Region } from "./region";
  */
 
 /** The three navigable Regions of the Game_Board (R2.1). */
-const REGIONS: readonly Region[] = ["bars", "scoreboard", "cards"];
+const REGIONS: readonly Region[] = ["map", "scoreboard", "cards"];
 
 /** A generator over the three Regions. */
 const regionArb: fc.Arbitrary<Region> = fc.constantFrom(...REGIONS);

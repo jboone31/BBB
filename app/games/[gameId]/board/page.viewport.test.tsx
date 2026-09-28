@@ -164,6 +164,27 @@ vi.mock("@/lib/session/supabaseSession", () => ({
   bindRealtimeAuth: vi.fn(() => () => {}),
 }));
 
+// The Map_Region loads its Leaflet map through a dynamic(ssr:false) import of
+// ./BarLeafletMap. Leaflet touches the real DOM/`window` (unavailable/unlaid-out
+// in jsdom), so stub it with a lightweight, DOM-safe surface that still exposes
+// a ≥44px claim control — enough for the mobile-first control assertions without
+// pulling Leaflet into jsdom.
+vi.mock("@/components/board/BarLeafletMap", () => ({
+  default: ({
+    onToggle,
+  }: {
+    onToggle: (barId: string) => void;
+  }): React.JSX.Element => (
+    <button
+      type="button"
+      onClick={() => onToggle("stub-bar")}
+      style={{ minWidth: "44px", minHeight: "44px" }}
+    >
+      Claim this bar
+    </button>
+  ),
+}));
+
 import BoardPage from "./page";
 
 // The representative viewport widths spanning the 320–430px band (R9.1): the
@@ -312,15 +333,13 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
           result = await renderLiveBoard();
         })(),
       ).resolves.toBeUndefined();
-      // The three-control Region nav and the initial Bars region are present, so
+      // The Region nav and the initial Map region are present, so
       // the board is not clipped out of existence (R9.1).
       const nav = within(result!.container).getByRole("navigation", {
         name: /game board regions/i,
       });
       expect(within(nav).getAllByRole("button").length).toBe(3);
-      expect(
-        screen.getByRole("region", { name: /^bars$/i }),
-      ).not.toBeNull();
+      expect(screen.getByRole("region", { name: /^map$/i })).not.toBeNull();
     });
 
     it("lays out the page as a single column (border-box flex column container)", async () => {
@@ -363,10 +382,13 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
       setViewportWidth(width);
       const { container } = await renderLiveBoard();
 
+      // Wait for the dynamically-loaded Map surface (stubbed) so its claim
+      // control is part of the control set.
+      await screen.findByRole("button", { name: /claim this bar/i });
       const controls = container.querySelectorAll<HTMLElement>(
         "button, input, select, textarea, a[href]",
       );
-      // The live board renders interactive controls (nav + the Bars claim
+      // The live board renders interactive controls (nav + the Map claim
       // control); ensure we actually asserted against some.
       expect(controls.length).toBeGreaterThan(0);
 
@@ -415,12 +437,13 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
       }
     }
 
-    it("nav + Bars claim control", async () => {
+    it("nav + Map claim control", async () => {
       setViewportWidth(390);
       const { container } = await renderLiveBoard();
-      // Bars is the initial Region: its claim control is present.
+      // Map is the initial Region: its (stubbed) claim control is present once
+      // the dynamic map surface loads.
       expect(
-        screen.getByRole("button", { name: /claim this bar/i }),
+        await screen.findByRole("button", { name: /claim this bar/i }),
       ).not.toBeNull();
       assertAllControlsTouchTarget(container);
     });
@@ -451,7 +474,7 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
   // Team so the page folds and renders a TargetedNotification, then assert the
   // nav still works.
   describe("an active Targeted_Notification leaves the Region nav operable (R9.5)", () => {
-    it("renders the notification and keeps the three nav controls present and operable", async () => {
+    it("renders the notification and keeps the nav controls present and operable", async () => {
       setViewportWidth(390);
       // The current player (player-1, the seeded Player fact) must resolve to a
       // Team so the notice filter (R7.3) surfaces a notice for it. The lobby
@@ -514,7 +537,7 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
       expect(pxValue(dismiss.style.minWidth)).toBeGreaterThanOrEqual(44);
 
       // With the notification active, the Region nav is STILL present with all
-      // three controls (never obscured by the inline, non-modal banner) (R9.5).
+      // its controls (never obscured by the inline, non-modal banner) (R9.5).
       const nav = within(container).getByRole("navigation", {
         name: /game board regions/i,
       });

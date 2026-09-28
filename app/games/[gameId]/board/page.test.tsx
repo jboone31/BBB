@@ -13,12 +13,12 @@
 //   the region transition (`lib/gameboard/region`), and the foundation realtime
 //   client + reconnect/resume controllers (`lib/realtime/*`). This file asserts
 //   the COMPOSITION the page is responsible for:
-//     - R1.1 a live member renders the three Regions (via RegionNav);
+//     - R1.1 a live member renders the Regions (via RegionNav);
 //     - R1.3 a lobby-phase visitor is redirected to the lobby and renders NO Regions;
 //     - R1.4 an ended game shows an ended indication and renders NO Regions;
 //     - R1.5 a non-member sees the not-authorized notice and NO Regions;
 //     - R1.6 with no established session, the establish-session prompt shows;
-//     - R2.1 exactly three nav controls; R2.3 the initial active Region is Bars;
+//     - R2.1 exactly three nav controls; R2.3 the initial active Region is Map;
 //     - R8.1 the page subscribes with THIS game's id once the session resolves;
 //     - R8.8 a subscription/snapshot failure surfaces the "live updates
 //       unavailable — reload" notice and renders NO Regions.
@@ -145,6 +145,13 @@ vi.mock("@/lib/session/supabaseSession", () => ({
       }),
   ),
   bindRealtimeAuth: vi.fn(() => () => {}),
+}));
+
+// The Map_Region dynamically imports a Leaflet map that touches the real DOM,
+// which jsdom cannot render. Stub it with a DOM-safe placeholder so the board
+// composition can be asserted without pulling Leaflet into the test env.
+vi.mock("@/components/board/BarLeafletMap", () => ({
+  default: (): React.JSX.Element => <div>map surface (stubbed)</div>,
 }));
 
 import BoardPage from "./page";
@@ -276,7 +283,7 @@ afterEach(() => {
 });
 
 describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => {
-  it("R1.1/R2.1/R2.3: a live member renders the three Regions with Bars active", async () => {
+  it("R1.1/R2.1/R2.3: a live member renders the Regions with Map active", async () => {
     const gameId = "game-live";
     routeParams.gameId = gameId;
     seedPlayer(gameId);
@@ -289,7 +296,7 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     render(<BoardPage />);
 
     // Once the session resolves and the snapshot folds to `live`, the access
-    // decision is `board` and the three Regions render (R1.1).
+    // decision is `board` and the Regions render (R1.1).
     const nav = await waitFor(() => {
       const found = queryRegionNav();
       expect(found).not.toBeNull();
@@ -300,18 +307,18 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     const controls = within(nav).getAllByRole("button");
     expect(controls).toHaveLength(3);
     expect(controls.map((c) => c.textContent)).toEqual([
-      "Bars",
+      "Map",
       "Scoreboard",
       "Cards",
     ]);
 
-    // R2.3: the initial active Region is Bars — its control is the one marked
-    // current, and it is the Bars control.
+    // R2.3: the initial active Region is Map — its control is the one marked
+    // current, and it is the Map control.
     const active = controls.filter(
       (c) => c.getAttribute("aria-current") === "page",
     );
     expect(active).toHaveLength(1);
-    expect(active[0].textContent).toBe("Bars");
+    expect(active[0].textContent).toBe("Map");
   });
 
   // Regression (board bounce): a live game must NOT redirect to the lobby.

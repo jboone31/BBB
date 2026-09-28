@@ -2,11 +2,11 @@
  * Active-Region transition logic for the Game_Board (design.md §Components 3;
  * R2).
  *
- * The Game_Board presents exactly three navigable Regions — the Bars_Region, the
+ * The Game_Board presents three navigable Regions — the Map_Region, the
  * Scoreboard_Region, and the Cards_Region — and displays exactly one of them as
  * active at any time (R2.6). This module is the pure, framework-free core of that
  * navigation: the {@link Region} union, the initial active Region ({@link
- * INITIAL_REGION}, `"bars"`, R2.3), and {@link selectRegion}, which makes the
+ * INITIAL_REGION}, `"map"`, R2.3), and {@link selectRegion}, which makes the
  * target Region active (R2.2) and is a no-op when the target is already active
  * (R2.7).
  *
@@ -16,14 +16,14 @@
  * Requirements: 2.2, 2.3, 2.6, 2.7.
  */
 
-/** One of the three primary navigable areas of the Game_Board (R2.1). */
-export type Region = "bars" | "scoreboard" | "cards";
+/** One of the primary navigable areas of the Game_Board (R2.1). */
+export type Region = "map" | "scoreboard" | "cards";
 
 /**
  * The Region made active when the Game_Board first renders for a Live_Game
  * (R2.3).
  */
-export const INITIAL_REGION: Region = "bars";
+export const INITIAL_REGION: Region = "map";
 
 /**
  * Select the active Region: make `target` the active Region (R2.2). Selecting
