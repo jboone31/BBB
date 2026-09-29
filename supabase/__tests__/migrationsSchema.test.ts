@@ -99,6 +99,18 @@ function stripSqlComments(sql: string): string {
 }
 
 /**
+ * Execute a committed migration inside the smoke test's existing transaction.
+ * The migration files intentionally carry their own top-level BEGIN/COMMIT for
+ * normal application, but postgres.js rejects nested transaction commands.
+ * Remove only the first standalone BEGIN and last standalone COMMIT; nested
+ * PL/pgSQL blocks remain untouched.
+ */
+function withoutOuterTransaction(sql: string): string {
+  const withoutBegin = sql.replace(/^\s*begin\s*;\s*/im, "");
+  return withoutBegin.replace(/^\s*commit\s*;\s*$/im, "");
+}
+
+/**
  * Extract every table name declared with `create table <name>` in a SQL string.
  * Tolerates an optional `if not exists` and schema-qualified names.
  */
@@ -317,10 +329,10 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
         await tx.query(`set local search_path = ${TEST_SCHEMA}, public`, []);
 
         // Apply each migration body in ascending order. The files already carry
-        // begin/commit; inside this outer transaction those are treated as no-op
-        // savepoints by postgres, so the statements simply run in sequence.
+        // begin/commit for normal application; strip only those outer wrappers
+        // because this smoke test already owns the transaction.
         for (const migration of migrations) {
-          await tx.query(migration.sql, []);
+          await tx.query(withoutOuterTransaction(migration.sql), []);
         }
 
         // --- Tables exist in the test schema ---

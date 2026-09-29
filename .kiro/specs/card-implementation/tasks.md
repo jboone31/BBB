@@ -65,12 +65,13 @@ The implementation already exists in the repository. Treat it as the executable 
   - Add catalog completeness tests for all 23 cards and invalid-metadata rejection tests.
   - Evidence: `lib/cards/catalog.ts` and `lib/cards/catalog.test.ts`.
 
-- [ ] 1.3 Add deck and inventory schema
+- [x] 1.3 Add deck and inventory schema
   - Add game/team deck state, draw position/order, per-bar draw records, discard reason, and lifecycle timestamps.
   - Add constraints proving card instances and holders belong to the same game.
   - Add indexes for current hand, deck top, and per-team/per-bar draw lookup.
   - Add RLS for team-owned inventory reads and server-only inventory writes.
   - Add migration/schema tests and rollback-safe fixture helpers.
+  - Evidence: `supabase/migrations/0009_card_inventory.sql`, live migration apply, and card inventory RLS coverage in `supabase/__tests__/integration/rlsCrossGame.integration.test.ts`.
 
 - [x] 1.4 Implement pure deck and hand transitions
   - Seed one copy of every card definition per team.
@@ -80,17 +81,19 @@ The implementation already exists in the repository. Treat it as the executable 
   - Add fast-check coverage for uniqueness, exhaustion, draw-two/keep-one, hand limits, Power Hour, and repeated requests.
   - Evidence: `lib/cards/deck.ts`, `lib/cards/deck.test.ts`, and `lib/cards/deck.property.test.ts` (18 focused tests pass).
 
-- [ ] 1.5 Define canonical card event vocabulary and reducers
+- [x] 1.5 Define canonical card event vocabulary and reducers
   - Add stable event types for inventory, card play, challenges, effects, notifications, claims, and scores.
   - Extend the board snapshot fold with hand, active challenges, restrictions, notifications, and score explanations.
   - Preserve ordered application, stale-event ignoring, duplicate tolerance, and per-game isolation.
   - Add reducer properties for replay equivalence and idempotency.
+  - Evidence: `lib/gameboard/events.ts` and `lib/gameboard/cardEvents.test.ts`; focused card-event and existing reducer suites pass.
 
-- [ ] 1.6 Checkpoint: infrastructure primitives
+- [x] 1.6 Checkpoint: infrastructure primitives
   - Migrations apply cleanly to a disposable/test database.
   - Pure inventory and reducer suites pass.
   - RLS tests prove cross-game reads and client writes are rejected.
   - No card-specific route has been introduced yet.
+  - Evidence: live migration smoke 7/7, focused card/reducer suites passing, card inventory RLS 2/2, and full integration suite 19/19.
 
 ## Phase 2: Real card play, challenges, and notifications
 

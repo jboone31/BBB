@@ -48,6 +48,23 @@ export const GAME_BOARD_EVENT_TYPES = {
   teamCreated: "team_created",
   gameStarted: "game_started",
   gameEnded: "game_ended",
+  deckSeeded: "deck_seeded",
+  cardsDrawn: "cards_drawn",
+  cardKept: "card_kept",
+  cardDiscarded: "card_discarded",
+  cardPlayed: "card_played",
+  challengeIssued: "challenge_issued",
+  challengeConfirmed: "challenge_confirmed",
+  challengeRejected: "challenge_rejected",
+  effectCreated: "effect_created",
+  effectActivated: "effect_activated",
+  effectExpired: "effect_expired",
+  claimBlocked: "claim_blocked",
+  claimRecorded: "claim_recorded",
+  claimRemoved: "claim_removed",
+  scoreAwarded: "score_awarded",
+  scoreModifierApplied: "score_modifier_applied",
+  notificationCreated: "notification_created",
   wireframeCardPlayed: "wireframe_card_played",
 } as const;
 
@@ -81,6 +98,50 @@ export interface TargetedNotice {
   readonly cardId: string;
 }
 
+export type BoardCardState = "deck" | "pending" | "hand" | "played" | "discarded";
+
+export interface BoardCardView {
+  readonly cardId: string;
+  readonly teamId: string;
+  readonly slug: string;
+  readonly state: BoardCardState;
+}
+
+export interface BoardChallengeView {
+  readonly challengeId: string;
+  readonly sourcePlayId: string;
+  readonly casterTeamId: string;
+  readonly targetTeamId: string;
+  readonly status: string;
+  readonly blocksClaims: boolean;
+}
+
+export interface BoardEffectView {
+  readonly effectId: string;
+  readonly sourcePlayId: string;
+  readonly effectType: string;
+  readonly ownerTeamId: string | null;
+  readonly targetTeamId: string | null;
+  readonly targetBarId: string | null;
+  readonly active: boolean;
+}
+
+export interface BoardNotificationView {
+  readonly notificationId: string;
+  readonly sourcePlayId: string | null;
+  readonly audience: string;
+  readonly teamId: string | null;
+  readonly display: Readonly<Record<string, unknown>>;
+}
+
+export interface BoardScoreEntryView {
+  readonly entryId: string;
+  readonly teamId: string;
+  readonly category: string;
+  readonly points: number;
+  readonly sourceId: string | null;
+}
+
 /**
  * The folded Game_Board state the Game_Board_Client renders (design.md
  * §Components 1, §Data Models).
@@ -103,6 +164,12 @@ export interface GameBoardView {
   readonly teams: BoardTeamView[];
   /** Notices whose `targetTeamId` is the viewing team; one per targeting event (R7.8). */
   readonly targetedNotices: TargetedNotice[];
+  readonly cards: BoardCardView[];
+  readonly activeChallenges: BoardChallengeView[];
+  readonly activeEffects: BoardEffectView[];
+  readonly activeRestrictions: BoardEffectView[];
+  readonly notifications: BoardNotificationView[];
+  readonly scoreEntries: BoardScoreEntryView[];
   readonly lastSeenSequence: number;
 }
 
@@ -126,6 +193,12 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     lifecycle: "lobby",
     teams: [],
     targetedNotices: [],
+    cards: [],
+    activeChallenges: [],
+    activeEffects: [],
+    activeRestrictions: [],
+    notifications: [],
+    scoreEntries: [],
     lastSeenSequence: NO_EVENTS_SEQ,
   };
 }
@@ -168,6 +241,31 @@ export function applyGameBoardEvent(
       return { ...advanced, lifecycle: "live" };
     case GAME_BOARD_EVENT_TYPES.gameEnded:
       return { ...advanced, lifecycle: "ended" };
+    case GAME_BOARD_EVENT_TYPES.deckSeeded:
+    case GAME_BOARD_EVENT_TYPES.cardsDrawn:
+    case GAME_BOARD_EVENT_TYPES.cardKept:
+    case GAME_BOARD_EVENT_TYPES.cardDiscarded:
+    case GAME_BOARD_EVENT_TYPES.cardPlayed:
+      return applyCardInventoryEvent(advanced, event);
+    case GAME_BOARD_EVENT_TYPES.challengeIssued:
+      return applyChallengeIssued(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.challengeConfirmed:
+    case GAME_BOARD_EVENT_TYPES.challengeRejected:
+      return applyChallengeResolved(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.effectCreated:
+    case GAME_BOARD_EVENT_TYPES.effectActivated:
+      return applyEffectCreated(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.effectExpired:
+      return removeExpiredEffect(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.notificationCreated:
+      return applyNotificationCreated(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.scoreAwarded:
+    case GAME_BOARD_EVENT_TYPES.scoreModifierApplied:
+      return applyScoreEntry(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.claimBlocked:
+    case GAME_BOARD_EVENT_TYPES.claimRecorded:
+    case GAME_BOARD_EVENT_TYPES.claimRemoved:
+      return advanced;
     case GAME_BOARD_EVENT_TYPES.wireframeCardPlayed:
       return applyWireframeCardPlayed(advanced, event);
     default:
@@ -232,6 +330,232 @@ function readString(payload: unknown, key: string): string | undefined {
   }
   const value = (payload as Record<string, unknown>)[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function readNumber(payload: unknown, key: string): number | undefined {
+  if (payload === null || typeof payload !== "object") {
+    return undefined;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readBoolean(payload: unknown, key: string): boolean | undefined {
+  if (payload === null || typeof payload !== "object") {
+    return undefined;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function readRecords(payload: unknown, key: string): Record<string, unknown>[] {
+  if (payload === null || typeof payload !== "object") {
+    return [];
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (entry): entry is Record<string, unknown> =>
+      entry !== null && typeof entry === "object" && !Array.isArray(entry),
+  );
+}
+
+function readRecord(payload: unknown): Record<string, unknown> | undefined {
+  return payload !== null && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : undefined;
+}
+
+function cardFromRecord(
+  record: Record<string, unknown>,
+  fallbackState: BoardCardState,
+): BoardCardView | undefined {
+  const cardId = typeof record.cardId === "string" ? record.cardId : undefined;
+  const teamId = typeof record.teamId === "string" ? record.teamId : undefined;
+  const slug = typeof record.slug === "string" ? record.slug : undefined;
+  const state = typeof record.state === "string" ? record.state : fallbackState;
+  if (
+    cardId === undefined ||
+    teamId === undefined ||
+    slug === undefined ||
+    !["deck", "pending", "hand", "played", "discarded"].includes(state)
+  ) {
+    return undefined;
+  }
+  return { cardId, teamId, slug, state: state as BoardCardState };
+}
+
+function upsertCard(cards: readonly BoardCardView[], card: BoardCardView): BoardCardView[] {
+  const withoutCard = cards.filter((entry) => entry.cardId !== card.cardId);
+  return [...withoutCard, card];
+}
+
+function applyCardInventoryEvent(
+  view: GameBoardView,
+  event: GameEvent,
+): GameBoardView {
+  const fallbackState: BoardCardState =
+    event.eventType === GAME_BOARD_EVENT_TYPES.cardsDrawn
+      ? "pending"
+      : event.eventType === GAME_BOARD_EVENT_TYPES.cardKept
+        ? "hand"
+        : event.eventType === GAME_BOARD_EVENT_TYPES.cardDiscarded
+          ? "discarded"
+          : event.eventType === GAME_BOARD_EVENT_TYPES.cardPlayed
+            ? "played"
+            : "deck";
+  const payloadRecord = readRecord(event.payload);
+  const records = readRecords(event.payload, "cards");
+  if (records.length === 0 && payloadRecord !== undefined) {
+    records.push(payloadRecord);
+  }
+  const cards = records
+    .map((record) => cardFromRecord(record, fallbackState))
+    .filter((card): card is BoardCardView => card !== undefined)
+    .reduce(upsertCard, view.cards);
+  return cards.length === view.cards.length && cards.every((card, index) => card === view.cards[index])
+    ? view
+    : { ...view, cards };
+}
+
+function applyChallengeIssued(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const challengeId = readString(payload, "challengeId");
+  const sourcePlayId = readString(payload, "sourcePlayId");
+  const casterTeamId = readString(payload, "casterTeamId");
+  const targetTeamId = readString(payload, "targetTeamId");
+  if (
+    challengeId === undefined ||
+    sourcePlayId === undefined ||
+    casterTeamId === undefined ||
+    targetTeamId === undefined
+  ) {
+    return view;
+  }
+  if (view.activeChallenges.some((challenge) => challenge.challengeId === challengeId)) {
+    return view;
+  }
+  const challenge: BoardChallengeView = {
+    challengeId,
+    sourcePlayId,
+    casterTeamId,
+    targetTeamId,
+    status: readString(payload, "status") ?? "awaiting_confirmation",
+    blocksClaims: readBoolean(payload, "blocksClaims") ?? true,
+  };
+  return { ...view, activeChallenges: [...view.activeChallenges, challenge] };
+}
+
+function applyChallengeResolved(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const challengeId = readString(payload, "challengeId");
+  if (challengeId === undefined) {
+    return view;
+  }
+  return {
+    ...view,
+    activeChallenges: view.activeChallenges.filter(
+      (challenge) => challenge.challengeId !== challengeId,
+    ),
+  };
+}
+
+function applyEffectCreated(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const effectId = readString(payload, "effectId");
+  const sourcePlayId = readString(payload, "sourcePlayId");
+  const effectType = readString(payload, "effectType");
+  if (effectId === undefined || sourcePlayId === undefined || effectType === undefined) {
+    return view;
+  }
+  const effect: BoardEffectView = {
+    effectId,
+    sourcePlayId,
+    effectType,
+    ownerTeamId: readString(payload, "ownerTeamId") ?? null,
+    targetTeamId: readString(payload, "targetTeamId") ?? null,
+    targetBarId: readString(payload, "targetBarId") ?? null,
+    active: readBoolean(payload, "active") ?? true,
+  };
+  const effects = view.activeEffects.filter((entry) => entry.effectId !== effectId);
+  const activeEffects = [...effects, effect];
+  const activeRestrictions = activeEffects.filter(isRestrictionEffect);
+  return { ...view, activeEffects, activeRestrictions };
+}
+
+function isRestrictionEffect(effect: BoardEffectView): boolean {
+  return /block|restriction|lock/i.test(effect.effectType);
+}
+
+function removeExpiredEffect(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const id = readString(payload, "effectId");
+  if (id === undefined) {
+    return view;
+  }
+  return {
+    ...view,
+    activeEffects: view.activeEffects.filter((entry) => entry.effectId !== id),
+    activeRestrictions: view.activeRestrictions.filter(
+      (entry) => entry.effectId !== id,
+    ),
+  };
+}
+
+function applyNotificationCreated(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const notificationId = readString(payload, "notificationId");
+  const audience = readString(payload, "audience");
+  if (notificationId === undefined || audience === undefined) {
+    return view;
+  }
+  if (view.notifications.some((notification) => notification.notificationId === notificationId)) {
+    return view;
+  }
+  const display = readRecord(payload)?.display;
+  const notification: BoardNotificationView = {
+    notificationId,
+    sourcePlayId: readString(payload, "sourcePlayId") ?? null,
+    audience,
+    teamId: readString(payload, "teamId") ?? null,
+    display: display !== null && typeof display === "object" && !Array.isArray(display)
+      ? (display as Readonly<Record<string, unknown>>)
+      : {},
+  };
+  return { ...view, notifications: [...view.notifications, notification] };
+}
+
+function applyScoreEntry(view: GameBoardView, payload: unknown): GameBoardView {
+  const entryId = readString(payload, "entryId");
+  const teamId = readString(payload, "teamId");
+  const category = readString(payload, "category");
+  const points = readNumber(payload, "points");
+  if (entryId === undefined || teamId === undefined || category === undefined || points === undefined) {
+    return view;
+  }
+  if (view.scoreEntries.some((entry) => entry.entryId === entryId)) {
+    return view;
+  }
+  const entry: BoardScoreEntryView = {
+    entryId,
+    teamId,
+    category,
+    points,
+    sourceId: readString(payload, "sourceId") ?? null,
+  };
+  return { ...view, scoreEntries: [...view.scoreEntries, entry] };
 }
 
 /**

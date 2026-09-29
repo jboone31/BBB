@@ -117,7 +117,7 @@ These decisions close the open questions that control the card schema and are th
 
 The typed catalog boundary introduced in `lib/cards/catalog.ts` is the executable metadata contract for these decisions. The SQL catalog remains storage for stable definition identity and descriptive seed data; card rules are selected from validated typed metadata, never executed from arbitrary JSONB.
 
-Phase 1 progress: the typed catalog and pure deck/hand transition model are implemented and focused-tested. The inventory migration is committed with static schema coverage, but task 1.3 remains open until the environment-gated disposable Postgres and RLS checks pass against the configured backend.
+Phase 1 progress: the typed catalog, inventory migration, pure deck/hand transition model, and canonical board event/reducer slice are implemented and tested. The disposable migration smoke now strips only each file's standalone outer `BEGIN`/`COMMIT` when applying inside its existing test transaction, avoiding postgres.js nested-transaction rejection. Live migration application, cross-game isolation, and card inventory client-write rejection all pass. No card-specific route has been introduced yet.
 
 ## Design Principles
 
