@@ -57,6 +57,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import CreateGame, {
@@ -841,6 +842,37 @@ export default function LobbyPage(): React.JSX.Element {
             />
           ) : null}
         </>
+      ) : null}
+
+      {/* Lobby → Game_Board navigation entry point (in-game-landing-wireframe
+          R1.2). Once this lobby page folds a `game_started` event the lifecycle
+          becomes "live" and the lobby controls above disappear; here we surface
+          a control that navigates to this Game's Game_Board within the
+          propagation window. This is purely additive — it changes no other lobby
+          behavior. The `game_started` fold is owned by the lobby feature; this
+          only consumes the resulting `live` state. */}
+      {view.lifecycle === "live" ? (
+        <Link
+          href={`/games/${gameId}/board`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "44px",
+            padding: "0.75rem 1rem",
+            border: "1px solid #0b57d0",
+            borderRadius: "0.5rem",
+            fontSize: "1rem",
+            fontWeight: 600,
+            textAlign: "center",
+            textDecoration: "none",
+            color: "#fff",
+            background: "#0b57d0",
+            boxSizing: "border-box",
+          }}
+        >
+          Go to game board
+        </Link>
       ) : null}
     </main>
   );

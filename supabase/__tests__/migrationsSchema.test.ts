@@ -49,6 +49,8 @@ const EXPECTED_TABLES = [
   "card_definitions",
   "card_instances",
   "card_plays",
+  "team_decks",
+  "card_draws",
   "game_events",
 ] as const;
 
@@ -94,6 +96,18 @@ function loadMigrations(): MigrationFile[] {
 /** Strip line (`-- ...`) comments so keyword scans ignore prose in headers. */
 function stripSqlComments(sql: string): string {
   return sql.replace(/--[^\n]*/g, "");
+}
+
+/**
+ * Execute a committed migration inside the smoke test's existing transaction.
+ * The migration files intentionally carry their own top-level BEGIN/COMMIT for
+ * normal application, but postgres.js rejects nested transaction commands.
+ * Remove only the first standalone BEGIN and last standalone COMMIT; nested
+ * PL/pgSQL blocks remain untouched.
+ */
+function withoutOuterTransaction(sql: string): string {
+  const withoutBegin = sql.replace(/^\s*begin\s*;\s*/im, "");
+  return withoutBegin.replace(/^\s*commit\s*;\s*$/im, "");
 }
 
 /**
@@ -239,6 +253,25 @@ describe("migration files — static schema smoke check (Req 3.14)", () => {
       /pg_column_size\s*\(\s*payload\s*\)\s*<=\s*16384/i.test(union),
       "game_events payload <= 16 KB check",
     ).toBe(true);
+
+    // Card inventory: one catalog card per team deck and one draw record per
+    // team/bar pair.
+    expect(
+      /unique\s*\(\s*game_id\s*,\s*owner_team_id\s*,\s*definition_id\s*\)/i.test(
+        union,
+      ),
+      "one card definition per team deck",
+    ).toBe(true);
+    expect(
+      /unique\s*\(\s*game_id\s*,\s*team_id\s*,\s*bar_id\s*\)/i.test(union),
+      "one draw per team/bar",
+    ).toBe(true);
+    expect(
+      /bbb_is_team_member\s*\(\s*target_team_id\s+uuid\s*,\s*target_game_id\s+uuid\s*\)/i.test(
+        union,
+      ),
+      "team-owned inventory membership helper",
+    ).toBe(true);
   });
 });
 
@@ -296,10 +329,10 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
         await tx.query(`set local search_path = ${TEST_SCHEMA}, public`, []);
 
         // Apply each migration body in ascending order. The files already carry
-        // begin/commit; inside this outer transaction those are treated as no-op
-        // savepoints by postgres, so the statements simply run in sequence.
+        // begin/commit for normal application; strip only those outer wrappers
+        // because this smoke test already owns the transaction.
         for (const migration of migrations) {
-          await tx.query(migration.sql, []);
+          await tx.query(withoutOuterTransaction(migration.sql), []);
         }
 
         // --- Tables exist in the test schema ---

@@ -1,115 +1,229 @@
----
-inclusion: auto
-name: BBB Card Catalog
-description: The Beltline Bar Brawl card catalog and proposed card reworks. Activate this when discussing, designing, balancing, or implementing card functionality (the deck, individual cards, card effects, targeting, validation, or card-related game logic).
----
-
 # Cards
 
-_Lean card reference. In v0 these were called "curses." In v1 they are renamed to
-"cards" and expanded to include effects that benefit the playing team. For the full,
-authoritative v0 card text (casting costs, special interactions, resolution rules), see
-`v0/Beltline Bar Brawl.txt`. The v1 card set below is finalized; per-card casting costs,
-timers, and app-validation details will be detailed during the web-app phase._
+_Finalized v1 card catalog. This is the authoritative flat list of every card in the
+Brawl Deck, taken from the finalized ruleset in `v1/Beltline Bar Brawl_redux.txt`. Each
+team's deck contains one of each card below._
+# Cards
 
-## Terminology
+_Authoritative finalized v1 card catalog. The source of truth for card text and intended
+app behavior is `v1/Card List.md`; this steering file mirrors that list for implementation
+planning. Each team's deck contains one of each card below (identical decks)._
 
-- "Curse" (v0) -> "Card" (v1). The v1 deck includes team-beneficial cards (economy/boosts)
-  alongside the opponent-slowing ones.
+## How cards work (quick reference)
 
-## v0 Cards (summary — one line each)
+- Teams hold **up to two** cards. Before drawing a third, they must play or discard one.
+- A challenge normally targets one opposing team and must be resolved before that team can
+  claim another bar. Some cards target a bar, some target the casting team, and some have
+  no target.
+- No team may be targeted by a challenge card of the same name more than once.
+- In the MVP, most challenges are honor-system actions surfaced by near-real-time toast
+  notifications. The backend still records plays, targets, deadlines, claim blocks, and
+  confirmations so the UI can enforce the parts explicitly listed below.
+- Every card's App Mechanics below is part of the intended behavior, not merely display
+  copy. Backend work must preserve the distinction between team targets, bar targets,
+  self-targeting effects, persistent effects, and informational audience messages.
 
-Full text lives in `v0/Beltline Bar Brawl.txt`.
+## Cards
 
-- **Stop and Smell the Roses** — take 3 photos by 3 distinct plant beds, each 50+ ft apart. _(removed in v1)_
-- **Quit Nursing** — next bar must be an unvisited bonus bar; bonus if it's farther from finish. _(reworked in v1 — see below)_
-- **Go Piss Girl** — a member must use a public restroom not inside any bar.
-- **Crop Dusting** — (no target) played inside a non-finish bar; blocks others from entering for 15 min.
-- **Moneybags** — photograph a retail price tag over $150.
-- **Use It or Lose It** — cursed team must immediately play every card in hand.
-- **Wired** — order an espresso shot from a non-bar location.
-- **Heavyweight** — (self-target) permanently increase hand size by one and draw two; has claim-count cost. _(reworked in v1 — see below)_
-- **Blue Shell** — always targets the team closest to the finish; cursed team must physically tag the caster. _(removed in v1 — replaced by Spin Cycle)_
-- **Art School Dropout** — cursed team photographs a mural/graffiti/art with 3 distinct ROYGBIV colors.
-- **Broad Shoulders** — photo next to an official ATL Tiny Door installation.
-- **Uno Reverse** — reaction card; redirects a curse back onto the casting team.
-- **Bird Guide** — film a continuous video keeping a single bird in frame (matched duration).
-- **Cancel Culture** — (no target) picks a bar; teams within 0.25 mi in 15 min are frozen 15 min. _(reworked in v1 — see below)_
-- **Papparazzi, Please** — three consensual selfies with three different non-team people. _(removed in v1)_
-- **Interested Buyer** — obtain a souvenir/brochure from an apartment leasing office.
-- **Different Tastes** — photograph a restaurant with cuisine from the same continent as the caster's.
-- **Everyone's a Critic** — photo at a 4.5+ star Google location, else frozen 10 min; no research first.
+### Go Piss Girl
 
-## Locked v1 Card Changes
+At least one member of the target team must enter a publicly accessible restroom that is
+not located inside any bar.
 
-These changes are locked for v1.
+**App Mechanics:** Targets a team; toast plus confirmation by the target team; informational
+toast to non-target and casting teams.
 
-### Reworks
+### Crop Dusting
 
-- **Uno Reverse -> "Fairest of Them All"** — reworked from discard-and-reflect into a
-  reactive card: when a team plays a card against your team, you may immediately use this
-  to also make the *playing* team complete the card's requirements (both teams complete it).
-- **Quit Nursing** — the next bar visited must be an **unclaimed bar** (previously an
-  unvisited *bonus* bar; "bonus bars" no longer exist in v1).
-- **Heavyweight** — casting cost is now: the team must have **claimed 5 bars AND have the
-  most bars claimed** of any team. (Self-target; permanently increases hand size by one and
-  draws two.)
-- **Cancel Culture** — publicly pick a bar. Starting **15 minutes after casting**, no bar
-  within **0.25 miles** of the chosen bar can be claimed for the **next 15 minutes**.
+**Special Rule:** Does not target a team. Must be played physically inside a bar that is not
+the finish bar. Once played in a bar, no other team may enter that bar for 15 minutes.
 
-### Removals
+**App Mechanics:** Targets a bar; alerts all non-casting teams; prevents the target bar from
+being claimed for 15 minutes.
 
-- **Remove "Stop and Smell the Roses"** — too easy.
-- **Remove "Papparazzi, Please"** — too easy.
-- **Remove "Blue Shell"** — replaced by **Spin Cycle** (see additions).
+### Moneybags
 
-### Additions — Opponent-slowing
+The target team must find a product with a visible price tag over $150 inside a retail store.
+A photograph of the price tag is required.
 
-- **Spin Cycle** — the cursed team must immediately return to the **most recently claimed
-  bar** (the bar it claimed most recently) before it can claim another bar.
-- **Dirty Bird** — the cursed team must take a photo with a **non-team member wearing an
-  Atlanta sports team logo** before claiming another bar.
-- **Scenic Route** — the cursed team's next claim must be a bar **farther from the finish**
-  than their current position.
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
 
-### Additions — Economy / boosts
+### Use It or Lose It
 
-Boosts are rare and forward-looking: they affect *future* bars, never retroactively change
-bars already scored. Several are public (any team can benefit) but timed so the casting
-team holds the positional advantage.
+The target team must immediately play every card currently in its hand. Cards whose playing
+requirements cannot be met immediately are discarded with no effect.
 
-- **Insured** — (self) the points you receive from the **next bar you claim cannot be
-  reduced** by later claimers. Other teams still gain and lose points normally based on how
-  many teams claim that bar, so the total awarded on that bar **can exceed 12**.
-- **Happy Hour** — pick a bar. **Any team** that claims it in the **next hour** gets **+2
-  points**.
-- **Power Hour** — for the **next 20 minutes**, whenever **any team** claims a bar, that
-  team **draws two cards and keeps both**.
-- **Party Crasher** — pick a non-finish bar that **fewer than four teams** have claimed.
-  Teams that claim this bar score **as if sharing with one extra (phantom) team** — i.e.,
-  the split is computed on (actual claiming teams + 1): 1 claimer scores 6, 2 claimers
-  score 4 each, 3 claimers score 3 each. If **all four teams** claim it, the phantom share
-  disappears and they score the normal 3 each.
-- **Patient Investor** — (self) after your team claims **five more bars**, gain **+5
-  points**.
-- **Window Shopping** — you must have **another card in hand**; **trade your hand** for
-  another team's hand.
+**App Mechanics:** Targets a team and prompts it to play all cards before claiming a bar;
+informational toast to non-target and casting teams.
 
-## Design Notes
+### Wired
 
-- v1 favors cards the app can **validate** (photo uploads, location checks, timers) to fix
-  v0's enforceability problems.
-- Cards requiring a target let the playing team choose which team to target; the target is
-  notified immediately and blocked from claiming a bar until conditions are met.
+The target team must order a shot of espresso from a location that is not a bar.
 
-### Card interactions
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
 
-- **Insured + Party Crasher** — self-contained. Insured locks whatever share you *receive*
-  at claim time; Party Crasher only changes what that share is. If a team is insured, Party
-  Crasher cannot later reduce them. If Party Crasher is already in effect on a bar and an
-  insured team is the first to claim it, they are insured at 6 (the phantom-team share).
+### Art School Dropout
 
----
+The casting team must take a photo of a mural, graffiti, or art installation containing
+three distinct ROYGBIV colors. The target team must then photograph a different one containing
+the same three colors.
 
-_The v1 card set is finalized. Casting costs, exact timers, and app-validation logic for
-each card will be specified during the web-app phase._
+**App Mechanics:** The caster inputs three colors, then targets a team; toast plus target-team
+confirmation; informational toast to non-target and casting teams.
+
+### Broad Shoulders
+
+The target team must take a photo with at least one team member next to an official ATL Tiny
+Door installation.
+
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
+
+### Bird Guide
+
+The casting team must film a continuous video, up to five minutes, keeping one bird visible.
+The target team must film another bird for at least as long.
+
+**App Mechanics:** The caster inputs a duration of 0-300 seconds, then targets a team; toast
+plus target-team confirmation; informational toast to non-target and casting teams.
+
+### Interested Buyer
+
+The target team must obtain a souvenir or brochure from an apartment leasing office. If most
+leasing offices are closed, a photo in front of one is acceptable.
+
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
+
+### Different Tastes
+
+The casting team must take a picture next to a restaurant. The target team must photograph a
+restaurant whose cuisine is from the same continent.
+
+**App Mechanics:** The caster inputs a cuisine type, then targets a team; toast plus target-
+team confirmation; informational toast to non-target and casting teams.
+
+### Everyone's a Critic
+
+The target team must take a picture on the premises of a location with at least 4.5 Google
+stars. If it fails, it may not claim a bar for 15 minutes and may not use the internet for
+research until making an attempt.
+
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
+
+### Fairest of Them All
+
+May only be played immediately after the team is targeted by a challenge card. It forces the
+casting team to complete that challenge's requirements too.
+
+**App Mechanics:** When targeted, a team with this card is prompted to play it in the same
+toast. If played, the casting team is alerted that the challenge was mirrored and receives
+the original challenge toast. Informational toast goes to other teams.
+
+### Pioneer
+
+The target team's next claimed bar must be unclaimed and not the finish bar.
+
+**App Mechanics:** Targets a team; blocks that team's finish-bar claims and claims of bars
+already claimed by another team for its next claim only; informational toast to non-target
+and casting teams.
+
+### Cancel Culture
+
+**Special Rule:** Targets a bar that is not within 0.25 miles of the finish bar, and the bar
+must be publicly announced on play. Beginning 15 minutes after announcement, no bar within
+0.25 miles of the target bar may be claimed for the next 15 minutes.
+
+**App Mechanics:** Targets a bar; announces the upcoming restriction to all teams, then
+announces when it starts; uses bar coordinates to block affected bars during the window.
+
+### Spin Cycle
+
+The target team must immediately return to the entrance of the most recently claimed bar.
+
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
+
+### Dirty Bird
+
+The target team must take a photo with a non-team member wearing Atlanta sports merchandise.
+
+**App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
+to non-target and casting teams.
+
+### Scenic Route
+
+The target team's next claimed bar must be farther from the finish bar than its previous bar.
+
+**App Mechanics:** Targets a team; uses coordinates to block claims closer to the finish than
+the team's previous bar for its next claim only; informational toast to non-target and
+casting teams.
+
+### Insurance
+
+**Special Rule:** Targets the casting team only. The points that team receives from its next
+claimed bar cannot be reduced by later claimants; other teams share normally.
+
+**App Mechanics:** Protects the caster's next-bar points only; toast to all non-casting teams.
+
+### Happy Hour
+
+**Special Rule:** Targets a non-finish bar. Any team drinking there in the next hour gets +5
+points for its first drink, even if it already claimed the bar.
+
+**App Mechanics:** Targets a bar; adds five immutable points alongside normal sharing and
+allows teams that already claimed the bar to claim it again for the bonus only.
+
+### Party Crasher
+
+**Special Rule:** Targets a non-finish bar with fewer than four claiming teams. Claimants
+score as if one phantom team were sharing. Once four teams claim it, the phantom disappears
+and all teams score the normal three points.
+
+**App Mechanics:** Targets an eligible bar, reduces its shares persistently as if an extra
+team were present, and sends a toast to all teams.
+
+### Patient Investor
+
+**Special Rule:** Targets the casting team only. After that team claims four more bars, it
+gains +6 points.
+
+**App Mechanics:** Toast to all non-casting teams; tracks four subsequent claims and adds six
+immutable points when the threshold is reached.
+
+### Power Hour
+
+**Special Rule:** No target; persistent effect. For the next 20 minutes, every team claiming
+a bar draws two cards and keeps both.
+
+**App Mechanics:** Toast to all teams; modifies draw resolution for 20 minutes so neither
+card is discarded.
+
+### Voted Off the Island
+
+The card requires all four teams to have claimed a non-starting bar. The target team
+un-claims a bar all four teams have claimed and may later re-claim it.
+
+**App Mechanics:** Targets both a team and a qualifying bar; removes that team's claim,
+notifies the target, permits re-claiming, and sends informational toast to other teams.
+
+## Backend implementation priorities
+
+The cards divide into four infrastructure families:
+
+1. **Notification and confirmation:** Go Piss Girl, Wired, Broad Shoulders, Interested Buyer,
+   Spin Cycle, Dirty Bird, and the informational portions of most other challenges.
+2. **Evidence and parameter capture:** Moneybags, Art School Dropout, Bird Guide, Different
+   Tastes, Everyone's a Critic, and any future photo/video validation.
+3. **Claim eligibility and timers:** Crop Dusting, Use It or Lose It, Pioneer, Cancel Culture,
+   Scenic Route, Happy Hour, and Voted Off the Island.
+4. **Scoring and deck mutations:** Insurance, Happy Hour, Party Crasher, Patient Investor,
+   Power Hour, Use It or Lose It, Fairest of Them All, and Voted Off the Island.
+
+_The card set and intended App Mechanics above are finalized. Validation strength may begin
+with confirmation and honor-system workflows, but the event, timer, eligibility, scoring,
+and card-inventory state must be modeled so stronger validation can be added without a schema
+rewrite._

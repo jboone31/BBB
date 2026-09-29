@@ -1,0 +1,655 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Scaffold `lib/gameboard/` module skeletons and shared types": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246535
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228254463
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228470050
+      }
+    ],
+    "2.1 Implement `initialGameBoardView`, `applyGameBoardEvent`, `foldGameBoardEvents`, `dismissTargetedNotice`": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246589
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228473985
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228583620
+      }
+    ],
+    "2.2 Write property test `lib/gameboard/events.property.test.ts` for canonical, idempotent, ordered fold": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246628
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228593226
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228731749
+      }
+    ],
+    "2.3 Write property test in `lib/gameboard/events.property.test.ts` for own-game-only folding": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246657
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228594620
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228733138
+      }
+    ],
+    "2.4 Write property test in `lib/gameboard/notices.property.test.ts` for one-notice-per-targeting-event": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246699
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228596026
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228734539
+      }
+    ],
+    "2.5 Write property test in `lib/gameboard/notices.property.test.ts` for dismissal removing exactly one notice": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246762
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228596981
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228735499
+      }
+    ],
+    "3.1 Implement `placeholderHand(playerId)` — deterministic, seeded by `playerId`, returning 1–8 `PlaceholderCard`s with distinct ids and a mix of `targetsTeam` true/false": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246788
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228475375
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228585016
+      }
+    ],
+    "3.2 Write property test `lib/gameboard/placeholderCards.property.test.ts` for bounded hand size and distinct ids": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246817
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228598329
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228736859
+      }
+    ],
+    "4.1 Implement `selectBoardAccess(lifecycle, hasSession, isAdmin, isPlayer)` returning exactly one of `no-session | not-authorized | redirect-lobby | ended | board` per the design's access-gate table": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246847
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228477269
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228587369
+      }
+    ],
+    "4.2 Write property test `lib/gameboard/access.property.test.ts` for exhaustive, gated access decision": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246876
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228741525
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228872779
+      }
+    ],
+    "5.1 Implement `INITIAL_REGION = \"bars\"` and `selectRegion(current, target)` — sets `target` active; re-selecting the active Region returns an equal state (no change)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246904
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228478406
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228588669
+      }
+    ],
+    "5.2 Write property test `lib/gameboard/region.property.test.ts` for select + idempotence": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246933
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228742927
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228876972
+      }
+    ],
+    "5.3 Write property test in `lib/gameboard/region.property.test.ts` for exactly-one-active over random selection sequences": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246960
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228744370
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228878068
+      }
+    ],
+    "6. Checkpoint - pure reducer, model, access, and region logic": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228246990
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789232223094
+      }
+    ],
+    "7.1 Implement POST handler mirroring `teams/select/route.ts`: `runtime = \"nodejs\"`; `requireSession` (401 `missing_session`) → `withTransaction` (game row `FOR UPDATE`) → `assertMember` (403 `not_member`) → validate target Team belongs to this game and differs from the caller's own Team (404 `not_found`) → `appendEvent` exactly one `wireframe_card_played` `{ castingTeamId, targetTeamId, cardId }` (actor = caster's Team) → `applied(seq)`; any throw rolls back with `notApplied` (500)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247018
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228747158
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228875572
+      }
+    ],
+    "7.2 Write example tests `app/api/games/[gameId]/wireframe-card-play/route.test.ts` for the append + validation branches": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247048
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229043089
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231242123
+      }
+    ],
+    "7.3 Write example test for append-failure handling (not delivered)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247076
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229044037
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231243009
+      }
+    ],
+    "8.1 Implement `RegionNav.tsx` — three navigation controls (bars/scoreboard/cards), active control visually distinguished (e.g. `aria-current`), all three always displayed and operable, each ≥44×44px touch target": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247118
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228748451
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228871332
+      }
+    ],
+    "8.2 Implement `BarsRegion.tsx` — placeholder view surface; placeholder claim control labeled as claiming a bar (≥44×44px); \"provided by a later feature\" label; activating the claim control shows an inert wireframe acknowledgement (no POST, no append, no score/claim change, regions unchanged); when Session is Admin-and-not-a-Player, show \"claiming belongs to Players\" instead of an operable control": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247165
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228885822
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229031588
+      }
+    ],
+    "8.3 Implement `ScoreboardRegion.tsx` — one placeholder row per Team (2–4), each showing the Team color, a placeholder score, a placeholder claimed-bars area, plus a \"later feature\" label": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247193
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228887233
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229037273
+      }
+    ],
+    "8.4 Write property test `components/board/ScoreboardRegion.property.test.tsx` for one-row-per-team rendering": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247220
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229045433
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231237901
+      }
+    ],
+    "8.5 Implement `CardsRegion.tsx` — placeholder hand surface of 1–8 placeholder cards each with a play control; \"later feature\" label; when Admin-and-not-a-Player, show \"a hand belongs to Players\" instead of a hand": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247249
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228889123
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229028748
+      }
+    ],
+    "9.1 Implement `CardPlayWireframe.tsx` — presented on play; for a targeting card lists every **other** Team excluding the caller's own Team; for a non-targeting card omits target selection and shows confirm directly; selecting a target shows a confirmation naming it; confirming a targeting card without a selected target shows \"target required\" and does not complete; confirm shows a wireframe acknowledgement and enforces nothing; cancel dismisses and leaves the region unchanged; fits within 320–430px without horizontal scroll": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247289
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228891474
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229035978
+      }
+    ],
+    "9.2 Write property test `components/board/CardPlayWireframe.property.test.tsx` for the target list": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247328
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229046890
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231239268
+      }
+    ],
+    "9.3 Implement `TargetedNotification.tsx` — presents the casting Team; a \"effect/restriction is a later feature\" label; a dismiss control (≥44×44px); never obscures the Region nav and blocks nothing": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247358
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228892773
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229032995
+      }
+    ],
+    "9.4 Write component tests for the card-play and notification branches": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247388
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789229047872
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231240728
+      }
+    ],
+    "10. Checkpoint - server route and presentational components": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247417
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789232224021
+      }
+    ],
+    "11.1 Write example/render tests `app/games/[gameId]/board/page.test.tsx` for access gating and realtime wiring": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247448
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231606006
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231844460
+      }
+    ],
+    "11.2 Add a reference test/comment citing the reused `lib/realtime` property suites (do NOT re-implement)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247486
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231611307
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231846080
+      }
+    ],
+    "12.1 Write a test asserting the lobby presents board navigation after folding `game_started`": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247518
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231606922
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231848246
+      }
+    ],
+    "13.1 Write viewport test `app/games/[gameId]/board/page.viewport.test.tsx`": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247546
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231609774
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231848698
+      }
+    ],
+    "13.2 Write viewport test `components/board/CardPlayWireframe.viewport.test.tsx`": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247576
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231608814
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231849833
+      }
+    ],
+    "14.1 Write integration tests for Realtime delivery and channel isolation": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247607
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231853833
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789232198501
+      }
+    ],
+    "15. Final checkpoint - full in-game landing wireframe": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228247637
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789232225131
+      }
+    ],
+    "2. Implement the pure Game_Board reducer (`lib/gameboard/events.ts`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228735547
+      }
+    ],
+    "3. Implement the placeholder card model (`lib/gameboard/placeholderCards.ts`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228736907
+      }
+    ],
+    "4. Implement the board access decision helper (`lib/gameboard/access.ts`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228872818
+      }
+    ],
+    "5. Implement the active-Region transition logic (`lib/gameboard/region.ts`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789228878132
+      }
+    ],
+    "8. Implement the RegionNav and region-surface components (`components/board/`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231237998
+      }
+    ],
+    "9. Implement the card-play and notification components (`components/board/`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231240817
+      }
+    ],
+    "7. Implement the wireframe card-play route (`app/api/games/[gameId]/wireframe-card-play/route.ts`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231243075
+      }
+    ],
+    "11. Implement the Game_Board page and wire everything together (`app/games/[gameId]/board/page.tsx`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231257740
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231846150
+      }
+    ],
+    "12. Add the lobby→board navigation entry point (`app/games/[gameId]/lobby/page.tsx`)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231258779
+      },
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231848300
+      }
+    ],
+    "13. Add mobile-first viewport coverage": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789231849878
+      }
+    ],
+    "14. Write external-infra integration checks (Supabase Realtime)": [
+      {
+        "executionId": "91ca6a9c-c9ce-4d97-9714-c400271f6e3e",
+        "chatSessionId": "sess_01818e8d-9a35-4ea0-8cfd-b76e517cc6c7",
+        "timestamp": 1789232198579
+      }
+    ]
+  }
+}

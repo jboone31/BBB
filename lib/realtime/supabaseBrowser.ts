@@ -212,9 +212,26 @@ export function supabaseRealtimeTransport(
           },
         );
 
-      void channel.subscribe();
+      const ready = new Promise<void>((resolve, reject) => {
+        void channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            resolve();
+          } else if (
+            status === "CHANNEL_ERROR" ||
+            status === "TIMED_OUT" ||
+            status === "CLOSED"
+          ) {
+            reject(new Error(`realtime channel ${status.toLowerCase()}`));
+          }
+        });
+      });
+      // `subscribe()` callers still observe readiness failures by awaiting
+      // `ready`, while this branch prevents a provider close during teardown
+      // from becoming an unhandled rejection when no caller is awaiting it.
+      void ready.catch(() => undefined);
 
       return {
+        ready,
         unsubscribe: async (): Promise<void> => {
           await client.removeChannel(channel);
         },

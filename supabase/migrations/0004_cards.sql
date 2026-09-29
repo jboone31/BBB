@@ -54,7 +54,8 @@ create table card_definitions (
   -- Nullable: how a play is validated (photo | location | timer | none). Free text now to
   -- leave room for F3.3 validation without locking an enum prematurely.
   validation_modality  text,
-  -- Nullable: per-card cost metadata (e.g., Heavyweight's claim-count preconditions).
+  -- Nullable: per-card cost/precondition metadata for cards with playing conditions
+  -- (e.g., Voted Off the Island's "all four teams have claimed a non-starting bar").
   casting_cost         jsonb,
   -- Nullable: duration for timed cards (Cancel Culture, Power Hour, Happy Hour).
   timer_seconds        integer,

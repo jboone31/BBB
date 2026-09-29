@@ -124,6 +124,7 @@ interface GameFixture {
   readonly sessionId: string;
   readonly teamId: string;
   readonly barId: string;
+  readonly cardInstanceId: string;
   /** id of a game_events row belonging to this game. */
   readonly eventId: string;
 }
@@ -172,6 +173,31 @@ async function createGameFixture(): Promise<GameFixture> {
     );
     const barId = String(bar.rows[0]?.id);
 
+    const definition = await tx.query(
+      `select id from card_definitions where slug = 'wired' limit 1`,
+      [],
+    );
+    const definitionId = String(definition.rows[0]?.id);
+    const card = await tx.query(
+      `insert into card_instances
+         (game_id, definition_id, holder_team_id, owner_team_id, state,
+          draw_position, held_at)
+       values ($1, $2, $3, $3, 'in_hand', 0, now())
+       returning id`,
+      [gameId, definitionId, teamId],
+    );
+    const cardInstanceId = String(card.rows[0]?.id);
+
+    await tx.query(
+      `insert into team_decks (game_id, team_id) values ($1, $2)`,
+      [gameId, teamId],
+    );
+    await tx.query(
+      `insert into card_draws (game_id, team_id, bar_id, cards_drawn)
+       values ($1, $2, $3, 2)`,
+      [gameId, teamId, barId],
+    );
+
     const event = await tx.query(
       `insert into game_events (game_id, seq, event_type, actor_kind, payload)
        values ($1, 1, 'rls_fixture', 'system', $2::jsonb)
@@ -180,7 +206,14 @@ async function createGameFixture(): Promise<GameFixture> {
     );
     const eventId = String(event.rows[0]?.id);
 
-    return { gameId, sessionId: memberSessionId, teamId, barId, eventId };
+    return {
+      gameId,
+      sessionId: memberSessionId,
+      teamId,
+      barId,
+      cardInstanceId,
+      eventId,
+    };
   });
 }
 
@@ -317,6 +350,18 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
           `select id from game_events where game_id = $1`,
           [gameB.gameId],
         );
+        const bDecks = await tx.query(
+          `select team_id from team_decks where game_id = $1`,
+          [gameB.gameId],
+        );
+        const bDraws = await tx.query(
+          `select id from card_draws where game_id = $1`,
+          [gameB.gameId],
+        );
+        const bCards = await tx.query(
+          `select id from card_instances where game_id = $1`,
+          [gameB.gameId],
+        );
 
         // Control: the same session CAN read its own game A rows.
         const aGames = await tx.query(`select id from games where id = $1`, [
@@ -333,6 +378,9 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
           bPlayers: bPlayers.rows.length,
           bBars: bBars.rows.length,
           bEvents: bEvents.rows.length,
+          bDecks: bDecks.rows.length,
+          bDraws: bDraws.rows.length,
+          bCards: bCards.rows.length,
           aGames: aGames.rows.length,
           aEvents: aEvents.rows.length,
         };
@@ -344,6 +392,9 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
       expect(rowCounts.bPlayers).toBe(0);
       expect(rowCounts.bBars).toBe(0);
       expect(rowCounts.bEvents).toBe(0);
+      expect(rowCounts.bDecks).toBe(0);
+      expect(rowCounts.bDraws).toBe(0);
+      expect(rowCounts.bCards).toBe(0);
 
       // Control proves the session is scoped, not blind: it sees game A.
       expect(rowCounts.aGames).toBe(1);
@@ -380,12 +431,27 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
           `delete from bars where id = $1 returning id`,
           [gameB.barId],
         );
+        const upCard = await tx.query(
+          `update card_instances set state = 'discarded' where id = $1 returning id`,
+          [gameB.cardInstanceId],
+        );
+        const delDeck = await tx.query(
+          `delete from team_decks where game_id = $1 returning team_id`,
+          [gameB.gameId],
+        );
+        const delDraw = await tx.query(
+          `delete from card_draws where game_id = $1 returning id`,
+          [gameB.gameId],
+        );
 
         return {
           upTeam: upTeam.rows.length,
           upBar: upBar.rows.length,
           upGame: upGame.rows.length,
           delBar: delBar.rows.length,
+          upCard: upCard.rows.length,
+          delDeck: delDeck.rows.length,
+          delDraw: delDraw.rows.length,
         };
       });
 
@@ -395,6 +461,9 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
       expect(affected.upBar).toBe(0);
       expect(affected.upGame).toBe(0);
       expect(affected.delBar).toBe(0);
+      expect(affected.upCard).toBe(0);
+      expect(affected.delDeck).toBe(0);
+      expect(affected.delDraw).toBe(0);
 
       // --- game_events cross-game write: DENIED at the privilege layer. ---
       // Unlike the RLS-only tables above, game_events has UPDATE/DELETE REVOKEd

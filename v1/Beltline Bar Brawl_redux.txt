@@ -1,0 +1,122 @@
+The Beltline Bar Brawl: Redux
+
+Goal
+Teams race down the Beltline getting drinks at various bars to “claim” them and earn points for their team. Drinking at a bar allows your team to draw cards that can be used to slow down other teams or give your team an advantage. Whenever a team claims the “finish” bar, the game ends immediately. The team with the most points wins.
+Player Overview
+* Teams: 2-4 teams of any size
+* Estimated duration: 2-4 hours
+Gameplay Overview
+The game begins at a starting bar and ends at a finish bar. When at least half of the members of a team order and finish a drink at any bar, they claim that bar for their team.
+Every bar except the starting bar is worth 12 points. Points are shared equally among all teams that claim a bar.
+When your team claims a bar, they draw two cards from the brawl deck, and choose one to keep.
+Cards can be played to impose creative obstacles or detours on opposing teams, or to give your team a slight advantage.
+All players must travel on foot. No cars, bikes, scooters, etc.
+Playing the Game
+1. Starting the Race
+o All teams begin together at the starting bar.
+o Once every team has their drinks, the game officially begins. Do not start drinking until the game begins.
+2. Claiming Bars
+o To “claim” a bar:
+* All team members must be present.
+* At least half of the team must order and finish a drink.
+o Bars in general are worth twelve points, though some cards may cause teams to gain additional or fewer points upon claiming a bar.
+o The points of each bar are shared among all teams that have claimed it. Thus, the following represents how many points each team gets based on how many teams have claimed that bar so far:
+* 1 claiming team: 12 points
+* 2 claiming teams: 6 points each
+* 3 claiming teams: 4 points each
+* 4 claiming teams: 3 points each
+o The game ends immediately when a team claims the finish bar. Consequently, that team receives 12 points, plus or minus any card effects that alter points.
+o Bars may only be claimed once by each team
+3. The Brawl Deck
+o Each time a team claims a bar (excluding the finish bar), they draw the top two cards of the Brawl Deck, choose one to keep, and remove the other from play.
+o Cards are only drawn once per team, per unique bar, meaning the same bar cannot be revisited for an additional card draw. 
+o Some cards may make an exception to these rules—if so, always follow the directions on the card over this document.
+o Once a card is played or discarded, it is removed from the deck for the rest of the game.
+o If a team exhausts their Brawl Deck, they may still claim bars but receive no cards. If there is only one card remaining in your Brawl Deck when you claim a bar, you may add it to your hand.
+
+Using the Brawl Deck
+* Playing Cards
+o Teams may hold up to two cards at a time.
+Before drawing a third, they must immediately play or discard one that is currently in their hand.
+o Cards in general can be played at any time, unless a card specifies playing conditions.
+o Cards that detail a challenge generally target one other team specified by the casting team at the time of play, unless the card explicitly says otherwise.
+o The casting team must inform the group immediately of the challenge card being played and the team being targeted. 
+o If multiple teams are in play, no team may be targeted by a challenge card with the same name more than once. Cast wisely!
+* Resolving Cards:
+o The affected team must complete the challenge card requirements before claiming another bar.
+o If a challenge card is played on your team while actively in line to order a drink at a bar, you may finish claiming the bar before resolving the card. If you have not yet placed the order, you must resolve the card first.
+o If multiple challenge cards are played on your team, you may resolve them in any order.
+o You may not use something (i.e., a photo) to fulfill a challenge requirement that was obtained before being targeted.
+* Casting Requirements:
+o Some cards can only be played if certain conditions are met; otherwise, they are discarded with no effect.
+o All casting requirements must be completed before announcing the card.
+o The casting team must all be together when playing a card.
+The Brawl Deck
+Each team’s deck contains identical cards, with one of each of the following:
+* GO PISS GIRL
+o At least one member of the target team must enter a publicly accessible restroom that is not located inside any bar.
+* CROP DUSTING
+o Special Rule: This card does not target a team.
+o Requirements: Must be played physically inside any bar that is not the finish bar.
+o Once this card is played in a bar, no other team may enter that bar for 15 minutes.
+* MONEYBAGS
+o The target team must find a product with a visible price tag of more than $150 inside any retail store.
+o A photograph of the price tag is required for verification.
+* USE IT OR LOSE IT
+o The target team must immediately play every card currently in their hand.
+o If a card has a playing requirement that the team cannot meet at that moment, that card is discarded with no effect.
+* WIRED
+o The target team must order a shot of espresso from a location that is not a bar.
+* ART SCHOOL DROPOUT
+o Requirements: The casting team must take a photo of a mural, graffiti, or art installation that contains three distinct colors (ROYGBIV only).
+o The target team must take a photo of a different mural, graffiti, or art installation that contains these three colors.
+* BROAD SHOULDERS
+o The target team must take a photo with at least one team member standing next to an official ATL Tiny Door installation.
+* BIRD GUIDE
+o Requirements: The casting team must film a continuous video (up to 5 minutes) in which a single bird remains visible in the frame.
+o The target team must film a continuous video of another bird, and the bird must remain in frame for at least as long as the casting team.
+* INTERESTED BUYER
+o The target team must obtain a souvenir/brochure from any apartment leasing office.
+o If most leasing offices are closed today, they may take a picture in front of one instead.
+* DIFFERENT TASTES
+o Requirements: The casting team must take a picture next to a restaurant.
+o The target team must take a picture of a restaurant whose cuisine is from the same continent as the casting team’s restaurant.
+* EVERYONE'S A CRITIC
+o The target team must take a picture on the premises of a location with at least 4.5 stars on Google.
+o If they fail, they may not claim a bar for 15 minutes.
+o The cursed team may not use the internet for research until making an attempt.
+* FAIREST OF THEM ALL
+o Requirements: May only be played immediately after your team is targeted by a challenge card.
+o Force the casting team to also complete the challenge cards requirements (both teams complete it).
+* PIONEER
+o The next bar claimed by the target team must be an unclaimed bar that is not the finish bar.
+* CANCEL CULTURE
+o Special Rule: This card targets a bar that is not within 0.25 miles of the finish bar, and this bar must be publicly announced on play.
+o Beginning 15 minutes after the target bar is announced by the casting team, no bar withing 0.25 miles of the target bar may be claimed for the next 15 minutes.
+* SPIN CYCLE
+o The target team must immediately return to the entrance of the bar their team most recently claimed.
+* DIRTY BIRD
+o The target team must take a photo with a non-team member wearing Atlanta sports team merchandise.
+* SCENIC ROUTE
+o The target team’s next claimed bar must be farther from the finish bar than the last bar their team claimed.
+* INSURANCE
+o Special Rule: This card targets the casting team only.
+o The points your team receives from the next bar you claim cannot be reduced by later-claiming teams.
+o Other teams receive points for claiming this bar as if they were sharing normally.
+* HAPPY HOUR
+o Special Rule: This card targets any bar that is not the finish bar.
+o Any team that drinks at the target bar in the next hour gets +5 points for the first drink only, even if they have already claimed it.
+* PARTY CRASHER
+o Special Rule: This card targets any bar that is not the finish bar and that fewer than four teams have claimed.
+o Teams claiming this bar score as if sharing with one extra (phantom) team.
+o If four teams claim it, the phantom share disappears and all teams score the normal 3 each.
+* PATIENT INVESTOR
+o Special Rule: This card targets the casting team only.
+o After your team claims four more bars, gain +6 points.
+* POWER HOUR
+o Special Rule: This card does not have a target and is a persistent effect.
+o For the next twenty minutes, whenever any team claims a bar, that team draws two cards and keeps both.
+* VOTED OFF THE ISLAND
+o Requirements: All four teams have claimed a non-starting bar.
+o The target team un-claims a bar that all four teams have claimed.
+o They may choose to re-claim the bar.

@@ -41,8 +41,9 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
   claims, cards, card plays, events) and the real-time propagation mechanism (e.g., Supabase
   subscriptions) that every live feature relies on. Directly targets the v0 latency problem.
   - Depends on: F0.1, F0.2.
-  - _Done via the `web-app-foundation` spec. Migrations `0001`–`0007` (schema, claims,
-    append-only `game_events`, cards + catalog seed, RLS, auto-timeout sweep), the
+  - _Done via the `web-app-foundation` spec. Migrations `0001`–`0009` (schema, claims,
+    append-only `game_events`, cards + catalog seed, RLS, auto-timeout sweep, teamless
+    players, and durable card inventory), the
     `appendEvent` backbone, and the Supabase Realtime subscription client (`lib/realtime`)._
   - **Backend activation (remaining to go live):** populate the environment variables
     (`.env.local` locally; Vercel Preview/Production env for deploys — see `.env.example`),
@@ -96,18 +97,27 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
 
 ## 2. Bars & Claiming
 
-- [ ] **F2.1 — Bar selection & discovery.** How players pick bars: map API vs. predetermined
-  list (open decision in `tech.md`). If list-based, include the **propose-a-bar** flow where
-  players suggest missing bars for admin approval/denial.
+- [~] **F2.1 — Bar selection & discovery.** Use a predetermined candidate-bar catalog rather
+  than a map API: `lib/map/bars.ts` stores stable bar ids, names, and WGS-84 coordinates
+  copied from the candidate list, with same-venue entries folded where appropriate. The
+  current Map_Region renders those candidates on a client-only Leaflet/OpenStreetMap map,
+  fits the initial viewport to the catalog bounds, and supports pan/zoom plus marker popups.
+  The wireframe does not yet include propose-a-bar or admin approval; that remains part of
+  the real discovery decision if the catalog needs to change during play.
   - Depends on: F1.3.
 - [ ] **F2.2 — Claim a bar & scoring.** A team claims a bar once **at least half** its members
   finish a drink and taps "claim." Apply v1 scoring: start bar = 0; other bars split 12 among
   current claimers (12/6/4/3); finish bar awards 12 solo and **ends the game**. Recompute
-  shares live as new teams claim.
+  shares live as new teams claim. The map wireframe currently models this only as local
+  toggling; the real claim transaction, half-team authorization, score ledger, and event
+  propagation are still pending.
   - Depends on: F2.1, F0.3.
-- [ ] **F2.3 — Claim visualization.** Show which teams have claimed which bars, colored by all
-  claiming teams' colors (map API, in-house map with hard-coded coordinates, or list — open
-  decision). Live scoreboard.
+- [~] **F2.3 — Claim visualization.** The wireframe shows every candidate bar as a marker,
+  reports its claimer count in the popup, and splits marker colors equally among all claiming
+  teams (solid, two-, three-, or four-way bands). The popup control can claim/unclaim only for
+  the current player's own team, while all teams' colors remain visible. This is local-only
+  and non-scoring until F2.2 supplies durable claims and realtime state; the real design is
+  therefore now fixed as an in-house coordinate catalog plus Leaflet map, not a map API.
   - Depends on: F2.2.
 
 - [ ] **U2.1 — Bars, claiming & scoreboard UI.** Wire the F2 backend into the app: bar
@@ -118,26 +128,39 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
 
 ## 3. Cards
 
-- [ ] **F3.1 — Card draw & hand management.** On claiming a bar (incl. start), draw two and
-  keep one. Enforce hand-size limits; if the hand is full, prompt to play a card before adding.
+- [~] **F3.1 — Card draw & hand management.** The shared card foundation is implemented:
+  typed metadata covers all 23 cards; each team has an independent server-ordered deck model;
+  draw-two/keep-one, discard, play, exhaustion, duplicate-bar prevention, two-card hand limits,
+  and the Power Hour override have pure transition coverage. Migration `0009_card_inventory.sql`
+  adds durable team decks, per-bar draw records, card ownership/lifecycle fields, constraints,
+  indexes, and team-scoped read/server-only write RLS. Wiring draws to durable claims and game
+  start remains pending with F2.2.
   - Depends on: F2.2.
-- [ ] **F3.2 — Playing cards & targeting.** Play a card; if it targets a team, the caster
-  chooses the target, who is **notified immediately** and **blocked from claiming** until
-  conditions are met. Real-time delivery is the whole point (fixes v0 latency).
+- [~] **F3.2 — Playing cards & targeting.** The wireframe targeting path is proven end to end:
+  a player selects an opposing team, the route appends one atomic `wireframe_card_played` event,
+  and the target receives a folded notification over the realtime channel. The canonical event
+  vocabulary and board reducer now also reconstruct inventory, challenges, effects/restrictions,
+  notifications, and score entries with ordered, duplicate-tolerant replay. Real card-instance
+  authorization, effects, claim blocking, and canonical `card_played` mutations remain pending.
   - Depends on: F3.1, F0.3.
 - [ ] **F3.3 — Card validation & photo feed.** Per-card completion checks (photo upload,
   location, timers). Photos are stored **temporarily** and posted to a **public feed** for all
   teams. Admin can **challenge** a completion, resetting the conditions.
   - Depends on: F3.2.
-- [ ] **F3.4 — Card catalog implementation.** Encode each finalized v1 card's effect, casting
-  cost, and validation logic (see `cards.md`), including economy/boost effects (Insured, Happy
-  Hour, Power Hour, Party Crasher, Patient Investor, Window Shopping) and their interactions.
+- [~] **F3.4 — Card catalog implementation.** The typed catalog boundary is implemented for all
+  23 finalized cards, including category, target mode, casting inputs, resolution modality,
+  timers, persistence/consumption, notification audiences, and affected domain families.
+  Per-card validators/resolvers and economy/boost effects (Insurance, Happy Hour, Power Hour,
+  Party Crasher, Patient Investor) remain pending after the generic play/challenge/effect
+  infrastructure lands.
   - Depends on: F3.3.
 
-- [ ] **U3.1 — Cards & photo-feed UI.** Wire the F3 backend into the app: the hand + draw/keep
-  interaction, playing/targeting cards with immediate notification of the targeted team, the
-  per-card validation surface (photo upload, timers, location), the public photo feed, and the
-  admin challenge control. Real-time delivery is central here.
+- [ ] **U3.1 — Cards & honor-system UI.** Wire the F3 backend into the app: the hand + draw/keep
+  interaction, playing/targeting cards with immediate notification of the targeted team,
+  structured caster inputs, timers, location prompts, and target-team manual completion or
+  rejection controls. The app records the actor, result, and server timestamp, but photo/video
+  upload, automated evidence validation, and a public photo feed remain out of scope for the
+  MVP. Real-time delivery and clear pending/resolved states are central here.
   - Depends on: F3.4, U2.1.
 
 ## 4. Endgame & Polish

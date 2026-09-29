@@ -7,9 +7,9 @@
 -- Follows the 0001-0004 convention: committed, sequence-prefixed .sql applied in ascending
 -- order against Supabase Postgres (Req 3.14). Depends on 0004 (card_definitions).
 --
--- The catalog holds 24 finalized v1 cards:
---   * 16 opponent_slowing (14 targeting + 2 no-target: Crop Dusting, Cancel Culture)
---   *  7 economy_boost   (all self/economy -> requires_target = false)
+-- The catalog holds 23 finalized v1 cards:
+--   * 17 opponent_slowing (15 targeting + 2 no-target: Crop Dusting, Cancel Culture)
+--   *  5 economy_boost   (all self/economy -> requires_target = false)
 --   *  1 reactive        (Fairest of Them All -> requires_target = false)
 --
 -- requires_target rule (Req 3.10): true only for opponent_slowing cards that let the
@@ -62,8 +62,8 @@ values
   ('everyones-a-critic', 'Everyone''s a Critic', 'opponent_slowing', true, 'photo', null, null,
    'Target team must photo at a 4.5+ star Google location (no research first) or be frozen 10 minutes.'),
 
-  ('quit-nursing', 'Quit Nursing', 'opponent_slowing', true, null, null, null,
-   'Target team''s next bar visited must be an unclaimed bar.'),
+  ('pioneer', 'Pioneer', 'opponent_slowing', true, null, null, null,
+   'Target team''s next claimed bar must be an unclaimed bar that is not the finish bar.'),
 
   ('spin-cycle', 'Spin Cycle', 'opponent_slowing', true, null, null, null,
    'Target team must return to its most recently claimed bar before it can claim another.'),
@@ -72,7 +72,10 @@ values
    'Target team must photograph a non-team member wearing an Atlanta sports team logo before claiming another bar.'),
 
   ('scenic-route', 'Scenic Route', 'opponent_slowing', true, null, null, null,
-   'Target team''s next claim must be a bar farther from the finish than their current position.'),
+   'Target team''s next claim must be a bar farther from the finish than the last bar their team claimed.'),
+
+  ('voted-off-the-island', 'Voted Off the Island', 'opponent_slowing', true, null, null, null,
+   'Only playable once all four teams have claimed a non-starting bar; target team must un-claim a bar all four teams claimed (may re-claim it).'),
 
   -- ------------------------------------------------------------------
   -- opponent_slowing -- no target (requires_target = false)
@@ -86,15 +89,11 @@ values
   -- ------------------------------------------------------------------
   -- economy_boost -- self/economy (requires_target = false)
   -- ------------------------------------------------------------------
-  ('heavyweight', 'Heavyweight', 'economy_boost', false, null,
-   '{"claimed_bars_min": 5, "must_have_most_bars": true}'::jsonb, null,
-   'Self: permanently increase hand size by one and draw two. Cost: have claimed 5 bars AND the most bars of any team.'),
-
-  ('insured', 'Insured', 'economy_boost', false, null, null, null,
-   'Self: points from your next claimed bar cannot be reduced by later claimers.'),
+  ('insurance', 'Insurance', 'economy_boost', false, null, null, null,
+   'Self: points from your next claimed bar cannot be reduced by later claimers (other teams still score normally, so the bar total can exceed 12).'),
 
   ('happy-hour', 'Happy Hour', 'economy_boost', false, 'location', null, 3600,
-   'Pick a bar; any team that claims it within the next hour gets +2 points.'),
+   'Pick a non-finish bar; any team that drinks there within the next hour gets +5 points for the first drink only.'),
 
   ('power-hour', 'Power Hour', 'economy_boost', false, null, null, 1200,
    'For the next 20 minutes, any team that claims a bar draws two cards and keeps both.'),
@@ -103,10 +102,7 @@ values
    'Pick a non-finish bar claimed by fewer than four teams; claimers score as if sharing with one extra phantom team.'),
 
   ('patient-investor', 'Patient Investor', 'economy_boost', false, null, null, null,
-   'Self: after your team claims five more bars, gain +5 points.'),
-
-  ('window-shopping', 'Window Shopping', 'economy_boost', false, null, null, null,
-   'Requires another card in hand; trade your hand for another team''s hand.'),
+   'Self: after your team claims four more bars, gain +6 points.'),
 
   -- ------------------------------------------------------------------
   -- reactive (requires_target = false)
