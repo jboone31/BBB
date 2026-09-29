@@ -41,8 +41,9 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
   claims, cards, card plays, events) and the real-time propagation mechanism (e.g., Supabase
   subscriptions) that every live feature relies on. Directly targets the v0 latency problem.
   - Depends on: F0.1, F0.2.
-  - _Done via the `web-app-foundation` spec. Migrations `0001`–`0007` (schema, claims,
-    append-only `game_events`, cards + catalog seed, RLS, auto-timeout sweep), the
+  - _Done via the `web-app-foundation` spec. Migrations `0001`–`0009` (schema, claims,
+    append-only `game_events`, cards + catalog seed, RLS, auto-timeout sweep, teamless
+    players, and durable card inventory), the
     `appendEvent` backbone, and the Supabase Realtime subscription client (`lib/realtime`)._
   - **Backend activation (remaining to go live):** populate the environment variables
     (`.env.local` locally; Vercel Preview/Production env for deploys — see `.env.example`),

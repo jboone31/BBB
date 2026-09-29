@@ -58,7 +58,12 @@ describe("canonical card events", () => {
       event(1, GAME_BOARD_EVENT_TYPES.deckSeeded, {
         cards: [
           { cardId: "card-1", teamId: "team-a", slug: "wired", state: "deck" },
-          { cardId: "card-2", teamId: "team-a", slug: "power-hour", state: "deck" },
+          {
+            cardId: "card-2",
+            teamId: "team-a",
+            slug: "power-hour",
+            state: "deck",
+          },
         ],
       }),
       event(2, GAME_BOARD_EVENT_TYPES.cardsDrawn, {
@@ -129,7 +134,12 @@ describe("canonical card events", () => {
       effectId: "effect-1",
     });
 
-    const view = foldGameBoardEvents(GAME_ID, [issued, effect, resolved, expired]);
+    const view = foldGameBoardEvents(GAME_ID, [
+      issued,
+      effect,
+      resolved,
+      expired,
+    ]);
     expect(view.activeChallenges).toEqual([]);
     expect(view.activeEffects).toEqual([]);
     expect(view.activeRestrictions).toEqual([]);

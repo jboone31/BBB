@@ -98,7 +98,8 @@ export interface TargetedNotice {
   readonly cardId: string;
 }
 
-export type BoardCardState = "deck" | "pending" | "hand" | "played" | "discarded";
+export type BoardCardState =
+  "deck" | "pending" | "hand" | "played" | "discarded";
 
 export interface BoardCardView {
   readonly cardId: string;
@@ -337,7 +338,9 @@ function readNumber(payload: unknown, key: string): number | undefined {
     return undefined;
   }
   const value = (payload as Record<string, unknown>)[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function readBoolean(payload: unknown, key: string): boolean | undefined {
@@ -363,7 +366,9 @@ function readRecords(payload: unknown, key: string): Record<string, unknown>[] {
 }
 
 function readRecord(payload: unknown): Record<string, unknown> | undefined {
-  return payload !== null && typeof payload === "object" && !Array.isArray(payload)
+  return payload !== null &&
+    typeof payload === "object" &&
+    !Array.isArray(payload)
     ? (payload as Record<string, unknown>)
     : undefined;
 }
@@ -387,7 +392,10 @@ function cardFromRecord(
   return { cardId, teamId, slug, state: state as BoardCardState };
 }
 
-function upsertCard(cards: readonly BoardCardView[], card: BoardCardView): BoardCardView[] {
+function upsertCard(
+  cards: readonly BoardCardView[],
+  card: BoardCardView,
+): BoardCardView[] {
   const withoutCard = cards.filter((entry) => entry.cardId !== card.cardId);
   return [...withoutCard, card];
 }
@@ -415,7 +423,8 @@ function applyCardInventoryEvent(
     .map((record) => cardFromRecord(record, fallbackState))
     .filter((card): card is BoardCardView => card !== undefined)
     .reduce(upsertCard, view.cards);
-  return cards.length === view.cards.length && cards.every((card, index) => card === view.cards[index])
+  return cards.length === view.cards.length &&
+    cards.every((card, index) => card === view.cards[index])
     ? view
     : { ...view, cards };
 }
@@ -436,7 +445,11 @@ function applyChallengeIssued(
   ) {
     return view;
   }
-  if (view.activeChallenges.some((challenge) => challenge.challengeId === challengeId)) {
+  if (
+    view.activeChallenges.some(
+      (challenge) => challenge.challengeId === challengeId,
+    )
+  ) {
     return view;
   }
   const challenge: BoardChallengeView = {
@@ -473,7 +486,11 @@ function applyEffectCreated(
   const effectId = readString(payload, "effectId");
   const sourcePlayId = readString(payload, "sourcePlayId");
   const effectType = readString(payload, "effectType");
-  if (effectId === undefined || sourcePlayId === undefined || effectType === undefined) {
+  if (
+    effectId === undefined ||
+    sourcePlayId === undefined ||
+    effectType === undefined
+  ) {
     return view;
   }
   const effect: BoardEffectView = {
@@ -485,7 +502,9 @@ function applyEffectCreated(
     targetBarId: readString(payload, "targetBarId") ?? null,
     active: readBoolean(payload, "active") ?? true,
   };
-  const effects = view.activeEffects.filter((entry) => entry.effectId !== effectId);
+  const effects = view.activeEffects.filter(
+    (entry) => entry.effectId !== effectId,
+  );
   const activeEffects = [...effects, effect];
   const activeRestrictions = activeEffects.filter(isRestrictionEffect);
   return { ...view, activeEffects, activeRestrictions };
@@ -521,7 +540,11 @@ function applyNotificationCreated(
   if (notificationId === undefined || audience === undefined) {
     return view;
   }
-  if (view.notifications.some((notification) => notification.notificationId === notificationId)) {
+  if (
+    view.notifications.some(
+      (notification) => notification.notificationId === notificationId,
+    )
+  ) {
     return view;
   }
   const display = readRecord(payload)?.display;
@@ -530,9 +553,10 @@ function applyNotificationCreated(
     sourcePlayId: readString(payload, "sourcePlayId") ?? null,
     audience,
     teamId: readString(payload, "teamId") ?? null,
-    display: display !== null && typeof display === "object" && !Array.isArray(display)
-      ? (display as Readonly<Record<string, unknown>>)
-      : {},
+    display:
+      display !== null && typeof display === "object" && !Array.isArray(display)
+        ? (display as Readonly<Record<string, unknown>>)
+        : {},
   };
   return { ...view, notifications: [...view.notifications, notification] };
 }
@@ -542,7 +566,12 @@ function applyScoreEntry(view: GameBoardView, payload: unknown): GameBoardView {
   const teamId = readString(payload, "teamId");
   const category = readString(payload, "category");
   const points = readNumber(payload, "points");
-  if (entryId === undefined || teamId === undefined || category === undefined || points === undefined) {
+  if (
+    entryId === undefined ||
+    teamId === undefined ||
+    category === undefined ||
+    points === undefined
+  ) {
     return view;
   }
   if (view.scoreEntries.some((entry) => entry.entryId === entryId)) {
