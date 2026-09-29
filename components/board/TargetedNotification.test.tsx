@@ -65,7 +65,11 @@ afterEach(() => {
 describe("Targeted_Notification identifies the caster and its later-feature label (R7.4)", () => {
   it("names the casting Team and shows the later-feature placeholder label", () => {
     render(
-      <TargetedNotification notice={NOTICE} teams={TEAMS} onDismiss={vi.fn()} />,
+      <TargetedNotification
+        notice={NOTICE}
+        teams={TEAMS}
+        onDismiss={vi.fn()}
+      />,
     );
 
     const banner = notification();
@@ -91,7 +95,11 @@ describe("Dismissing removes the notice (R7.5)", () => {
     const user = userEvent.setup();
     const onDismiss = vi.fn();
     render(
-      <TargetedNotification notice={NOTICE} teams={TEAMS} onDismiss={onDismiss} />,
+      <TargetedNotification
+        notice={NOTICE}
+        teams={TEAMS}
+        onDismiss={onDismiss}
+      />,
     );
 
     await user.click(dismissButton());
@@ -114,7 +122,11 @@ describe("Notification does not block navigation or Regions (R7.6)", () => {
             Bars
           </button>
         </nav>
-        <TargetedNotification notice={NOTICE} teams={TEAMS} onDismiss={vi.fn()} />
+        <TargetedNotification
+          notice={NOTICE}
+          teams={TEAMS}
+          onDismiss={vi.fn()}
+        />
       </div>,
     );
 

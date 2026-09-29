@@ -35,9 +35,21 @@ import type { PlaceholderCard } from "@/lib/gameboard/placeholderCards";
 import CardPlayWireframe from "./CardPlayWireframe";
 
 /** A small fixed roster: the caller's own Team plus two other Teams. */
-const OWN_TEAM: BoardTeamView = { id: "team-own", name: "Red Hots", color: "#e11" };
-const OTHER_A: BoardTeamView = { id: "team-a", name: "Blue Crew", color: "#11e" };
-const OTHER_B: BoardTeamView = { id: "team-b", name: "Green Machine", color: "#1a1" };
+const OWN_TEAM: BoardTeamView = {
+  id: "team-own",
+  name: "Red Hots",
+  color: "#e11",
+};
+const OTHER_A: BoardTeamView = {
+  id: "team-a",
+  name: "Blue Crew",
+  color: "#11e",
+};
+const OTHER_B: BoardTeamView = {
+  id: "team-b",
+  name: "Green Machine",
+  color: "#1a1",
+};
 const TEAMS: readonly BoardTeamView[] = [OWN_TEAM, OTHER_A, OTHER_B];
 
 const TARGETING_CARD: PlaceholderCard = {
@@ -57,7 +69,9 @@ function dialog(): HTMLElement {
 }
 
 function confirmButton(): HTMLButtonElement {
-  return screen.getByRole("button", { name: /^confirm$/i }) as HTMLButtonElement;
+  return screen.getByRole("button", {
+    name: /^confirm$/i,
+  }) as HTMLButtonElement;
 }
 
 function cancelButton(): HTMLButtonElement {
@@ -147,7 +161,9 @@ describe("Selecting a target shows a naming confirmation (R6.4)", () => {
 
     const group = screen.getByRole("group", { name: /choose a target team/i });
     // The own Team is excluded; the two other Teams are offered as options.
-    expect(within(group).queryByRole("button", { name: /red hots/i })).toBeNull();
+    expect(
+      within(group).queryByRole("button", { name: /red hots/i }),
+    ).toBeNull();
     const blue = within(group).getByRole("button", { name: /blue crew/i });
     within(group).getByRole("button", { name: /green machine/i });
 
@@ -204,7 +220,9 @@ describe("Confirming a targeting card completes with the target (R6.6)", () => {
     );
 
     const group = screen.getByRole("group", { name: /choose a target team/i });
-    await user.click(within(group).getByRole("button", { name: /green machine/i }));
+    await user.click(
+      within(group).getByRole("button", { name: /green machine/i }),
+    );
     await user.click(confirmButton());
 
     // The chosen target Team id is delivered to the page for the POST.

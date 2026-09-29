@@ -34,32 +34,36 @@ The implementation already exists in the repository. Treat it as the executable 
   - Keep the placeholder behavior non-enforcing: no real hand mutation, claim block, score change, or card effect.
   - Evidence: `app/games/[gameId]/board/page.tsx`, `app/api/games/[gameId]/wireframe-card-play/route.ts`, `components/board/CardPlayWireframe.tsx`, and existing board tests.
 
-- [ ] 0.2 Run the wireframe baseline checks
+- [x] 0.2 Run the wireframe baseline checks
   - Run the focused board, card-play, notification, property, and viewport tests.
   - Run `npm run typecheck` and `npm run lint` for the baseline.
   - With Supabase configured, run the environment-gated realtime delivery and game-isolation checks.
   - Record any pre-existing failures before card implementation begins.
+  - Result: local focused suites passed (9 files, 77 tests), `npm run typecheck` passed, and `npm run lint` completed with four pre-existing warnings and no errors. The configured Supabase integration test passed channel isolation but timed out delivering the committed `wireframe_card_played` event within 5 seconds; classify this as an environment/infrastructure blocker to resolve before the realtime release gate.
   - Done when the baseline is green or failures are explicitly classified as unrelated blockers.
 
-- [ ] 0.3 Define the real-path cutover contract
+- [x] 0.3 Define the real-path cutover contract
   - Document the response shapes and stable error reasons shared by card play, challenge resolution, and claim authorization.
   - Decide which existing wireframe event fields map to real `card_plays` fields and which are discarded.
   - Define the removal condition for the wireframe route and placeholder hand: the real route and board reducer must pass the same end-to-end notification tests first.
+  - Contract and cutover gate: see `plan.md`, "Phase 0 cutover contract".
 
 ## Phase 1: Shared card domain primitives
 
-- [ ] 1.1 Resolve implementation decisions before migrations
+- [x] 1.1 Resolve implementation decisions before migrations
   - Seed each team's deck at game start, unless an existing game lifecycle hook requires game creation.
   - Store a server-generated draw order, with a durable seed or position; never derive order from client state.
   - Define when an unresolved challenge blocks claims and preserve the inline-drink exception.
   - Choose the score-ledger representation and the distance calculation used by map restrictions.
   - Record each decision in `plan.md` or a decision record before schema work.
+  - Decisions recorded in `plan.md`, "Phase 1 implementation decisions".
 
-- [ ] 1.2 Extend and validate card metadata
+- [x] 1.2 Extend and validate card metadata
   - Add typed catalog metadata for slug/category, target mode, casting inputs, resolution mode, completion modality, timer/delay, persistence/consumption, notification audiences, and affected domain families.
   - Distinguish team, bar, self, none, team-plus-bar, and reactive targeting.
   - Validate metadata at the catalog boundary; do not treat arbitrary JSONB as executable rules.
   - Add catalog completeness tests for all 23 cards and invalid-metadata rejection tests.
+  - Evidence: `lib/cards/catalog.ts` and `lib/cards/catalog.test.ts`.
 
 - [ ] 1.3 Add deck and inventory schema
   - Add game/team deck state, draw position/order, per-bar draw records, discard reason, and lifecycle timestamps.
@@ -68,12 +72,13 @@ The implementation already exists in the repository. Treat it as the executable 
   - Add RLS for team-owned inventory reads and server-only inventory writes.
   - Add migration/schema tests and rollback-safe fixture helpers.
 
-- [ ] 1.4 Implement pure deck and hand transitions
+- [x] 1.4 Implement pure deck and hand transitions
   - Seed one copy of every card definition per team.
   - Implement draw, keep, discard, play, exhaustion, duplicate-bar prevention, and maximum hand size of two.
   - Implement the Power Hour override as a generic draw policy, not a special UI branch.
   - Make transitions idempotent and return stable rejection reasons.
   - Add fast-check coverage for uniqueness, exhaustion, draw-two/keep-one, hand limits, Power Hour, and repeated requests.
+  - Evidence: `lib/cards/deck.ts`, `lib/cards/deck.test.ts`, and `lib/cards/deck.property.test.ts` (18 focused tests pass).
 
 - [ ] 1.5 Define canonical card event vocabulary and reducers
   - Add stable event types for inventory, card play, challenges, effects, notifications, claims, and scores.

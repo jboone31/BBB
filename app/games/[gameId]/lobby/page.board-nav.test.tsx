@@ -36,13 +36,7 @@
 //   The pure fold (`applyLobbyEvent`/`foldLobbyEvents`) runs for real — only I/O
 //   is faked.
 
-import {
-  act,
-  cleanup,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameEvent } from "@/lib/events";

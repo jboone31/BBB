@@ -50,7 +50,9 @@ import { describe, expect, it } from "vitest";
  */
 
 /** Repo root, resolved from this test file's location. */
-const repoRoot = path.resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
+const repoRoot = path.resolve(
+  fileURLToPath(new URL("../../../../", import.meta.url)),
+);
 
 /** The foundation property suites the board reuses, each keyed to the R8.x clause it covers. */
 const CITED_SUITES: ReadonlyArray<{
@@ -114,17 +116,16 @@ describe("Game_Board reuses lib/realtime foundation suites (Task 11.2 reference)
   );
 
   it("keeps the board page importing the reused realtime machinery (not hand-rolled)", () => {
-    const boardPage = path.join(
-      repoRoot,
-      "app/games/[gameId]/board/page.tsx",
-    );
+    const boardPage = path.join(repoRoot, "app/games/[gameId]/board/page.tsx");
     expect(existsSync(boardPage)).toBe(true);
     const contents = readFileSync(boardPage, "utf8");
 
     // The board must still pull the reused modules from lib/realtime.
     expect(contents).toContain('from "@/lib/realtime"');
     for (const symbol of REUSED_REALTIME_IMPORTS) {
-      expect(contents, `board no longer references ${symbol}`).toContain(symbol);
+      expect(contents, `board no longer references ${symbol}`).toContain(
+        symbol,
+      );
     }
   });
 });

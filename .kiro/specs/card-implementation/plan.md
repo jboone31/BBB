@@ -42,6 +42,83 @@ Already present in the repository:
 
 The wireframe route is not the real card implementation. It does not consume a card instance, apply an effect, block claims, resolve challenges, or change scores.
 
+## Phase 0 Baseline
+
+The local wireframe baseline is green as of 2026-09-29:
+
+- The focused board, card-play, notification, property, and viewport suites passed: 9 files and 77 tests.
+- `npm run typecheck` passed.
+- `npm run lint` completed with no errors and four existing warnings: two unused test imports/fixtures and two `next/no-img-element` warnings in unrelated app components.
+- The configured Supabase integration check passed channel isolation, but the target subscriber did not receive the committed `wireframe_card_played` event within the five-second delivery window. This is an environment/infrastructure blocker, not a local reducer or route-test failure, and must be resolved before the realtime release gate.
+
+## Phase 0 Cutover Contract
+
+The real card path will use one response envelope for card play, challenge resolution, and claim authorization:
+
+```ts
+type MutationResponse<Result = unknown> =
+	| { applied: true; seq: number; result?: Result }
+	| { applied: false; error: StableMutationError; details?: Record<string, unknown> };
+```
+
+`seq` is the committed per-game `game_events` sequence. A successful mutation returns one sequence number for its canonical event. A rejected mutation returns no sequence and writes no domain row or event. `details` is diagnostic/structured context only; clients branch on `error`, never on free-form text.
+
+The shared stable error vocabulary is:
+
+| Error | HTTP status | Meaning |
+| --- | ---: | --- |
+| `missing_session` | 401 | No usable session identity was supplied. |
+| `not_member` | 403 | The session is not an active member of this game. |
+| `not_authorized` | 403 | The member exists but cannot perform this action. |
+| `invalid_input` | 400 | The request shape or card/challenge input is invalid. |
+| `not_found` | 404 | A referenced card, team, bar, challenge, or game object is not in this game. |
+| `conflict` | 409 | The request conflicts with current durable state, including duplicate play or claim. |
+| `blocked` | 409 | An active challenge, restriction, or timer prevents the action. |
+| `expired` | 409 | The relevant response window or effect has expired. |
+| `already_resolved` | 409 | A challenge or one-shot action has already been resolved. |
+| `unavailable` | 503 | The server could not complete the transaction; no partial mutation is acknowledged. |
+
+The current wireframe route remains compatible with the envelope's `applied`/`seq` success and `applied`/`error` rejection shape. Its legacy `not_found` and `not_member` reasons remain valid during compatibility, while real routes use the shared vocabulary above. The current append-failure 500 response will be normalized to `unavailable` when the real route replaces it.
+
+### Wireframe-to-real field mapping
+
+| Wireframe value | Real path | Decision |
+| --- | --- | --- |
+| `cardId` payload string | `card_instances.id` | Discard the opaque placeholder value. The real route accepts and authorizes a concrete in-hand instance id. |
+| Server-derived `castingTeamId` | `card_plays.casting_team_id` | Preserve the server-derived team; never trust a client-supplied caster. |
+| `targetTeamId` payload string | `card_plays.target_team_id` | Preserve only after same-game, target-mode, and opposing-team validation; null for self/no-target cards. |
+| Event `seq` | `game_events.seq` and response `seq` | Preserve as the ordered propagation/audit identity; it is not current card state. |
+| `cardId` in `wireframe_card_played` payload | No real state field | Retain only for historical event compatibility; no new production writes after cutover. |
+| Placeholder label/targeting flag | Catalog metadata | Replace with the typed `card_definitions` catalog entry and resolver metadata. |
+| Client timestamp, if any | `card_plays.played_at` | Discard client time; use the database default/server timestamp. |
+
+### Removal gate
+
+Remove new production writes to `wireframe_card_played`, the wireframe route, and placeholder hand generation only after all of the following pass:
+
+1. The real card-play route has atomic success, write-free rejection, same-game target authorization, and event-append rollback coverage.
+2. The real board reducer reconstructs hand, challenge, effect, restriction, notification, and score state from a snapshot and reconnect tail.
+3. The target-only notification and game-isolation checks pass over the real route and realtime channel, including the currently failing five-second delivery check.
+4. Manual challenge resolution, claim authorization, and admin override are authorization-tested.
+5. Browser-facing representative card flows pass at the existing 320px and desktop viewport bands.
+
+Historical `wireframe_card_played` rows remain readable by compatibility reducers as needed; removal means no new production writes, not deletion from the append-only event log.
+
+## Phase 1 Implementation Decisions
+
+These decisions close the open questions that control the card schema and are the contract for the next migrations:
+
+1. **Deck seeding:** seed one identical card instance per finalized card definition for every team when the game transitions from `lobby` to `live`. The existing start transaction is the lifecycle hook, so a game cannot become live with an unseeded deck. Seeding is idempotent under a unique `(game_id, team_id, definition_id)` constraint.
+2. **Draw order:** generate the order server-side during deck seeding and persist it as a stable position on each card instance. The client never supplies or derives order. A draw claims the lowest available position for that team under the game transaction lock.
+3. **Challenge blocking:** an unresolved challenge blocks the target team's next eligible bar claim immediately after the challenge is issued. The inline-drink exception is represented as an explicit challenge/effect parameter and is evaluated by the claim transaction; it is never inferred from client state. Challenge resolution, rejection, expiry, and admin reset are the only ways to clear the block.
+4. **Score representation:** use an immutable score ledger. Claims and card effects append typed ledger entries with source references; current scores are deterministic sums over active/relevant entries. Historical awards are never rewritten when later claimants change a bar's normal share.
+5. **Distance policy:** use straight-line geodesic distance between stored bar coordinates, measured in miles, for radius restrictions and finish-distance comparisons. This is deterministic, available offline, and appropriate for eligibility rules; walking-route distance is explicitly out of scope for the MVP.
+6. **Timer evaluation:** use lazy server-time evaluation for mutation correctness and a scheduled sweep for activation/expiry notifications and cleanup. Both paths read database timestamps and are idempotent.
+
+The typed catalog boundary introduced in `lib/cards/catalog.ts` is the executable metadata contract for these decisions. The SQL catalog remains storage for stable definition identity and descriptive seed data; card rules are selected from validated typed metadata, never executed from arbitrary JSONB.
+
+Phase 1 progress: the typed catalog and pure deck/hand transition model are implemented and focused-tested. The inventory migration is committed with static schema coverage, but task 1.3 remains open until the environment-gated disposable Postgres and RLS checks pass against the configured backend.
+
 ## Design Principles
 
 ### One authoritative mutation path

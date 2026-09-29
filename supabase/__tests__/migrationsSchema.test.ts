@@ -49,6 +49,8 @@ const EXPECTED_TABLES = [
   "card_definitions",
   "card_instances",
   "card_plays",
+  "team_decks",
+  "card_draws",
   "game_events",
 ] as const;
 
@@ -238,6 +240,25 @@ describe("migration files — static schema smoke check (Req 3.14)", () => {
     expect(
       /pg_column_size\s*\(\s*payload\s*\)\s*<=\s*16384/i.test(union),
       "game_events payload <= 16 KB check",
+    ).toBe(true);
+
+    // Card inventory: one catalog card per team deck and one draw record per
+    // team/bar pair.
+    expect(
+      /unique\s*\(\s*game_id\s*,\s*owner_team_id\s*,\s*definition_id\s*\)/i.test(
+        union,
+      ),
+      "one card definition per team deck",
+    ).toBe(true);
+    expect(
+      /unique\s*\(\s*game_id\s*,\s*team_id\s*,\s*bar_id\s*\)/i.test(union),
+      "one draw per team/bar",
+    ).toBe(true);
+    expect(
+      /bbb_is_team_member\s*\(\s*target_team_id\s+uuid\s*,\s*target_game_id\s+uuid\s*\)/i.test(
+        union,
+      ),
+      "team-owned inventory membership helper",
     ).toBe(true);
   });
 });

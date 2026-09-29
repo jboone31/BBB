@@ -91,7 +91,9 @@ const fakeTx: QueryRunner = {
 // against the fake QueryRunner, commit on normal return, roll back (rethrow) on
 // any throw — exactly the semantics postgres.js `sql.begin` provides.
 vi.mock("@/lib/db/server", () => ({
-  withTransaction: async <T>(fn: (tx: QueryRunner) => Promise<T>): Promise<T> => {
+  withTransaction: async <T>(
+    fn: (tx: QueryRunner) => Promise<T>,
+  ): Promise<T> => {
     mockCommitted = false;
     const result = await fn(fakeTx); // a throw here propagates → route's catch
     mockCommitted = true;
@@ -142,10 +144,7 @@ vi.mock("@/lib/events", async () => {
 import { POST } from "./route";
 
 /** Build a POST Request with the given session header and JSON body. */
-function playRequest(options: {
-  sessionId?: string;
-  body?: unknown;
-}): Request {
+function playRequest(options: { sessionId?: string; body?: unknown }): Request {
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };

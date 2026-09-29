@@ -249,6 +249,8 @@ export class InMemoryLastSeenStore implements LastSeenStore {
  * connection resources.
  */
 export interface RealtimeChannel {
+  /** Resolves when the underlying provider has confirmed the channel is joined. */
+  readonly ready?: Promise<void>;
   /** Stop receiving events and release the channel. Idempotent. */
   unsubscribe(): Promise<void> | void;
 }
@@ -414,6 +416,10 @@ export async function subscribe(
 
   // 2. Open the per-game channel (Req 6.1, 6.3), funneling rows into onEvent.
   const channel = await transport.channel(gameId, onEvent);
+  // Concrete providers may return before their socket has joined the channel.
+  // Await readiness so a caller cannot publish immediately into a subscription
+  // that is still negotiating its server-side filter.
+  await channel.ready;
 
   let closed = false;
   return {

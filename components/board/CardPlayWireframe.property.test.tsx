@@ -67,31 +67,29 @@ const COLOR_ARB = fc.constantFrom("#e11", "#1a1", "#11e", "#ee1");
 const gameArb: fc.Arbitrary<{
   teams: BoardTeamView[];
   ownTeamId: string;
-}> = fc
-  .integer({ min: 2, max: 4 })
-  .chain((teamCount) =>
-    fc
-      .tuple(
-        // A distinguishing suffix + color per Team; the index prefix guarantees
-        // distinct ids and names regardless of the generated suffixes.
-        fc.array(
-          fc.record({
-            suffix: fc.string({ maxLength: 20 }),
-            color: COLOR_ARB,
-          }),
-          { minLength: teamCount, maxLength: teamCount },
-        ),
-        fc.integer({ min: 0, max: teamCount - 1 }),
-      )
-      .map(([parts, ownIndex]) => {
-        const teams: BoardTeamView[] = parts.map((part, index) => ({
-          id: `t${index}-${part.suffix}`,
-          name: `Team ${index} ${part.suffix}`,
-          color: part.color,
-        }));
-        return { teams, ownTeamId: teams[ownIndex].id };
-      }),
-  );
+}> = fc.integer({ min: 2, max: 4 }).chain((teamCount) =>
+  fc
+    .tuple(
+      // A distinguishing suffix + color per Team; the index prefix guarantees
+      // distinct ids and names regardless of the generated suffixes.
+      fc.array(
+        fc.record({
+          suffix: fc.string({ maxLength: 20 }),
+          color: COLOR_ARB,
+        }),
+        { minLength: teamCount, maxLength: teamCount },
+      ),
+      fc.integer({ min: 0, max: teamCount - 1 }),
+    )
+    .map(([parts, ownIndex]) => {
+      const teams: BoardTeamView[] = parts.map((part, index) => ({
+        id: `t${index}-${part.suffix}`,
+        name: `Team ${index} ${part.suffix}`,
+        color: part.color,
+      }));
+      return { teams, ownTeamId: teams[ownIndex].id };
+    }),
+);
 
 describe("Feature: in-game-landing-wireframe, Property 8: Target list excludes own Team and includes every other Team", () => {
   it("renders exactly every other Team as a target option and never the own Team", () => {

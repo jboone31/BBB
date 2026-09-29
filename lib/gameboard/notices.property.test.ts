@@ -138,11 +138,13 @@ describe("Game_Board notices — one notice per targeting event, naming its cast
           // The events partitioned by their target, computed independently of
           // the reducer straight from the generated payloads.
           const forViewer = events.filter(
-            (e) => (e.payload as { targetTeamId: string }).targetTeamId ===
+            (e) =>
+              (e.payload as { targetTeamId: string }).targetTeamId ===
               VIEWING_TEAM,
           );
           const forOthers = events.filter(
-            (e) => (e.payload as { targetTeamId: string }).targetTeamId !==
+            (e) =>
+              (e.payload as { targetTeamId: string }).targetTeamId !==
               VIEWING_TEAM,
           );
 
@@ -250,9 +252,9 @@ describe("Game_Board notices — dismissing removes exactly the named notice (Pr
           const after = dismissTargetedNotice(view, target.seq);
 
           // The dismissed notice is gone...
-          expect(
-            after.targetedNotices.some((n) => n.seq === target.seq),
-          ).toBe(false);
+          expect(after.targetedNotices.some((n) => n.seq === target.seq)).toBe(
+            false,
+          );
 
           // ...exactly one notice was removed...
           expect(after.targetedNotices).toHaveLength(

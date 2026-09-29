@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 
-import {
-  placeholderHand,
-  type PlaceholderCard,
-} from "./placeholderCards";
+import { placeholderHand, type PlaceholderCard } from "./placeholderCards";
 
 /**
  * Feature: in-game-landing-wireframe, Property 7: Placeholder hand size is

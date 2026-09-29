@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 
-import {
-  selectBoardAccess,
-  type BoardAccess,
-} from "@/lib/gameboard/access";
+import { selectBoardAccess, type BoardAccess } from "@/lib/gameboard/access";
 import type { GameBoardLifecycle } from "@/lib/gameboard/events";
 
 /**

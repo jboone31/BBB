@@ -267,8 +267,7 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
               received.push(event);
               if (
                 receivedCardPlay.event === null &&
-                event.eventType ===
-                  GAME_BOARD_EVENT_TYPES.wireframeCardPlayed
+                event.eventType === GAME_BOARD_EVENT_TYPES.wireframeCardPlayed
               ) {
                 receivedCardPlay.event = event;
                 receivedCardPlay.at = Date.now();
