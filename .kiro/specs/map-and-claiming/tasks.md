@@ -29,13 +29,13 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
 
 ## Phase 1: Claim and ledger persistence
 
-- [ ] 1.1 Resolve implementation contracts
+- [x] 1.1 Resolve implementation contracts
   - Record the trusted claim-time attestation for all-member presence and the `ceil(team size / 2)` threshold.
   - Record reversible active/revoked claim behavior for ordinary undo and Voted Off the Island.
   - Record that finish-bar claims cannot be undone after game end.
   - Record append-only score adjustment entries and deterministic current totals.
 
-- [ ] 1.2 Evolve the claims schema
+- [x] 1.2 Evolve the claims schema
   - Add active/revoked lifecycle representation while retaining historical claim transitions.
   - Enforce at most one active claim for a game/team/bar pair.
   - Allow a revoked claim to be followed by a new active claim.
@@ -43,35 +43,37 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Add indexes for active claims by game, bar, and team.
   - Update schema and migration tests.
 
-- [ ] 1.3 Add the score adjustment ledger
+- [x] 1.3 Add the score adjustment ledger
   - Add durable game/team/bar/source references, category, signed points, server timestamp, and explanation metadata.
   - Add constraints proving ledger rows belong to the same game as their team/bar/source claim.
   - Add indexes for game totals, team totals, and source transitions.
   - Add RLS for game-member reads and server-only writes.
   - Add schema, migration, and cross-game isolation coverage.
 
-- [ ] 1.4 Checkpoint: persistence foundation
+- [x] 1.4 Checkpoint: persistence foundation
   - Migrations apply cleanly to a disposable database.
   - Active-claim uniqueness and revoke/reclaim behavior are enforced.
   - Ledger rows cannot cross game boundaries.
   - Client writes are rejected where server-only mutation is required.
+  - Offline and live migration smoke tests pass, and the live claims/ledger RLS
+    integration suite passes against the configured Supabase project.
 
 ## Phase 2: Pure claim and scoring domain
 
-- [ ] 2.1 Implement claim eligibility and lifecycle transitions
+- [x] 2.1 Implement claim eligibility and lifecycle transitions
   - Add pure functions for assigned team membership, half-team threshold, claim eligibility, duplicate claim, authorized undo, revoke, and reclaim.
   - Exclude teamless players from the team count.
   - Reject empty teams and invalid team sizes.
   - Return stable domain outcomes rather than route-specific errors.
 
-- [ ] 2.2 Implement score ledger delta calculations
+- [x] 2.2 Implement score ledger delta calculations
   - Preserve the existing 12-point split table for one through four active claimers.
   - Recompute affected teams whenever a claim is added or revoked.
   - Keep start-bar score at zero.
   - Award finish-bar 12 points to the claiming team only.
   - Produce signed append-only adjustments whose net totals equal the current active claim state.
 
-- [ ] 2.3 Add pure property coverage
+- [x] 2.3 Add pure property coverage
   - Cover odd and even team sizes, including 2 of 3 qualifying and 1 of 3 failing.
   - Cover 2, 3, and 4 active claimers and conservation of the 12-point bar total.
   - Cover duplicate requests, ordinary undo, Voted Off-compatible revoke/reclaim, and stale transitions.

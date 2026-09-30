@@ -95,3 +95,116 @@ export class ClaimSet {
 export function recordClaim(claims: ClaimSet, key: ClaimKey): ClaimOutcome {
   return claims.recordClaim(key);
 }
+
+/** The result of evaluating the trusted claim-time eligibility attestation. */
+export type ClaimEligibility =
+  | {
+      readonly eligible: true;
+      readonly requiredDrinkCount: number;
+    }
+  | {
+      readonly eligible: false;
+      readonly reason:
+        | "no_team_members"
+        | "not_all_members_present"
+        | "insufficient_finished_drinks";
+      readonly requiredDrinkCount: number;
+    };
+
+/** Return the rounded-up half-team drink threshold. */
+export function requiredDrinkCount(teamMemberCount: number): number {
+  if (!Number.isInteger(teamMemberCount) || teamMemberCount < 0) {
+    throw new RangeError(
+      `teamMemberCount must be a non-negative integer, got ${teamMemberCount}`,
+    );
+  }
+  return Math.ceil(teamMemberCount / 2);
+}
+
+/**
+ * Evaluate the MVP honor-system claim attestation.
+ *
+ * The caller supplies the current assigned-member count, the number of members
+ * attested to have finished a drink, and the all-present attestation. The
+ * server remains responsible for deriving the member count from durable rows.
+ */
+export function evaluateClaimEligibility(input: {
+  readonly teamMemberCount: number;
+  readonly finishedDrinkCount: number;
+  readonly allMembersPresent: boolean;
+}): ClaimEligibility {
+  const required = requiredDrinkCount(input.teamMemberCount);
+
+  if (required === 0) {
+    return {
+      eligible: false,
+      reason: "no_team_members",
+      requiredDrinkCount: required,
+    };
+  }
+
+  if (!input.allMembersPresent) {
+    return {
+      eligible: false,
+      reason: "not_all_members_present",
+      requiredDrinkCount: required,
+    };
+  }
+
+  if (
+    !Number.isInteger(input.finishedDrinkCount) ||
+    input.finishedDrinkCount < required
+  ) {
+    return {
+      eligible: false,
+      reason: "insufficient_finished_drinks",
+      requiredDrinkCount: required,
+    };
+  }
+
+  return { eligible: true, requiredDrinkCount: required };
+}
+
+/** Result of changing the current active claim set. */
+export type ActiveClaimOutcome =
+  "accepted" | "already_active" | "revoked" | "not_active";
+
+/**
+ * Pure model of the active-claim partial unique index.
+ *
+ * Revocation removes a key from the active set but does not prevent a later
+ * claim, matching the durable history plus partial unique index in migration
+ * 0010.
+ */
+export class ActiveClaimSet {
+  private readonly activeKeys = new Set<string>();
+
+  recordClaim(key: ClaimKey): ActiveClaimOutcome {
+    const serialized = serializeKey(key);
+    if (this.activeKeys.has(serialized)) {
+      return "already_active";
+    }
+    this.activeKeys.add(serialized);
+    return "accepted";
+  }
+
+  revokeClaim(key: ClaimKey): ActiveClaimOutcome {
+    const serialized = serializeKey(key);
+    if (!this.activeKeys.delete(serialized)) {
+      return "not_active";
+    }
+    return "revoked";
+  }
+
+  hasActiveClaim(key: ClaimKey): boolean {
+    return this.activeKeys.has(serializeKey(key));
+  }
+
+  activeTeamIds(gameId: string, barId: string): string[] {
+    const prefix = `${gameId}\u0000`;
+    const suffix = `\u0000${barId}`;
+    return [...this.activeKeys]
+      .filter((key) => key.startsWith(prefix) && key.endsWith(suffix))
+      .map((key) => key.slice(prefix.length, -suffix.length));
+  }
+}
