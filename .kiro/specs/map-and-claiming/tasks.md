@@ -160,25 +160,25 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
 
 ## Phase 5: Durable map and scoreboard UI
 
-- [ ] 5.1 Replace local map claim state
+- [x] 5.1 Replace local map claim state
   - Remove authoritative `useState` claim ownership from `MapRegion`.
   - Pass reducer-derived claim state and a mutation callback from the board page.
   - Preserve map region navigation and candidate catalog behavior.
 
-- [ ] 5.2 Wire popup claim actions
+- [x] 5.2 Wire popup claim actions
   - Call the claim route with the selected bar and explicit action.
   - Allow only the current player's team to mutate its own claim.
   - Show pending, disabled, conflict, and failure states.
   - Do not leave a durable-looking optimistic state after a failed request.
   - Render all active claimant colors from reducer state.
 
-- [ ] 5.3 Wire live scoreboard values
+- [x] 5.3 Wire live scoreboard values
   - Pass live team totals and active claimed-bar counts to `ScoreboardRegion`.
   - Render zero values explicitly.
   - Update totals and counts from realtime events without remounting.
   - Preserve responsive layout, team colors, touch targets, and accessibility.
 
-- [ ] 5.4 Add UI and page tests
+- [x] 5.4 Add UI and page tests
   - Popup claim/unclaim request behavior.
   - Failed mutation leaves state unchanged.
   - Pending controls prevent duplicate submissions.
@@ -189,14 +189,14 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
 
 ## Phase 6: End-to-end verification
 
-- [ ] 6.1 Run focused suites
+- [x] 6.1 Run focused suites
   - `lib/claims` and `lib/scoring` properties.
   - Claims route tests.
   - Schema, migration, RLS, and database integration tests.
   - Board reducer and realtime tests.
   - Map, scoreboard, and board page component/viewport tests.
 
-- [ ] 6.2 Run repository checks
+- [x] 6.2 Run repository checks
   - `npm run typecheck`.
   - `npm run lint`.
   - Full Vitest suite.
@@ -207,6 +207,9 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Verify claim/score event propagation across two sessions.
   - Verify cross-game isolation and reconnect catch-up.
   - Record environment/infrastructure blockers separately from local failures.
+  - Current limitation: the configured project intermittently drops Realtime
+    deliveries during the full integration run; individual reruns and the
+    remaining integration suites pass, but the complete run is not stable.
 
 - [ ] 6.4 Browser acceptance flow
   - Start a live game with two sessions.
@@ -214,8 +217,9 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Add a second claimant and verify share recomputation.
   - Undo and re-claim a bar.
   - Claim the finish bar and verify the ended state and final score display.
+  - Deferred until the configured Realtime delivery is stable.
 
-- [ ] 6.5 Update roadmap status
+- [x] 6.5 Update roadmap status
   - Mark F2.1, F2.2, and F2.3 according to the actually completed backend and UI work.
   - Record any deferred card restriction hooks or environment limitations.
   - Link this spec from `ROADMAP.md` if that convention is adopted.

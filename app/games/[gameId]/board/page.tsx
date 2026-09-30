@@ -65,7 +65,10 @@ import { useParams, useRouter } from "next/navigation";
 
 import CardPlayWireframe from "@/components/board/CardPlayWireframe";
 import CardsRegion from "@/components/board/CardsRegion";
-import MapRegion from "@/components/board/MapRegion";
+import MapRegion, {
+  type ClaimAction,
+  type ClaimAttestation,
+} from "@/components/board/MapRegion";
 import RegionNav from "@/components/board/RegionNav";
 import ScoreboardRegion from "@/components/board/ScoreboardRegion";
 import TargetedNotification from "@/components/board/TargetedNotification";
@@ -76,6 +79,9 @@ import {
   dismissTargetedNotice,
   foldGameBoardEvents,
   initialGameBoardView,
+  selectClaimedBarCounts,
+  selectClaimState,
+  selectScoreTotals,
   type GameBoardView,
 } from "@/lib/gameboard/events";
 import {
@@ -126,6 +132,10 @@ type ConnectionStatus =
 /** The structured response the wireframe-card-play route returns. */
 type WireframeResponse =
   | { applied: true; seq?: number | null; [k: string]: unknown }
+  | { applied: false; error: string };
+
+type ClaimResponse =
+  | { applied: true; seq?: number | null; result?: unknown }
   | { applied: false; error: string };
 
 /** Per-game durable local facts key helpers (survive reload, mirror the lobby). */
@@ -197,6 +207,13 @@ export default function BoardPage(): React.JSX.Element {
   const [playingCard, setPlayingCard] = useState<PlaceholderCard | null>(null);
   // Transient "not delivered" indication for a failed targeting POST (R7.7).
   const [playError, setPlayError] = useState<string | null>(null);
+  const [pendingClaimBarId, setPendingClaimBarId] = useState<string | null>(
+    null,
+  );
+  const [claimMutationError, setClaimMutationError] = useState<{
+    barId: string;
+    message: string;
+  } | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -427,6 +444,9 @@ export default function BoardPage(): React.JSX.Element {
   // known, that is it; otherwise (wireframe/demo with no resolved Team) default
   // to the first available Team so the map stays operable as a wireframe.
   const ownTeamId = myTeamId ?? mapTeams[0]?.id ?? "";
+  const claimState = useMemo(() => selectClaimState(view), [view]);
+  const scoreTotals = useMemo(() => selectScoreTotals(view), [view]);
+  const claimedBarCounts = useMemo(() => selectClaimedBarCounts(view), [view]);
 
   // Redirect a lobby-phase visitor to the game's lobby (R1.3). Done as an effect
   // so navigation happens after render, and never renders the Regions.
@@ -471,6 +491,52 @@ export default function BoardPage(): React.JSX.Element {
       }
     },
     [gameId, sessionId],
+  );
+
+  const handleClaimMutation = useCallback(
+    async (
+      barId: string,
+      action: ClaimAction,
+      attestation: ClaimAttestation,
+    ): Promise<void> => {
+      if (sessionId === null || pendingClaimBarId !== null) {
+        return;
+      }
+      setClaimMutationError(null);
+      setPendingClaimBarId(barId);
+      try {
+        const response = await fetch(`/api/games/${gameId}/claims`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [SESSION_HEADER]: sessionId,
+          },
+          body: JSON.stringify({ action, barId, ...attestation }),
+        });
+        const body = (await response.json()) as ClaimResponse;
+        if (!body.applied) {
+          setClaimMutationError({
+            barId,
+            message:
+              body.error === "claim_ineligible"
+                ? "Claim requirements were not met."
+                : body.error === "claim_duplicate"
+                  ? "Your team already claims this bar."
+                  : body.error === "claim_not_active"
+                    ? "Your team no longer claims this bar."
+                    : "The claim was not saved. Please try again.",
+          });
+        }
+      } catch {
+        setClaimMutationError({
+          barId,
+          message: "The claim was not saved. Please try again.",
+        });
+      } finally {
+        setPendingClaimBarId(null);
+      }
+    },
+    [gameId, pendingClaimBarId, sessionId],
   );
 
   // --- Render --------------------------------------------------------------
@@ -655,10 +721,21 @@ export default function BoardPage(): React.JSX.Element {
 
       {/* The active Region (exactly one displayed, R2.6). */}
       {activeRegion === "map" ? (
-        <MapRegion teams={mapTeams} ownTeamId={ownTeamId} />
+        <MapRegion
+          teams={mapTeams}
+          claims={claimState}
+          ownTeamId={ownTeamId}
+          onMutate={handleClaimMutation}
+          pendingBarId={pendingClaimBarId}
+          mutationError={claimMutationError}
+        />
       ) : null}
       {activeRegion === "scoreboard" ? (
-        <ScoreboardRegion teams={view.teams} />
+        <ScoreboardRegion
+          teams={view.teams}
+          scoreTotals={scoreTotals}
+          claimedBarCounts={claimedBarCounts}
+        />
       ) : null}
       {activeRegion === "cards" ? (
         <CardsRegion

@@ -21,10 +21,15 @@
  */
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-
 import type { BoardTeamView } from "@/lib/gameboard/events";
-import { EMPTY_CLAIMS, toggleClaim, type ClaimState } from "@/lib/map/claims";
+import type { ClaimState } from "@/lib/map/claims";
+
+export type ClaimAction = "claim" | "unclaim";
+
+export interface ClaimAttestation {
+  readonly allMembersPresent: boolean;
+  readonly finishedDrinkCount: number;
+}
 
 /**
  * The Leaflet map, loaded client-side only. Leaflet needs `window`, so it must
@@ -59,30 +64,34 @@ export interface MapRegionProps {
    * marker's claim split (not just the current player's Team).
    */
   readonly teams: readonly BoardTeamView[];
+  /** Reducer-derived active claims: bar id -> claiming team ids. */
+  readonly claims: ClaimState;
   /**
    * The one Team this client may claim/unclaim bars for — the Team the current
    * player is on. Only this Team's claim is toggled by the map controls.
    */
   readonly ownTeamId: string;
+  /** Server mutation for the current team's claim transition. */
+  readonly onMutate: (
+    barId: string,
+    action: ClaimAction,
+    attestation: ClaimAttestation,
+  ) => void | Promise<void>;
+  readonly pendingBarId?: string | null;
+  readonly mutationError?: {
+    readonly barId: string;
+    readonly message: string;
+  } | null;
 }
 
 export default function MapRegion({
   teams,
+  claims,
   ownTeamId,
+  onMutate,
+  pendingBarId = null,
+  mutationError = null,
 }: MapRegionProps): React.JSX.Element {
-  // Local-only claim state (wireframe): bar id → claiming team ids. Nothing here
-  // persists or writes an event.
-  const [claims, setClaims] = useState<ClaimState>(EMPTY_CLAIMS);
-
-  // A pin tap toggles ONLY the current player's own Team's claim (R: you can
-  // only claim for the team you are on).
-  const handleToggle = (barId: string): void => {
-    if (ownTeamId === "") {
-      return;
-    }
-    setClaims((prev) => toggleClaim(prev, barId, ownTeamId));
-  };
-
   const ownTeam = teams.find((t) => t.id === ownTeamId);
 
   return (
@@ -105,8 +114,7 @@ export default function MapRegion({
         ) : (
           "your team"
         )}
-        . You can only claim for your own team. (Wireframe — claims are not
-        saved and do not affect scoring.)
+        . You can only claim for your own team.
       </p>
 
       {/* The map surface. A tall, full-width area that fits a narrow viewport
@@ -123,7 +131,9 @@ export default function MapRegion({
           claims={claims}
           teams={teams}
           ownTeamId={ownTeamId}
-          onToggle={handleToggle}
+          onMutate={onMutate}
+          pendingBarId={pendingBarId}
+          mutationError={mutationError}
         />
       </div>
     </section>

@@ -132,4 +132,33 @@ describe("Feature: in-game-landing-wireframe, Property 6: Scoreboard renders one
       { numRuns: 100 },
     );
   });
+
+  it("renders live totals and claimed-bar counts, including zero", () => {
+    const teams: readonly BoardTeamView[] = [
+      { id: "team-a", name: "Red", color: "#f00" },
+      { id: "team-b", name: "Blue", color: "#00f" },
+    ];
+
+    const { container } = render(
+      <ScoreboardRegion
+        teams={teams}
+        scoreTotals={{ "team-a": 18 }}
+        claimedBarCounts={{ "team-a": 2, "team-b": 0 }}
+      />,
+    );
+
+    const rows = container.querySelectorAll('[data-testid="scoreboard-row"]');
+    expect(
+      rows[0]?.querySelector('[data-testid="team-score"]')?.textContent,
+    ).toBe("18");
+    expect(
+      rows[0]?.querySelector('[data-testid="claimed-bars"]')?.textContent,
+    ).toBe("2 claimed");
+    expect(
+      rows[1]?.querySelector('[data-testid="team-score"]')?.textContent,
+    ).toBe("0");
+    expect(
+      rows[1]?.querySelector('[data-testid="claimed-bars"]')?.textContent,
+    ).toBe("0 claimed");
+  });
 });
