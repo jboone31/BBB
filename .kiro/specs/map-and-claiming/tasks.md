@@ -82,13 +82,13 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
 
 ## Phase 3: Atomic claim route and finish behavior
 
-- [ ] 3.1 Add the claim mutation route
+- [x] 3.1 Add the claim mutation route
   - Add `app/api/games/[gameId]/claims/route.ts`.
   - Reuse `requireSession`, membership assertions, locked game reads, `withTransaction`, and stable route response patterns.
   - Accept explicit `claim` and `unclaim` actions plus a bar id.
   - Derive the acting player and team from the session; never trust a client-supplied team id.
 
-- [ ] 3.2 Implement successful ordinary claims
+- [x] 3.2 Implement successful ordinary claims
   - Require an active game and same-game bar.
   - Resolve current team membership and apply the trusted half-team/presence contract.
   - Evaluate the active claim state under the game/bar lock.
@@ -96,14 +96,14 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Append score ledger adjustments and canonical claim/score events.
   - Return the committed sequence and result.
 
-- [ ] 3.3 Implement successful unclaims and reclaims
+- [x] 3.3 Implement successful unclaims and reclaims
   - Allow only the owning team to undo its active claim.
   - Revoke the claim with a reason/source.
   - Append inverse or recomputed ledger adjustments and `claim_removed`.
   - Allow a later claim to create a new active transition.
   - Reject unclaiming finish claims and claims after game end.
 
-- [ ] 3.4 Implement finish-bar claim ending
+- [x] 3.4 Implement finish-bar claim ending
   - Lock the game row before lifecycle evaluation.
   - Award the solo 12 points and append the finish claim and score events.
   - Transition `live` to `ended` with `finish_bar_claimed`.

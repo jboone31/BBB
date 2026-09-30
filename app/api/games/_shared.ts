@@ -70,7 +70,13 @@ export type LobbyErrorReason =
   | "max_teams"
   | "bars_missing"
   | "not_in_lobby"
-  | "code_generation_failed";
+  | "code_generation_failed"
+  | "invalid_claim"
+  | "not_live"
+  | "no_team"
+  | "claim_ineligible"
+  | "claim_duplicate"
+  | "claim_not_active";
 
 /** Success shape: the mutation was applied and produced one event at `seq` (Req 6.4). */
 export interface AppliedResponse {
@@ -117,6 +123,12 @@ export const ERROR_STATUS: Readonly<Record<LobbyErrorReason, number>> = {
   bars_missing: 409,
   not_in_lobby: 409,
   code_generation_failed: 503,
+  invalid_claim: 400,
+  not_live: 409,
+  no_team: 403,
+  claim_ineligible: 409,
+  claim_duplicate: 409,
+  claim_not_active: 409,
 };
 
 /**
