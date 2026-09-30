@@ -7,6 +7,9 @@ import {
   GAME_BOARD_EVENT_TYPES,
   initialGameBoardView,
   applyGameBoardEvent,
+  selectClaimedBarCounts,
+  selectClaimState,
+  selectScoreTotals,
 } from "./events";
 
 const GAME_ID = "game-card-events";
@@ -154,5 +157,88 @@ describe("canonical card events", () => {
     });
     const view = applyGameBoardEvent(initialGameBoardView(GAME_ID), seeded);
     expect(applyGameBoardEvent(view, seeded)).toBe(view);
+  });
+
+  it("folds active claims through removal and later reclaim transitions", () => {
+    const firstClaim = event(1, GAME_BOARD_EVENT_TYPES.claimRecorded, {
+      claimId: "claim-1",
+      teamId: "team-a",
+      barId: "bar-1",
+      activeTeamIds: ["team-a"],
+    });
+    const secondTeamClaim = event(2, GAME_BOARD_EVENT_TYPES.claimRecorded, {
+      claimId: "claim-2",
+      teamId: "team-b",
+      barId: "bar-1",
+      activeTeamIds: ["team-a", "team-b"],
+    });
+    const removeFirst = event(3, GAME_BOARD_EVENT_TYPES.claimRemoved, {
+      claimId: "claim-1",
+      teamId: "team-a",
+      barId: "bar-1",
+    });
+    const reclaim = event(4, GAME_BOARD_EVENT_TYPES.claimRecorded, {
+      claimId: "claim-3",
+      teamId: "team-a",
+      barId: "bar-1",
+      activeTeamIds: ["team-b", "team-a"],
+    });
+
+    const view = foldGameBoardEvents("game-card-events", [
+      reclaim,
+      secondTeamClaim,
+      removeFirst,
+      firstClaim,
+    ]);
+
+    expect(view.activeClaims).toEqual([
+      { claimId: "claim-2", teamId: "team-b", barId: "bar-1" },
+      { claimId: "claim-3", teamId: "team-a", barId: "bar-1" },
+    ]);
+    expect(selectClaimState(view)).toEqual({
+      "bar-1": ["team-b", "team-a"],
+    });
+    expect(selectClaimedBarCounts(view)).toEqual({
+      "team-b": 1,
+      "team-a": 1,
+    });
+  });
+
+  it("folds score corrections once and derives signed team totals", () => {
+    const award = event(1, GAME_BOARD_EVENT_TYPES.scoreAwarded, {
+      entryId: "ledger-1",
+      teamId: "team-a",
+      barId: "bar-1",
+      sourceClaimId: "claim-1",
+      category: "bar_share",
+      points: 12,
+    });
+    const correction = event(2, GAME_BOARD_EVENT_TYPES.scoreModifierApplied, {
+      entryId: "ledger-2",
+      teamId: "team-a",
+      barId: "bar-1",
+      sourceClaimId: "claim-2",
+      category: "bar_share_correction",
+      points: -6,
+    });
+    const otherTeam = event(3, GAME_BOARD_EVENT_TYPES.scoreAwarded, {
+      entryId: "ledger-3",
+      teamId: "team-b",
+      barId: "bar-1",
+      sourceClaimId: "claim-2",
+      category: "bar_share",
+      points: 6,
+    });
+
+    const view = foldGameBoardEvents("game-card-events", [
+      otherTeam,
+      award,
+      correction,
+      correction,
+    ]);
+
+    expect(view.scoreEntries).toHaveLength(3);
+    expect(view.scoreEntries[1]?.sourceId).toBe("claim-2");
+    expect(selectScoreTotals(view)).toEqual({ "team-a": 6, "team-b": 6 });
   });
 });

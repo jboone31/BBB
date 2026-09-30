@@ -130,23 +130,23 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
 
 ## Phase 4: Board reducer and realtime state
 
-- [ ] 4.1 Extend `GameBoardView`
+- [x] 4.1 Extend `GameBoardView`
   - Add active claims grouped by bar and team.
   - Add score totals and claimed-bar counts, or deterministic selectors for them.
   - Preserve current lifecycle, team, card, notification, and sequence fields.
 
-- [ ] 4.2 Fold claim events
+- [x] 4.2 Fold claim events
   - Apply `claim_recorded` to active claim state.
   - Apply `claim_removed` to remove only the specified active transition.
   - Support later reclaims without resurrecting revoked history.
   - Ignore stale/duplicate and foreign-game events.
 
-- [ ] 4.3 Fold score events
+- [x] 4.3 Fold score events
   - Apply score entries idempotently.
   - Derive totals from the ledger/event entries without double-counting corrections.
   - Preserve score category and source information for future explanations.
 
-- [ ] 4.4 Add reducer and realtime coverage
+- [x] 4.4 Add reducer and realtime coverage
   - Snapshot hydration with claims and scores.
   - Ordered live claim and score events.
   - Duplicate and out-of-order delivery.
@@ -154,7 +154,7 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Cross-game event isolation.
   - Finish event lifecycle rendering.
 
-- [ ] 4.5 Checkpoint: equivalent client state
+- [x] 4.5 Checkpoint: equivalent client state
   - Folding a complete snapshot and applying the same ordered realtime tail produce equivalent claims, scores, and lifecycle.
   - A second client receives marker and scoreboard changes without navigation or reload.
 
