@@ -299,6 +299,19 @@ export default function BoardPage(): React.JSX.Element {
       setView((prev) => applyGameBoardEvent(prev, event));
     };
 
+    const handleChannelStatus = (channelStatus: string): void => {
+      if (cancelled) {
+        return;
+      }
+      if (
+        channelStatus === "CHANNEL_ERROR" ||
+        channelStatus === "TIMED_OUT" ||
+        channelStatus === "CLOSED"
+      ) {
+        reconnectRef.current?.connectionLost();
+      }
+    };
+
     // Reconnect controller: bounded ≤5s / ≤12-attempt retry, then terminal
     // "reload required" (R8.5/8.7).
     const reconnect = new ReconnectController({
@@ -309,6 +322,7 @@ export default function BoardPage(): React.JSX.Element {
         transport,
         snapshotSource,
         onEvent: foldEvent,
+        onChannelStatus: handleChannelStatus,
       }),
       onPhaseChange: (phase) => {
         if (cancelled) {
@@ -334,6 +348,7 @@ export default function BoardPage(): React.JSX.Element {
       snapshotSource,
       transport,
       onEvent: foldEvent,
+      onChannelStatus: handleChannelStatus,
       resetTransientRecovery: () => {
         // A stopped/terminal controller cannot resume path (a); a fresh resume
         // simply re-establishes delivery via its own resubscribe below.
@@ -352,31 +367,29 @@ export default function BoardPage(): React.JSX.Element {
     // notice and never presents partially-applied state as live (R8.8).
     (async () => {
       try {
-        const priorEvents = await snapshotSource.fetchEventsAscending(gameId);
-        if (cancelled) {
-          return;
-        }
-        setView(foldGameBoardEvents(gameId, priorEvents));
-        // The snapshot has loaded and folded: view.lifecycle now reflects the
-        // game's real state, so the access gate may act on it (R1.3 redirect).
-        setViewLoaded(true);
-        // Resolve the current player's Team id from the same snapshot using the
-        // lobby reducer (which folds players + their team). Team membership is
-        // fixed once the game is live, so this mount-time derivation is stable.
-        const storedPlayerId = readLocal(playerIdKey(gameId));
-        if (storedPlayerId !== null) {
-          const lobbyView = foldLobbyEvents(gameId, priorEvents);
-          const teamId =
-            lobbyView.players.find((p) => p.id === storedPlayerId)?.teamId ??
-            null;
-          setMyTeamId(teamId);
-        }
-
         const sub = await subscribe(gameId, {
           transport,
           snapshotSource,
           lastSeenStore,
-          handlers: { onEvent: foldEvent },
+          handlers: {
+            onEvent: foldEvent,
+            onChannelStatus: handleChannelStatus,
+            onSnapshotEvents: (snapshotEvents) => {
+              if (cancelled) {
+                return;
+              }
+              setView(foldGameBoardEvents(gameId, snapshotEvents));
+              setViewLoaded(true);
+              const storedPlayerId = readLocal(playerIdKey(gameId));
+              if (storedPlayerId !== null) {
+                const lobbyView = foldLobbyEvents(gameId, snapshotEvents);
+                const teamId =
+                  lobbyView.players.find((p) => p.id === storedPlayerId)
+                    ?.teamId ?? null;
+                setMyTeamId(teamId);
+              }
+            },
+          },
         });
         if (cancelled) {
           void sub.close();

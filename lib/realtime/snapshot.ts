@@ -260,11 +260,19 @@ export async function loadSnapshot(
   gameId: string,
   source: SnapshotSource | QueryRunner,
 ): Promise<GameStateSnapshot> {
+  const events = await loadSnapshotEvents(gameId, source);
+  return foldEvents(gameId, events);
+}
+
+/** Fetch the ordered event list used to build a game's initial snapshot. */
+export async function loadSnapshotEvents(
+  gameId: string,
+  source: SnapshotSource | QueryRunner,
+): Promise<GameEvent[]> {
   const snapshotSource = isSnapshotSource(source)
     ? source
     : snapshotSourceFromQueryRunner(source);
-  const events = await snapshotSource.fetchEventsAscending(gameId);
-  return foldEvents(gameId, events);
+  return snapshotSource.fetchEventsAscending(gameId);
 }
 
 /**

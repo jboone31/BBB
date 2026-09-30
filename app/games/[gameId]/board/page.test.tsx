@@ -116,15 +116,26 @@ vi.mock("@/lib/realtime/supabaseBrowser", () => ({
 // subscribe proves the controllers were wired up (their behavior is reused from
 // the lib/realtime property suites, not re-tested here).
 vi.mock("@/lib/realtime", () => ({
-  subscribe: vi.fn(async () => {
-    if (subscribeShouldReject) {
-      throw new Error("subscribe_failed");
-    }
-    return {
-      snapshot: { lastSeenSequence: 0 },
-      close: async () => {},
-    };
-  }),
+  subscribe: vi.fn(
+    async (
+      _gameId: string,
+      options: {
+        handlers?: { onSnapshotEvents?: (events: GameEvent[]) => void };
+      },
+    ) => {
+      if (snapshotShouldReject) {
+        throw new Error("snapshot_failed");
+      }
+      options.handlers?.onSnapshotEvents?.(snapshotEvents);
+      if (subscribeShouldReject) {
+        throw new Error("subscribe_failed");
+      }
+      return {
+        snapshot: { lastSeenSequence: 0 },
+        close: async () => {},
+      };
+    },
+  ),
 }));
 
 // Mock the Supabase-auth session bridge. The page adopts the resolved

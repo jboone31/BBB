@@ -8,10 +8,9 @@
  *      `game_events` rows filtered by `game_id` (Supabase Postgres-changes) —
  *      so every future `Game_State_Change` is pushed to it (Req 6.1), and only
  *      for *its* game (Req 6.3 isolation).
- *   2. **Load a snapshot** of the state persisted before it subscribed, folded
- *      from the event log (Req 6.4). That work already lives in
- *      {@link ./snapshot}; this module reuses {@link loadSnapshot} rather than
- *      recomputing state.
+ *   2. **Load a snapshot** while buffering rows already arriving on the channel,
+ *      then fold the snapshot and buffered tail (Req 6.4). That work already
+ *      lives in {@link ./snapshot}.
  *
  * From then on, live events arrive via {@link RealtimeSubscription.onEvent}.
  * The transport can deliver events out of order or more than once, so `onEvent`
@@ -50,7 +49,8 @@
 
 import type { GameEvent } from "@/lib/events";
 import {
-  loadSnapshot,
+  foldEvents,
+  loadSnapshotEvents,
   NO_EVENTS_SEQ,
   type GameStateSnapshot,
   type SnapshotSource,
@@ -251,9 +251,21 @@ export class InMemoryLastSeenStore implements LastSeenStore {
 export interface RealtimeChannel {
   /** Resolves when the underlying provider has confirmed the channel is joined. */
   readonly ready?: Promise<void>;
+  /** Register a listener for provider status changes after channel creation. */
+  readonly onStatus?: (
+    listener: (status: RealtimeChannelStatus) => void,
+  ) => void;
   /** Stop receiving events and release the channel. Idempotent. */
   unsubscribe(): Promise<void> | void;
 }
+
+export type RealtimeChannelStatus =
+  | "JOINING"
+  | "SUBSCRIBED"
+  | "CHANNEL_ERROR"
+  | "TIMED_OUT"
+  | "LEAVING"
+  | "CLOSED";
 
 /**
  * The minimal realtime transport this client needs (design.md Component 5).
@@ -281,6 +293,7 @@ export interface RealtimeTransport {
   channel(
     gameId: string,
     onRow: (event: GameEvent) => void,
+    onStatus?: (status: RealtimeChannelStatus) => void,
   ): RealtimeChannel | Promise<RealtimeChannel>;
 }
 
@@ -302,6 +315,8 @@ export interface SubscriptionHandlers {
    * is applied. Seeds the caller's view of state persisted before subscription.
    */
   onSnapshot?: (snapshot: GameStateSnapshot) => void;
+  /** The ordered events used to build the initial snapshot. */
+  onSnapshotEvents?: (events: readonly GameEvent[]) => void;
   /**
    * Called for each event as it is applied, in ascending `seq` order (Req 6.9).
    * Not called for de-duplicated or buffered (not-yet-applicable) arrivals.
@@ -312,6 +327,8 @@ export interface SubscriptionHandlers {
    * highest contiguously-applied `seq`. Useful for persistence (Task 13.3).
    */
   onLastSeenSequence?: (seq: number) => void;
+  /** Called when the provider reports a channel lifecycle change. */
+  onChannelStatus?: (status: RealtimeChannelStatus) => void;
 }
 
 /** Options for {@link subscribe}. */
@@ -364,16 +381,15 @@ export interface RealtimeSubscription {
  * flow (design.md Component 5; Req 6.1, 6.3, 6.4, 6.6, 6.9).
  *
  * Flow:
- *   1. Load the snapshot of state persisted before subscribing (Req 6.4) via
- *      {@link loadSnapshot}, and seed the ordering watermark from it (Req 6.6).
- *   2. Open the per-game channel through the injected transport, **filtered to
+ *   1. Open the per-game channel through the injected transport, **filtered to
  *      `gameId`** so only this game's events arrive (Req 6.1, 6.3). Every
- *      arriving row is funneled into {@link RealtimeSubscription.onEvent}.
+ *      arriving row is buffered while the snapshot loads.
+ *   2. Load the snapshot and seed the ordering watermark from it (Req 6.4).
+ *      Drain buffered rows through the ordered-apply core.
  *
- * The snapshot is loaded before the channel is opened so the returned
- * subscription already reflects prior state; live events then advance it in
- * order. Any events the transport happens to deliver at or below the snapshot's
- * `seq` are de-duplicated by the ordering core.
+ * Opening the channel before loading the snapshot closes the startup gap: rows
+ * committed while the snapshot is being fetched are retained and then either
+ * de-duplicated against the snapshot or applied in order.
  *
  * @param gameId the game to follow.
  * @param options transport, snapshot source, handlers, and optional store.
@@ -386,15 +402,11 @@ export async function subscribe(
   const { transport, snapshotSource, handlers } = options;
   const store = options.lastSeenStore ?? new InMemoryLastSeenStore();
 
-  // 1. Snapshot first (Req 6.4), seed the watermark from it (Req 6.6).
-  const snapshot = await loadSnapshot(gameId, snapshotSource);
-  const seed = Math.max(store.get(gameId), snapshot.lastSeenSequence);
-  store.set(gameId, seed);
-  let state = initialOrderedApplyState(seed);
-  handlers?.onSnapshot?.(snapshot);
+  let hydrated = false;
+  const buffered: GameEvent[] = [];
+  let state = initialOrderedApplyState(store.get(gameId));
 
-  // The entry point the transport's row callback and external callers share.
-  const onEvent = (event: GameEvent): void => {
+  const applyEvent = (event: GameEvent): void => {
     if (event.gameId !== gameId) {
       // Isolation guard (Req 6.3): a correctly-filtered channel never delivers
       // another game's events; drop defensively if one slips through.
@@ -414,25 +426,54 @@ export async function subscribe(
     }
   };
 
-  // 2. Open the per-game channel (Req 6.1, 6.3), funneling rows into onEvent.
-  const channel = await transport.channel(gameId, onEvent);
+  const onEvent = (event: GameEvent): void => {
+    if (!hydrated) {
+      buffered.push(event);
+      return;
+    }
+    applyEvent(event);
+  };
+
+  // 1. Open the channel before the snapshot so no committed row falls into a
+  // startup gap. The provider buffers rows until its channel is ready.
+  const channel = await transport.channel(gameId, onEvent, (status) =>
+    handlers?.onChannelStatus?.(status),
+  );
   // Concrete providers may return before their socket has joined the channel.
   // Await readiness so a caller cannot publish immediately into a subscription
   // that is still negotiating its server-side filter.
-  await channel.ready;
+  try {
+    await channel.ready;
+    const snapshotEvents = await loadSnapshotEvents(gameId, snapshotSource);
+    const snapshot = foldEvents(gameId, snapshotEvents);
+    const seed = Math.max(store.get(gameId), snapshot.lastSeenSequence);
+    state = initialOrderedApplyState(seed);
+    store.set(gameId, seed);
+    handlers?.onSnapshot?.(snapshot);
+    handlers?.onSnapshotEvents?.(snapshotEvents);
+    hydrated = true;
+    buffered.sort((a, b) => a.seq - b.seq);
+    for (const event of buffered) {
+      applyEvent(event);
+    }
+    buffered.length = 0;
 
-  let closed = false;
-  return {
-    gameId,
-    snapshot,
-    onEvent,
-    lastSeenSequence: () => state.lastSeenSequence,
-    close: async () => {
-      if (closed) {
-        return;
-      }
-      closed = true;
-      await channel.unsubscribe();
-    },
-  };
+    let closed = false;
+    return {
+      gameId,
+      snapshot,
+      onEvent,
+      lastSeenSequence: () => state.lastSeenSequence,
+      close: async () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        await channel.unsubscribe();
+      },
+    };
+  } catch (error) {
+    await channel.unsubscribe();
+    throw error;
+  }
 }

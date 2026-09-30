@@ -38,7 +38,11 @@ import {
 } from "@supabase/supabase-js";
 
 import { type GameEvent } from "@/lib/events";
-import type { RealtimeChannel, RealtimeTransport } from "@/lib/realtime";
+import type {
+  RealtimeChannel,
+  RealtimeChannelStatus,
+  RealtimeTransport,
+} from "@/lib/realtime";
 import { type SnapshotSource } from "@/lib/realtime/snapshot";
 
 /** The `game_events` table the realtime channel and snapshot read from. */
@@ -192,6 +196,7 @@ export function supabaseRealtimeTransport(
     channel(
       gameId: string,
       onRow: (event: GameEvent) => void,
+      onStatus?: (status: RealtimeChannelStatus) => void,
     ): RealtimeChannel {
       const channel: SupabaseRealtimeChannel = client
         .channel(`game_events:${gameId}`)
@@ -214,6 +219,8 @@ export function supabaseRealtimeTransport(
 
       const ready = new Promise<void>((resolve, reject) => {
         void channel.subscribe((status) => {
+          const normalizedStatus = status as RealtimeChannelStatus;
+          onStatus?.(normalizedStatus);
           if (status === "SUBSCRIBED") {
             resolve();
           } else if (
@@ -232,6 +239,9 @@ export function supabaseRealtimeTransport(
 
       return {
         ready,
+        onStatus: (listener) => {
+          onStatus = listener;
+        },
         unsubscribe: async (): Promise<void> => {
           await client.removeChannel(channel);
         },
