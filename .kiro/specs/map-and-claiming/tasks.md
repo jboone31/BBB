@@ -110,7 +110,7 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Record the claiming team as the event actor.
   - Ensure competing finish requests cannot double-award or double-end.
 
-- [ ] 3.5 Add route and transaction coverage
+- [x] 3.5 Add route and transaction coverage
   - Half-team accepted and rejected.
   - Teamless players excluded from the threshold.
   - Duplicate active claim conflict.
@@ -122,7 +122,7 @@ This is the execution plan for roadmap section 2: candidate-bar map completion, 
   - Append-event failure rolls back claim, ledger, and lifecycle state.
   - Finish-claim race produces one winner and one conflict.
 
-- [ ] 3.6 Checkpoint: server-owned claim loop
+- [x] 3.6 Checkpoint: server-owned claim loop
   - A browser session can claim and undo a bar through the route.
   - Durable state, ledger state, and events commit or roll back together.
   - A finish claim ends the game exactly once.

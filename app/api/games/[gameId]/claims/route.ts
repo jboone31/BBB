@@ -166,7 +166,7 @@ async function appendScoreAdjustments(
       sourceClaimId,
       adjustment.category,
       adjustment.points,
-      JSON.stringify({ sourceClaimId }),
+      { sourceClaimId },
     ]);
     const entryId = String(rows[0]?.id);
     const event = await appendEvent(tx, {
