@@ -1,7 +1,7 @@
 The Beltline Bar Brawl: Redux
 
 Goal
-Teams race down the Beltline getting drinks at various bars to “claim” them and earn points for their team. Drinking at a bar allows your team to draw cards that can be used to slow down other teams or give your team an advantage. Whenever a team claims the “finish” bar, the game ends immediately. The team with the most points wins.
+Teams race down the Beltline getting drinks at various bars to ï¿½claimï¿½ them and earn points for their team. Drinking at a bar allows your team to draw cards that can be used to slow down other teams or give your team an advantage. Whenever a team claims the ï¿½finishï¿½ bar, the game ends immediately. The team with the most points wins.
 Player Overview
 * Teams: 2-4 teams of any size
 * Estimated duration: 2-4 hours
@@ -16,7 +16,7 @@ Playing the Game
 o All teams begin together at the starting bar.
 o Once every team has their drinks, the game officially begins. Do not start drinking until the game begins.
 2. Claiming Bars
-o To “claim” a bar:
+o To ï¿½claimï¿½ a bar:
 * All team members must be present.
 * At least half of the team must order and finish a drink.
 o Bars in general are worth twelve points, though some cards may cause teams to gain additional or fewer points upon claiming a bar.
@@ -30,7 +30,7 @@ o Bars may only be claimed once by each team
 3. The Brawl Deck
 o Each time a team claims a bar (excluding the finish bar), they draw the top two cards of the Brawl Deck, choose one to keep, and remove the other from play.
 o Cards are only drawn once per team, per unique bar, meaning the same bar cannot be revisited for an additional card draw. 
-o Some cards may make an exception to these rules—if so, always follow the directions on the card over this document.
+o Some cards may make an exception to these rulesï¿½if so, always follow the directions on the card over this document.
 o Once a card is played or discarded, it is removed from the deck for the rest of the game.
 o If a team exhausts their Brawl Deck, they may still claim bars but receive no cards. If there is only one card remaining in your Brawl Deck when you claim a bar, you may add it to your hand.
 
@@ -52,7 +52,7 @@ o Some cards can only be played if certain conditions are met; otherwise, they a
 o All casting requirements must be completed before announcing the card.
 o The casting team must all be together when playing a card.
 The Brawl Deck
-Each team’s deck contains identical cards, with one of each of the following:
+Each teamï¿½s deck contains identical cards, with one of each of the following:
 * GO PISS GIRL
 o At least one member of the target team must enter a publicly accessible restroom that is not located inside any bar.
 * CROP DUSTING
@@ -80,7 +80,7 @@ o The target team must obtain a souvenir/brochure from any apartment leasing off
 o If most leasing offices are closed today, they may take a picture in front of one instead.
 * DIFFERENT TASTES
 o Requirements: The casting team must take a picture next to a restaurant.
-o The target team must take a picture of a restaurant whose cuisine is from the same continent as the casting team’s restaurant.
+o The target team must take a picture of a restaurant whose cuisine is from the same continent as the casting teamï¿½s restaurant.
 * EVERYONE'S A CRITIC
 o The target team must take a picture on the premises of a location with at least 4.5 stars on Google.
 o If they fail, they may not claim a bar for 15 minutes.
@@ -98,7 +98,7 @@ o The target team must immediately return to the entrance of the bar their team 
 * DIRTY BIRD
 o The target team must take a photo with a non-team member wearing Atlanta sports team merchandise.
 * SCENIC ROUTE
-o The target team’s next claimed bar must be farther from the finish bar than the last bar their team claimed.
+o The target teamï¿½s next claimed bar must be farther from the finish bar than the last bar their team claimed.
 * INSURANCE
 o Special Rule: This card targets the casting team only.
 o The points your team receives from the next bar you claim cannot be reduced by later-claiming teams.
@@ -117,6 +117,6 @@ o After your team claims four more bars, gain +6 points.
 o Special Rule: This card does not have a target and is a persistent effect.
 o For the next twenty minutes, whenever any team claims a bar, that team draws two cards and keeps both.
 * VOTED OFF THE ISLAND
-o Requirements: All four teams have claimed a non-starting bar.
-o The target team un-claims a bar that all four teams have claimed.
+o Requirements: All teams have claimed a non-starting bar.
+o The target team un-claims a bar that all teams have claimed.
 o They may choose to re-claim the bar.

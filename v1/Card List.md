@@ -144,7 +144,7 @@ _**App Mechanics:**_ Toast message to all teams. Ensures cards are not discarded
 
 ## Voted Off the Island
 
-**Requirements:** All four teams have claimed a non-starting bar.
-The target team un-claims a bar that all four teams have claimed. They may choose to re-claim the bar.
+**Requirements:** All teams have claimed a non-starting bar.
+The target team un-claims a bar that all teams have claimed. They may choose to re-claim the bar.
 
-_**App Mechanics:**_ Targets a team AND a bar that all four teams have claimed. Toast message to target team that this bar has been un-claimed for them, and allows team to re-claim bar. Informational toast message to other teams.
+_**App Mechanics:**_ Targets a team AND a bar that all teams have claimed. Toast message to target team that this bar has been un-claimed for them, and allows team to re-claim bar. Informational toast message to other teams.
