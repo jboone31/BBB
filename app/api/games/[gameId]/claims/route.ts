@@ -17,6 +17,7 @@ import {
   type ClaimScoringBarKind,
   type ScoreAdjustment,
 } from "@/lib/scoring";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 
 import {
   assertMember,
@@ -74,6 +75,12 @@ where game_id = $1
     or trim(both '-' from lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g'))) = lower($2)
   )
 limit 1
+`;
+
+const INSERT_CANDIDATE_BAR_SQL = `
+insert into bars (game_id, name, location)
+values ($1, $2, $3)
+returning id
 `;
 
 const ACTIVE_CLAIMS_SQL = `
@@ -231,11 +238,32 @@ export async function POST(
       if (game.lifecycle !== "live") return { ok: false, reason: "not_live" };
 
       const { rows: barRows } = await tx.query(BAR_SQL, [gameId, barId]);
-      if (barRows.length === 0) return { ok: false, reason: "not_found" };
+      let resolvedBarId = String(barRows[0]?.id ?? (barRows.length > 0 ? barId : ""));
+      if (resolvedBarId === "") {
+        // The map exposes the full hardcoded catalog, while older games only
+        // persisted their designated start/finish bars. Materialize a
+        // catalog bar on first claim so every map marker is claimable without
+        // accepting arbitrary client-supplied bar ids.
+        const candidate = CANDIDATE_BARS.find((bar) => bar.id === barId);
+        if (candidate === undefined) {
+          return { ok: false, reason: "not_found" };
+        }
+        const { rows: insertedRows } = await tx.query(
+          INSERT_CANDIDATE_BAR_SQL,
+          [
+            gameId,
+            candidate.name,
+            `${candidate.lat},${candidate.lng}`,
+          ],
+        );
+        resolvedBarId = String(insertedRows[0]?.id ?? "");
+        if (resolvedBarId === "") {
+          return { ok: false, reason: "not_found" };
+        }
+      }
       // The map uses stable name slugs, while the database stores UUID bar ids.
       // Keep the submitted value for board event payloads and use the resolved
       // UUID for foreign-keyed claims, ledger entries, and lifecycle checks.
-      const resolvedBarId = String(barRows[0]?.id ?? barId);
 
       const { rows: playerRows } = await tx.query(PLAYER_SQL, [
         gameId,

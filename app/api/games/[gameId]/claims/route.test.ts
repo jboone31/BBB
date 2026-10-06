@@ -33,6 +33,9 @@ const fakeTx: QueryRunner = {
     if (text.includes("from bars")) {
       return { rows: mockBarExists ? [{ exists: 1 }] : [] };
     }
+    if (text.startsWith("insert into bars")) {
+      return { rows: [{ id: "catalog-bar-new" }] };
+    }
     if (text.includes("from players") && text.includes("session_id")) {
       return { rows: mockPlayer ? [{ ...mockPlayer }] : [] };
     }
@@ -195,6 +198,26 @@ describe("POST /api/games/[gameId]/claims", () => {
     expect(response.status).toBe(200);
     expect(mockAppendCalls.map((call) => call.type)).toEqual([
       "claim_recorded",
+    ]);
+  });
+
+  it("materializes a missing candidate bar before claiming it", async () => {
+    mockBarExists = false;
+
+    const response = await POST(
+      request({
+        action: "claim",
+        barId: "apres-diem",
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockAppendCalls.map((call) => call.type)).toEqual([
+      "claim_recorded",
+      "score_awarded",
     ]);
   });
 

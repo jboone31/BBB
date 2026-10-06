@@ -377,7 +377,7 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     expect(queryRegionNav()).toBeNull();
   });
 
-  it("R1.4: an ended game shows an ended indication and renders no Regions", async () => {
+  it("R1.4: an ended game renders the final board read-only", async () => {
     const gameId = "game-ended";
     routeParams.gameId = gameId;
     seedPlayer(gameId);
@@ -390,11 +390,13 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/this game has ended/i)).not.toBeNull();
+      expect(queryRegionNav()).not.toBeNull();
     });
 
-    // No Regions on the ended branch (R1.4).
-    expect(queryRegionNav()).toBeNull();
+    expect(
+      screen.getByText(/map and scoreboard are available in read-only mode/i),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: /map/i })).not.toBeNull();
   });
 
   it("R1.5: a non-member (neither Admin nor Player) sees the not-authorized notice and no Regions", async () => {

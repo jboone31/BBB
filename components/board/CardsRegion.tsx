@@ -48,12 +48,15 @@ export interface CardsRegionProps {
    * this to the Card_Play_Wireframe; this component only reports the chosen card.
    */
   readonly onPlayCard: (card: PlaceholderCard) => void;
+  /** Disable card play after the game ends. */
+  readonly readOnly?: boolean;
 }
 
 export default function CardsRegion({
   hand,
   adminNotPlayer,
   onPlayCard,
+  readOnly = false,
 }: CardsRegionProps): React.JSX.Element {
   return (
     <section
@@ -141,6 +144,7 @@ export default function CardsRegion({
               <button
                 type="button"
                 aria-label={`Play ${card.label}`}
+                disabled={readOnly}
                 onClick={() => onPlayCard(card)}
                 style={{
                   flex: "0 0 auto",

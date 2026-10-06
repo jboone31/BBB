@@ -84,6 +84,12 @@ where game_id = $1 and session_id = $2
 limit 1
 `;
 
+const GAME_LIFECYCLE_SQL = `
+select lifecycle
+from games
+where id = $1
+`;
+
 type PlayOutcome =
   | { readonly ok: true; readonly seq: number }
   | { readonly ok: false; readonly reason: LobbyErrorReason };
@@ -156,6 +162,11 @@ export async function POST(
       const isMemberOfGame = await assertMember(tx, gameId, session.sessionId);
       if (!isMemberOfGame) {
         return { ok: false, reason: "not_member" };
+      }
+
+      const { rows: gameRows } = await tx.query(GAME_LIFECYCLE_SQL, [gameId]);
+      if (gameRows[0]?.lifecycle !== "live") {
+        return { ok: false, reason: "not_live" };
       }
 
       // 2. The requesting session must have a player row with a Team in this

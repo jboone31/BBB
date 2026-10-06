@@ -61,6 +61,7 @@ export interface BarLeafletMapProps {
     readonly barId: string;
     readonly message: string;
   } | null;
+  readonly readOnly?: boolean;
 }
 
 /** Build a Leaflet div-icon whose teardrop fill is the bar's color split. */
@@ -94,6 +95,7 @@ export default function BarLeafletMap({
   onMutate,
   pendingBarId = null,
   mutationError = null,
+  readOnly = false,
 }: BarLeafletMapProps): React.JSX.Element {
   const [attestations, setAttestations] = useState<
     Record<string, ClaimAttestation>
@@ -215,6 +217,7 @@ export default function BarLeafletMap({
                 <button
                   type="button"
                   disabled={
+                    readOnly ||
                     pending ||
                     ownTeamId === "" ||
                     !attestation.allMembersPresent

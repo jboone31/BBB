@@ -171,6 +171,8 @@ export default function BoardPage(): React.JSX.Element {
   // per-game player id. They stay null/false until the session is known.
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [playerResolvedInSnapshot, setPlayerResolvedInSnapshot] =
+    useState(false);
   // The current player's Team id, derived from the snapshot fold (see the
   // realtime effect). Drives the target list (R6.2) and notice filter (R7.3).
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
@@ -383,6 +385,9 @@ export default function BoardPage(): React.JSX.Element {
               const storedPlayerId = readLocal(playerIdKey(gameId));
               if (storedPlayerId !== null) {
                 const lobbyView = foldLobbyEvents(gameId, snapshotEvents);
+                setPlayerResolvedInSnapshot(
+                  lobbyView.players.some((p) => p.id === storedPlayerId),
+                );
                 const teamId =
                   lobbyView.players.find((p) => p.id === storedPlayerId)
                     ?.teamId ?? null;
@@ -427,6 +432,13 @@ export default function BoardPage(): React.JSX.Element {
     isAdmin,
     isPlayer,
   );
+  const needsTeamSelection =
+    viewLoaded &&
+    isPlayer &&
+    myTeamId === null &&
+    playerResolvedInSnapshot &&
+    view.teams.length > 0 &&
+    access === "board";
 
   // Notices whose target is the current Team (R7.3/R7.8). A player with no
   // resolved Team surfaces none (the caster's own client never surfaces its own
@@ -467,14 +479,21 @@ export default function BoardPage(): React.JSX.Element {
     // Only redirect once the snapshot has loaded (viewLoaded): before that, a
     // "lobby" lifecycle is the initial placeholder, not the game's real state,
     // so redirecting on it would bounce a live-game visitor back to the lobby.
-    if (viewLoaded && access === "redirect-lobby" && gameId !== "") {
+    if (
+      viewLoaded &&
+      gameId !== "" &&
+      (access === "redirect-lobby" || needsTeamSelection)
+    ) {
       router.push(`/games/${gameId}/lobby`);
     }
-  }, [viewLoaded, access, gameId, router]);
+  }, [viewLoaded, access, needsTeamSelection, gameId, router]);
 
   // --- The one POST: confirm a targeting card play (R7.1/7.7) --------------
   const handleConfirmPlay = useCallback(
     async (card: PlaceholderCard, targetTeamId?: string): Promise<void> => {
+      if (view.lifecycle === "ended") {
+        return;
+      }
       // A non-targeting card writes nothing — the wireframe acknowledgement is
       // purely local (R6.6). Only a targeting card with a chosen target POSTs.
       if (!card.targetsTeam || targetTeamId === undefined) {
@@ -503,7 +522,7 @@ export default function BoardPage(): React.JSX.Element {
         setPlayError("not_delivered");
       }
     },
-    [gameId, sessionId],
+    [gameId, sessionId, view.lifecycle],
   );
 
   const handleClaimMutation = useCallback(
@@ -670,19 +689,9 @@ export default function BoardPage(): React.JSX.Element {
     );
   }
 
-  if (access === "ended") {
-    // Ended-game indication; no Regions (R1.4).
-    return (
-      <main style={containerStyle}>
-        {header}
-        <p role="status" style={noticeStyle}>
-          This game has ended.
-        </p>
-      </main>
-    );
-  }
-
-  // access === "board": render the live Game_Board with all three Regions (R1.1).
+  // Both live and ended games render the board. Ended games remain available
+  // for final map/score inspection, but gameplay mutations are read-only.
+  const readOnly = view.lifecycle === "ended";
   return (
     <main style={containerStyle}>
       {header}
@@ -729,6 +738,12 @@ export default function BoardPage(): React.JSX.Element {
           will not update live.
         </p>
       ) : null}
+      {readOnly ? (
+        <p role="status" style={noticeStyle}>
+          This game has ended. The map and scoreboard are available in
+          read-only mode.
+        </p>
+      ) : null}
 
       {/* Targeted notifications for the current Team (R7.3/R7.8). Rendered above
           the Region content but inline (never modal), so they never obscure the
@@ -758,6 +773,7 @@ export default function BoardPage(): React.JSX.Element {
           onMutate={handleClaimMutation}
           pendingBarId={pendingClaimBarId}
           mutationError={claimMutationError}
+          readOnly={readOnly}
         />
       ) : null}
       {activeRegion === "scoreboard" ? (
@@ -772,16 +788,20 @@ export default function BoardPage(): React.JSX.Element {
           hand={hand}
           adminNotPlayer={adminNotPlayer}
           onPlayCard={(card) => {
+            if (readOnly) {
+              return;
+            }
             setPlayError(null);
             setPlayingCard(card);
           }}
+          readOnly={readOnly}
         />
       ) : null}
 
       {/* Card_Play_Wireframe, presented on play (R6.1). The target list excludes
           the current Team (R6.2); confirm of a targeting card POSTs the one
           event (R7.1) and surfaces "not delivered" on failure (R7.7). */}
-      {playingCard !== null ? (
+      {playingCard !== null && !readOnly ? (
         <>
           <CardPlayWireframe
             card={playingCard}

@@ -157,7 +157,7 @@ export default function TeamSelection({
         id="team-selection-heading"
         style={{ margin: 0, fontSize: "1.15rem" }}
       >
-        Pick your team
+        Join/view teams
       </h2>
       <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.4 }}>
         Join a team below, or create a new one. You can switch teams any time
@@ -292,6 +292,24 @@ export default function TeamSelection({
           })}
         </ul>
       )}
+
+      {players.some((player) => player.teamId === null) ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
+            Players not on a team (
+            {players.filter((player) => player.teamId === null).length})
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            {players
+              .filter((player) => player.teamId === null)
+              .map((player) => (
+                <li key={player.id} style={{ fontSize: "0.9rem" }}>
+                  {player.displayName}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
 
     </section>
   );

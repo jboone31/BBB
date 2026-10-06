@@ -74,6 +74,9 @@ const fakeTx: QueryRunner = {
       // MEMBERSHIP_SQL — returns a row iff the session is a member.
       return { rows: mockIsMember ? [{ "?column?": 1 }] : [] };
     }
+    if (text.includes("select lifecycle") && text.includes("from games")) {
+      return { rows: [{ lifecycle: "live" }] };
+    }
     if (text.includes("from players") && text.includes("session_id")) {
       // PLAYER_FOR_SESSION_SQL — the requesting session's player row.
       return { rows: mockPlayer ? [{ ...mockPlayer }] : [] };

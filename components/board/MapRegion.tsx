@@ -82,6 +82,8 @@ export interface MapRegionProps {
     readonly barId: string;
     readonly message: string;
   } | null;
+  /** Disable claiming after the game ends. */
+  readonly readOnly?: boolean;
 }
 
 export default function MapRegion({
@@ -91,6 +93,7 @@ export default function MapRegion({
   onMutate,
   pendingBarId = null,
   mutationError = null,
+  readOnly = false,
 }: MapRegionProps): React.JSX.Element {
   const ownTeam = teams.find((t) => t.id === ownTeamId);
 
@@ -134,6 +137,7 @@ export default function MapRegion({
           onMutate={onMutate}
           pendingBarId={pendingBarId}
           mutationError={mutationError}
+          readOnly={readOnly}
         />
       </div>
     </section>

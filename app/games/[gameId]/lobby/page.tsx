@@ -188,6 +188,7 @@ export default function LobbyPage(): React.JSX.Element {
   });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [startRequested, setStartRequested] = useState(false);
 
   const configured = isSupabaseConfigured();
 
@@ -656,11 +657,25 @@ export default function LobbyPage(): React.JSX.Element {
 
   /** Start the game (Admin only; R5). */
   const handleStart = useCallback(async (): Promise<void> => {
+    // Avoid issuing a stale start request after the realtime fold has already
+    // moved the game out of the lobby.
+    if (!inLobby) {
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
       const res = await postJson(`/api/games/${gameId}/start`, {});
-      if (!res.applied) {
+      if (res.applied) {
+        // Hide the control immediately; realtime delivery may arrive slightly
+        // after the successful response.
+        setStartRequested(true);
+      } else if (res.error === "not_in_lobby") {
+        // A stale tab can still have a lobby snapshot while another client has
+        // already started the game. Do not leave a control that can repeat the
+        // known-invalid request.
+        setStartRequested(true);
+      } else {
         setFormError(res.error);
       }
     } catch (err) {
@@ -668,7 +683,7 @@ export default function LobbyPage(): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [postJson, gameId]);
+  }, [postJson, gameId, inLobby]);
 
   // --- Render --------------------------------------------------------------
 
@@ -764,6 +779,8 @@ export default function LobbyPage(): React.JSX.Element {
           joinCode={view.joinCode}
           teams={view.teams}
           players={view.players}
+          showTeams={false}
+          showTeamless={false}
         />
       ) : null}
 
@@ -847,7 +864,7 @@ export default function LobbyPage(): React.JSX.Element {
           })()}
 
           {/* Admin: start control, enabled only when eligible (R5). */}
-          {isAdmin ? (
+          {inLobby && isAdmin && !startRequested ? (
             <StartGame
               teamCount={view.teams.length}
               startBarId={view.startBarId}
