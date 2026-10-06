@@ -201,8 +201,8 @@ async function submitCreateForm(): Promise<void> {
   const finish = screen.getByRole("textbox", { name: /finish bar/i });
   const name = screen.getByRole("textbox", { name: /display name/i });
 
-  fireEvent.change(start, { target: { value: "Ladybird Grove" } });
-  fireEvent.change(finish, { target: { value: "New Realm Brewing" } });
+  fireEvent.change(start, { target: { value: "Ladybird / Ranger Station" } });
+  fireEvent.change(finish, { target: { value: "New Realm Brewing Company" } });
   fireEvent.change(name, { target: { value: "Host" } });
 
   // Identity is established asynchronously now: the page gates POSTs on the

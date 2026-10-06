@@ -47,6 +47,7 @@ import { appendEvent, type QueryRunner } from "@/lib/events";
 import { validateBarDesignation } from "@/lib/games";
 import { isLobbyPhase } from "@/lib/lobby/gate";
 import { LOBBY_EVENT_TYPES } from "@/lib/lobby/events";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 
 import {
   applied,
@@ -149,6 +150,13 @@ function readBarName(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** Resolve a submitted name to the canonical hardcoded candidate-bar name. */
+function resolveCandidateBarName(value: string): string | undefined {
+  return CANDIDATE_BARS.find(
+    (bar) => bar.name.toLowerCase() === value.toLowerCase(),
+  )?.name;
+}
+
 /** Insert a named bar for the game and return its new id (R2.1/R2.2). */
 async function insertBar(
   tx: QueryRunner,
@@ -217,6 +225,20 @@ export async function POST(
     requestedFinishId === undefined
       ? readBarName(body.finishBarName)
       : undefined;
+  const canonicalStartName =
+    requestedStartName === undefined
+      ? undefined
+      : resolveCandidateBarName(requestedStartName);
+  const canonicalFinishName =
+    requestedFinishName === undefined
+      ? undefined
+      : resolveCandidateBarName(requestedFinishName);
+  if (
+    (requestedStartName !== undefined && canonicalStartName === undefined) ||
+    (requestedFinishName !== undefined && canonicalFinishName === undefined)
+  ) {
+    return notApplied("bar_not_found");
+  }
 
   // --- Atomic guard chain + designation write + one appendEvent -----------
   try {
@@ -269,11 +291,11 @@ export async function POST(
       // 4b. Name-based sides: create the bar row now and designate its id. Runs
       //     only after the guards above, so no bar is inserted for a request
       //     that is going to be rejected.
-      if (requestedStartName !== undefined) {
-        startBarId = await insertBar(tx, gameId, requestedStartName);
+      if (canonicalStartName !== undefined) {
+        startBarId = await insertBar(tx, gameId, canonicalStartName);
       }
-      if (requestedFinishName !== undefined) {
-        finishBarId = await insertBar(tx, gameId, requestedFinishName);
+      if (canonicalFinishName !== undefined) {
+        finishBarId = await insertBar(tx, gameId, canonicalFinishName);
       }
 
       // 5. Start != finish on the resulting designation (R2.3). Reuse the pure

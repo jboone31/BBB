@@ -85,8 +85,8 @@ describe("CreateGame blocks submission on an invalid Display_Name (R1.3)", () =>
 
     // Start/finish are valid and distinct; the display name is empty.
     fillAndSubmit({
-      start: "Ladybird Grove",
-      finish: "New Realm Brewing",
+      start: "Ladybird / Ranger Station",
+      finish: "New Realm Brewing Company",
       displayName: "",
     });
 
@@ -104,8 +104,8 @@ describe("CreateGame blocks submission on an invalid Display_Name (R1.3)", () =>
 
     // A whitespace-only name trims to empty, so it is invalid (R1.3).
     fillAndSubmit({
-      start: "Ladybird Grove",
-      finish: "New Realm Brewing",
+      start: "Ladybird / Ranger Station",
+      finish: "New Realm Brewing Company",
       displayName: "     ",
     });
 
@@ -123,15 +123,15 @@ describe("CreateGame emits a valid submission with trimmed values (R1.5)", () =>
     // Surround each field with whitespace to prove the emitted values are
     // trimmed.
     fillAndSubmit({
-      start: "  Ladybird Grove  ",
-      finish: "  New Realm Brewing  ",
+      start: "  Ladybird / Ranger Station  ",
+      finish: "  New Realm Brewing Company  ",
       displayName: "  Captain Ladybird  ",
     });
 
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onCreate).toHaveBeenCalledWith({
-      startBarName: "Ladybird Grove",
-      finishBarName: "New Realm Brewing",
+      startBarName: "Ladybird / Ranger Station",
+      finishBarName: "New Realm Brewing Company",
       displayName: "Captain Ladybird",
     });
 

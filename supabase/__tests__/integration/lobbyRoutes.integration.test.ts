@@ -282,8 +282,8 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
       // Designate start + finish by name (route creates the bar rows).
       const res1 = await bars.POST(
         post(game.adminSessionId, {
-          startBarName: "Start Tavern",
-          finishBarName: "Finish Line Pub",
+          startBarName: "Park Tavern",
+          finishBarName: "New Realm Brewing Company",
         }),
         ctx(game.gameId),
       );
@@ -304,7 +304,7 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
       // Mutable in the lobby: re-designate the start side by name; it replaces
       // the prior start designation (R2.5), leaving finish unchanged.
       const res2 = await bars.POST(
-        post(game.adminSessionId, { startBarName: "New Start Bar" }),
+        post(game.adminSessionId, { startBarName: "Delbar" }),
         ctx(game.gameId),
       );
       expect(res2.status).toBe(200);
@@ -312,6 +312,16 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
       const after2 = await readGame(game.gameId);
       expect(after2.startBarId).not.toBe(firstStart); // replaced
       expect(after2.finishBarId).toBe(firstFinish); // untouched side kept
+      expect(await eventCount(game.gameId, "bars_designated")).toBe(2);
+
+      // Names outside the hardcoded candidate catalog are rejected and do not
+      // create a bar or designation event.
+      const invalidName = await bars.POST(
+        post(game.adminSessionId, { startBarName: "Made Up Bar" }),
+        ctx(game.gameId),
+      );
+      expect(invalidName.status).toBe(404);
+      expect((await invalidName.json()).error).toBe("bar_not_found");
       expect(await eventCount(game.gameId, "bars_designated")).toBe(2);
 
       // Unknown bar id → bar_not_found (404); designation is left unchanged (R2.4).
