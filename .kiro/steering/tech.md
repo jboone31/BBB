@@ -10,6 +10,9 @@ technical direction. The AWS hosting alternative remains a documented fallback._
 - **Backend:** **Supabase** — managed **Postgres**, **Realtime**, **Auth**, and
   **Storage** (temporary photo/file handling for card validation).
 - **Testing:** **Vitest** as the runner, **fast-check** for property-based tests.
+  Live Supabase integration tests are configured and available with
+  `npm run test:integration`; the default `npm test` run remains hermetic and
+  offline.
 - **Data access:**
   - **postgres.js** for transaction-capable server writes (a domain write and its
     `game_events` append committed atomically in one transaction from server routes).

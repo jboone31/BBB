@@ -40,7 +40,6 @@ import { NextResponse } from "next/server";
 import { withTransaction } from "@/lib/db/server";
 import { appendEvent, type QueryRunner } from "@/lib/events";
 import { LOBBY_EVENT_TYPES } from "@/lib/lobby/events";
-import { isLobbyPhase } from "@/lib/lobby/gate";
 
 import {
   applied,
@@ -177,11 +176,12 @@ export async function POST(
         return { ok: false, reason: "not_member" };
       }
 
-      // 2. Lobby-phase gate (R4.8) — read lifecycle under the same lock.
+      // Team selection is also permitted after a game goes live; live entrants
+      // may join an existing team, while creation remains lobby-only.
       const { rows: gameRows } = await tx.query(GAME_LIFECYCLE_SQL, [gameId]);
       const lifecycle = gameRows[0]?.lifecycle as
         "lobby" | "live" | "ended" | undefined;
-      if (lifecycle === undefined || !isLobbyPhase(lifecycle)) {
+      if (lifecycle === undefined || lifecycle === "ended") {
         return { ok: false, reason: "lobby_closed" };
       }
 

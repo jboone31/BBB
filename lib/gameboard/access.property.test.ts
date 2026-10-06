@@ -11,9 +11,8 @@ import type { GameBoardLifecycle } from "@/lib/gameboard/events";
  * For any combination of Session presence (`hasSession`), membership role
  * (`isAdmin` / `isPlayer`, covering Admin, Player, or neither), and Game
  * lifecycle (`lobby`, `live`, `ended`), `selectBoardAccess` returns EXACTLY ONE
- * of the five valid decisions. It returns `board` IF AND ONLY IF a valid Session
- * is present, the Session is Admin or Player, and lifecycle is `live`; every
- * other input yields a non-`board` decision (design.md §Board access gate).
+ * of the five valid decisions. It returns `board` for an authorized live or
+ * ended game; ended boards are read-only.
  *
  * Validates: Requirements 1.1, 1.3, 1.4, 1.5, 1.6
  */
@@ -33,7 +32,7 @@ const LIFECYCLES: readonly GameBoardLifecycle[] = ["lobby", "live", "ended"];
 /**
  * The reference mapping from the design's access-gate table, expressed
  * independently of the implementation and in the same priority order:
- * no Session → not-Admin-nor-Player → lobby → ended → board.
+ * no Session → not-Admin-nor-Player → lobby → read-only ended board → board.
  */
 function expectedDecision(
   lifecycle: GameBoardLifecycle,
@@ -44,12 +43,11 @@ function expectedDecision(
   if (!hasSession) return "no-session";
   if (!isAdmin && !isPlayer) return "not-authorized";
   if (lifecycle === "lobby") return "redirect-lobby";
-  if (lifecycle === "ended") return "ended";
   return "board";
 }
 
 describe("selectBoardAccess — exhaustive, gated access decision (Property 1)", () => {
-  it("returns exactly one of the five decisions, and returns board iff a valid Admin-or-Player Session with a live lifecycle", () => {
+  it("returns exactly one of the five decisions, with ended games using the board read-only", () => {
     fc.assert(
       fc.property(
         fc.constantFrom(...LIFECYCLES),
@@ -82,11 +80,12 @@ describe("selectBoardAccess — exhaustive, gated access decision (Property 1)",
           ).length;
           expect(selectedCount).toBe(1);
 
-          // The board-iff invariant (R1.1): `board` is returned if and only if a
-          // valid Session is present, the Session is Admin or Player, and the
-          // lifecycle is `live`.
+          // An authorized live or ended game renders the board; ended boards
+          // disable gameplay mutations at the page/component boundary.
           const shouldBeBoard =
-            hasSession && (isAdmin || isPlayer) && lifecycle === "live";
+            hasSession &&
+            (isAdmin || isPlayer) &&
+            (lifecycle === "live" || lifecycle === "ended");
           expect(result === "board").toBe(shouldBeBoard);
         },
       ),

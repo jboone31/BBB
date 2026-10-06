@@ -20,12 +20,16 @@
  * passed in; nothing here persists, POSTs, or affects scoring.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 import type { BoardTeamView } from "@/lib/gameboard/events";
+import type {
+  ClaimAction,
+  ClaimAttestation,
+} from "@/components/board/MapRegion";
 import {
   CANDIDATE_BARS,
   computeBounds,
@@ -40,14 +44,24 @@ import {
 } from "@/lib/map/claims";
 
 export interface BarLeafletMapProps {
-  /** Local claim state: bar id → claiming team ids. Owned by {@link MapRegion}. */
+  /** Reducer-derived claim state: bar id → claiming team ids. */
   readonly claims: ClaimState;
   /** Teams whose colors may appear on markers (all teams in the game). */
   readonly teams: readonly BoardTeamView[];
   /** The one Team this client may claim/unclaim for (the player's own Team). */
   readonly ownTeamId: string;
-  /** Toggle the current player's Team claim on a bar. */
-  readonly onToggle: (barId: string) => void;
+  /** Submit a server-backed claim transition for the current player's team. */
+  readonly onMutate: (
+    barId: string,
+    action: ClaimAction,
+    attestation: ClaimAttestation,
+  ) => void | Promise<void>;
+  readonly pendingBarId?: string | null;
+  readonly mutationError?: {
+    readonly barId: string;
+    readonly message: string;
+  } | null;
+  readonly readOnly?: boolean;
 }
 
 /** Build a Leaflet div-icon whose teardrop fill is the bar's color split. */
@@ -78,8 +92,14 @@ export default function BarLeafletMap({
   claims,
   teams,
   ownTeamId,
-  onToggle,
+  onMutate,
+  pendingBarId = null,
+  mutationError = null,
+  readOnly = false,
 }: BarLeafletMapProps): React.JSX.Element {
+  const [attestations, setAttestations] = useState<
+    Record<string, ClaimAttestation>
+  >({});
   // Center + a fitting zoom derived from the bars' bounding box. Computed once;
   // the bar set is static.
   const { center, bounds } = useMemo(() => {
@@ -119,6 +139,13 @@ export default function BarLeafletMap({
         const fill = segmentsToGradient(segments);
         const claimedByOwn = isClaimedBy(claims, bar.id, ownTeamId);
         const claimerCount = claimersOf(claims, bar.id).length;
+        const attestation = attestations[bar.id] ?? {
+          allMembersPresent: true,
+          finishedDrinkCount: 1,
+        };
+        const pending = pendingBarId === bar.id;
+        const error =
+          mutationError?.barId === bar.id ? mutationError.message : null;
         return (
           <Marker
             key={bar.id}
@@ -140,9 +167,68 @@ export default function BarLeafletMap({
                     ? "Unclaimed"
                     : `Claimed by ${claimerCount} team${claimerCount === 1 ? "" : "s"}`}
                 </span>
+                <label style={{ fontSize: "0.8rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={attestation.allMembersPresent}
+                    onChange={(event) =>
+                      setAttestations((current) => ({
+                        ...current,
+                        [bar.id]: {
+                          ...attestation,
+                          allMembersPresent: event.target.checked,
+                        },
+                      }))
+                    }
+                  />{" "}
+                  Everyone is present
+                </label>
+                <label style={{ fontSize: "0.8rem" }}>
+                  Finished drinks{" "}
+                  <input
+                    aria-label={`${bar.name} finished drinks`}
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={attestation.finishedDrinkCount}
+                    onChange={(event) =>
+                      setAttestations((current) => ({
+                        ...current,
+                        [bar.id]: {
+                          ...attestation,
+                          finishedDrinkCount: Math.max(
+                            0,
+                            Number.parseInt(event.target.value, 10) || 0,
+                          ),
+                        },
+                      }))
+                    }
+                    style={{ width: "3.5rem" }}
+                  />
+                </label>
+                {error !== null ? (
+                  <span
+                    role="alert"
+                    style={{ fontSize: "0.8rem", color: "#b00020" }}
+                  >
+                    {error}
+                  </span>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => onToggle(bar.id)}
+                  disabled={
+                    readOnly ||
+                    pending ||
+                    ownTeamId === "" ||
+                    !attestation.allMembersPresent
+                  }
+                  onClick={() =>
+                    void onMutate(
+                      bar.id,
+                      claimedByOwn ? "unclaim" : "claim",
+                      attestation,
+                    )
+                  }
                   style={{
                     minHeight: "44px",
                     padding: "0.5rem 0.75rem",
@@ -152,12 +238,14 @@ export default function BarLeafletMap({
                     border: "1px solid #1a1a1a",
                     background: claimedByOwn ? "#ffffff" : "#1a1a1a",
                     color: claimedByOwn ? "#1a1a1a" : "#ffffff",
-                    cursor: "pointer",
+                    cursor: pending ? "wait" : "pointer",
                   }}
                 >
-                  {claimedByOwn
-                    ? `Unclaim for ${ownTeamName}`
-                    : `Claim for ${ownTeamName}`}
+                  {pending
+                    ? "Saving…"
+                    : claimedByOwn
+                      ? `Unclaim for ${ownTeamName}`
+                      : `Claim for ${ownTeamName}`}
                 </button>
               </div>
             </Popup>

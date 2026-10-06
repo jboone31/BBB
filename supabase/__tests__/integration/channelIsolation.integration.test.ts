@@ -63,7 +63,11 @@ import {
   supabaseSnapshotSource,
 } from "@/lib/realtime/supabaseBrowser";
 
-import { createMemberSession, type MemberSession } from "./_session";
+import {
+  createMemberSession,
+  createServiceClient,
+  type MemberSession,
+} from "./_session";
 
 // NOTE: `lib/db/server.ts` imports `server-only`, which only resolves inside the
 // Next.js bundler. It is therefore loaded LAZILY (dynamic import, below) so that
@@ -181,11 +185,13 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
     let gameA: string;
     let gameB: string;
     let subscription: RealtimeSubscription | undefined;
+    let subscriber: ReturnType<typeof createServiceClient> | undefined;
 
     beforeAll(async () => {
       session = await createMemberSession();
       gameA = session.gameId;
       gameB = await createGame();
+      subscriber = session.service;
     });
 
     afterAll(async () => {
@@ -204,6 +210,7 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
       } catch {
         /* ignore */
       }
+      await subscriber?.removeAllChannels();
       await session?.memberClient.removeAllChannels();
       if (serverDb) {
         await serverDb.closeDb();
@@ -219,8 +226,8 @@ describe.skipIf(!LIVE_ENV_CONFIGURED)(
         // postgres_changes channel filtered to game_id=eq.A (Req 6.3), and the
         // snapshot source reads A's prior events (empty here).
         subscription = await subscribe(gameA, {
-          transport: supabaseRealtimeTransport(session.memberClient),
-          snapshotSource: supabaseSnapshotSource(session.memberClient),
+          transport: supabaseRealtimeTransport(subscriber!),
+          snapshotSource: supabaseSnapshotSource(subscriber!),
           handlers: {
             onEvent: (event) => {
               received.push(event);

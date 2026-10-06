@@ -15,7 +15,7 @@
  *   - `no-session`     → no valid Session: establish-session prompt (R1.6)
  *   - `not-authorized` → Session is neither Admin nor Player: not-authorized (R1.5)
  *   - `redirect-lobby` → `lifecycle === "lobby"`: redirect to the lobby (R1.3)
- *   - `ended`          → `lifecycle === "ended"`: ended-game indication (R1.4)
+ *   - `ended`          → `lifecycle === "ended"`: read-only Game_Board (R1.4)
  *   - `board`          → `live` and Admin-or-Player: the Game_Board (R1.1)
  *
  * Requirements: 1.1, 1.3, 1.4, 1.5, 1.6.
@@ -31,9 +31,8 @@ export type BoardAccess =
  * Select the board-access decision from the Game's `lifecycle` and the resolved
  * Session facts (design.md §Board access gate; R1).
  *
- * Returns `board` **if and only if** a valid Session is present, the Session is
- * the Admin or a Player of the Game, and `lifecycle === "live"`; every other
- * input yields a non-`board` decision that renders no Region.
+ * Returns `board` for an authorized live or ended game. Ended games use the
+ * same read-only board surface so teams can inspect the final map and scores.
  *
  * @param lifecycle  the folded Game lifecycle (`lobby` | `live` | `ended`).
  * @param hasSession whether a valid Session is present (async auth resolved).
@@ -54,7 +53,7 @@ export function selectBoardAccess(
   if (!isAdmin && !isPlayer) return "not-authorized";
   // 3. an authorized Session is then gated on lifecycle (R1.3, R1.4).
   if (lifecycle === "lobby") return "redirect-lobby";
-  if (lifecycle === "ended") return "ended";
-  // 4. valid Session, Admin-or-Player, and `lifecycle === "live"` renders the board (R1.1).
+  // 4. Authorized live and ended games render the board; the page disables
+  // gameplay mutations when the folded lifecycle is ended.
   return "board";
 }

@@ -65,7 +65,10 @@ import { useParams, useRouter } from "next/navigation";
 
 import CardPlayWireframe from "@/components/board/CardPlayWireframe";
 import CardsRegion from "@/components/board/CardsRegion";
-import MapRegion from "@/components/board/MapRegion";
+import MapRegion, {
+  type ClaimAction,
+  type ClaimAttestation,
+} from "@/components/board/MapRegion";
 import RegionNav from "@/components/board/RegionNav";
 import ScoreboardRegion from "@/components/board/ScoreboardRegion";
 import TargetedNotification from "@/components/board/TargetedNotification";
@@ -76,6 +79,9 @@ import {
   dismissTargetedNotice,
   foldGameBoardEvents,
   initialGameBoardView,
+  selectClaimedBarCounts,
+  selectClaimState,
+  selectScoreTotals,
   type GameBoardView,
 } from "@/lib/gameboard/events";
 import {
@@ -128,6 +134,10 @@ type WireframeResponse =
   | { applied: true; seq?: number | null; [k: string]: unknown }
   | { applied: false; error: string };
 
+type ClaimResponse =
+  | { applied: true; seq?: number | null; result?: unknown }
+  | { applied: false; error: string };
+
 /** Per-game durable local facts key helpers (survive reload, mirror the lobby). */
 const adminFlagKey = (gameId: string): string => `bbb:admin:${gameId}`;
 const playerIdKey = (gameId: string): string => `bbb:player:${gameId}`;
@@ -161,6 +171,8 @@ export default function BoardPage(): React.JSX.Element {
   // per-game player id. They stay null/false until the session is known.
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [playerResolvedInSnapshot, setPlayerResolvedInSnapshot] =
+    useState(false);
   // The current player's Team id, derived from the snapshot fold (see the
   // realtime effect). Drives the target list (R6.2) and notice filter (R7.3).
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
@@ -197,6 +209,13 @@ export default function BoardPage(): React.JSX.Element {
   const [playingCard, setPlayingCard] = useState<PlaceholderCard | null>(null);
   // Transient "not delivered" indication for a failed targeting POST (R7.7).
   const [playError, setPlayError] = useState<string | null>(null);
+  const [pendingClaimBarId, setPendingClaimBarId] = useState<string | null>(
+    null,
+  );
+  const [claimMutationError, setClaimMutationError] = useState<{
+    barId: string;
+    message: string;
+  } | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -282,6 +301,19 @@ export default function BoardPage(): React.JSX.Element {
       setView((prev) => applyGameBoardEvent(prev, event));
     };
 
+    const handleChannelStatus = (channelStatus: string): void => {
+      if (cancelled) {
+        return;
+      }
+      if (
+        channelStatus === "CHANNEL_ERROR" ||
+        channelStatus === "TIMED_OUT" ||
+        channelStatus === "CLOSED"
+      ) {
+        reconnectRef.current?.connectionLost();
+      }
+    };
+
     // Reconnect controller: bounded ≤5s / ≤12-attempt retry, then terminal
     // "reload required" (R8.5/8.7).
     const reconnect = new ReconnectController({
@@ -292,6 +324,7 @@ export default function BoardPage(): React.JSX.Element {
         transport,
         snapshotSource,
         onEvent: foldEvent,
+        onChannelStatus: handleChannelStatus,
       }),
       onPhaseChange: (phase) => {
         if (cancelled) {
@@ -317,6 +350,7 @@ export default function BoardPage(): React.JSX.Element {
       snapshotSource,
       transport,
       onEvent: foldEvent,
+      onChannelStatus: handleChannelStatus,
       resetTransientRecovery: () => {
         // A stopped/terminal controller cannot resume path (a); a fresh resume
         // simply re-establishes delivery via its own resubscribe below.
@@ -335,31 +369,32 @@ export default function BoardPage(): React.JSX.Element {
     // notice and never presents partially-applied state as live (R8.8).
     (async () => {
       try {
-        const priorEvents = await snapshotSource.fetchEventsAscending(gameId);
-        if (cancelled) {
-          return;
-        }
-        setView(foldGameBoardEvents(gameId, priorEvents));
-        // The snapshot has loaded and folded: view.lifecycle now reflects the
-        // game's real state, so the access gate may act on it (R1.3 redirect).
-        setViewLoaded(true);
-        // Resolve the current player's Team id from the same snapshot using the
-        // lobby reducer (which folds players + their team). Team membership is
-        // fixed once the game is live, so this mount-time derivation is stable.
-        const storedPlayerId = readLocal(playerIdKey(gameId));
-        if (storedPlayerId !== null) {
-          const lobbyView = foldLobbyEvents(gameId, priorEvents);
-          const teamId =
-            lobbyView.players.find((p) => p.id === storedPlayerId)?.teamId ??
-            null;
-          setMyTeamId(teamId);
-        }
-
         const sub = await subscribe(gameId, {
           transport,
           snapshotSource,
           lastSeenStore,
-          handlers: { onEvent: foldEvent },
+          handlers: {
+            onEvent: foldEvent,
+            onChannelStatus: handleChannelStatus,
+            onSnapshotEvents: (snapshotEvents) => {
+              if (cancelled) {
+                return;
+              }
+              setView(foldGameBoardEvents(gameId, snapshotEvents));
+              setViewLoaded(true);
+              const storedPlayerId = readLocal(playerIdKey(gameId));
+              if (storedPlayerId !== null) {
+                const lobbyView = foldLobbyEvents(gameId, snapshotEvents);
+                setPlayerResolvedInSnapshot(
+                  lobbyView.players.some((p) => p.id === storedPlayerId),
+                );
+                const teamId =
+                  lobbyView.players.find((p) => p.id === storedPlayerId)
+                    ?.teamId ?? null;
+                setMyTeamId(teamId);
+              }
+            },
+          },
         });
         if (cancelled) {
           void sub.close();
@@ -397,6 +432,13 @@ export default function BoardPage(): React.JSX.Element {
     isAdmin,
     isPlayer,
   );
+  const needsTeamSelection =
+    viewLoaded &&
+    isPlayer &&
+    myTeamId === null &&
+    playerResolvedInSnapshot &&
+    view.teams.length > 0 &&
+    access === "board";
 
   // Notices whose target is the current Team (R7.3/R7.8). A player with no
   // resolved Team surfaces none (the caster's own client never surfaces its own
@@ -427,6 +469,9 @@ export default function BoardPage(): React.JSX.Element {
   // known, that is it; otherwise (wireframe/demo with no resolved Team) default
   // to the first available Team so the map stays operable as a wireframe.
   const ownTeamId = myTeamId ?? mapTeams[0]?.id ?? "";
+  const claimState = useMemo(() => selectClaimState(view), [view]);
+  const scoreTotals = useMemo(() => selectScoreTotals(view), [view]);
+  const claimedBarCounts = useMemo(() => selectClaimedBarCounts(view), [view]);
 
   // Redirect a lobby-phase visitor to the game's lobby (R1.3). Done as an effect
   // so navigation happens after render, and never renders the Regions.
@@ -434,14 +479,21 @@ export default function BoardPage(): React.JSX.Element {
     // Only redirect once the snapshot has loaded (viewLoaded): before that, a
     // "lobby" lifecycle is the initial placeholder, not the game's real state,
     // so redirecting on it would bounce a live-game visitor back to the lobby.
-    if (viewLoaded && access === "redirect-lobby" && gameId !== "") {
+    if (
+      viewLoaded &&
+      gameId !== "" &&
+      (access === "redirect-lobby" || needsTeamSelection)
+    ) {
       router.push(`/games/${gameId}/lobby`);
     }
-  }, [viewLoaded, access, gameId, router]);
+  }, [viewLoaded, access, needsTeamSelection, gameId, router]);
 
   // --- The one POST: confirm a targeting card play (R7.1/7.7) --------------
   const handleConfirmPlay = useCallback(
     async (card: PlaceholderCard, targetTeamId?: string): Promise<void> => {
+      if (view.lifecycle === "ended") {
+        return;
+      }
       // A non-targeting card writes nothing — the wireframe acknowledgement is
       // purely local (R6.6). Only a targeting card with a chosen target POSTs.
       if (!card.targetsTeam || targetTeamId === undefined) {
@@ -470,7 +522,70 @@ export default function BoardPage(): React.JSX.Element {
         setPlayError("not_delivered");
       }
     },
-    [gameId, sessionId],
+    [gameId, sessionId, view.lifecycle],
+  );
+
+  const handleClaimMutation = useCallback(
+    async (
+      barId: string,
+      action: ClaimAction,
+      attestation: ClaimAttestation,
+    ): Promise<void> => {
+      if (sessionId === null || pendingClaimBarId !== null) {
+        return;
+      }
+      setClaimMutationError(null);
+      setPendingClaimBarId(barId);
+      try {
+        const response = await fetch(`/api/games/${gameId}/claims`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [SESSION_HEADER]: sessionId,
+          },
+          body: JSON.stringify({ action, barId, ...attestation }),
+        });
+        const body = (await response.json()) as ClaimResponse;
+        if (!body.applied) {
+          setClaimMutationError({
+            barId,
+            message:
+              body.error === "claim_ineligible"
+                ? "Claim requirements were not met."
+                : body.error === "claim_duplicate"
+                  ? "Your team already claims this bar."
+                  : body.error === "claim_not_active"
+                    ? "Your team no longer claims this bar."
+                    : "The claim was not saved. Please try again.",
+          });
+            } else {
+              const client = createBrowserSupabaseClient();
+              if (client !== null) {
+                try {
+                  const events = await supabaseSnapshotSource(
+                    client,
+                  ).fetchEventsAscending(gameId);
+                  const refreshedView = foldGameBoardEvents(gameId, events);
+                  setView((current) =>
+                    refreshedView.lastSeenSequence >= current.lastSeenSequence
+                      ? refreshedView
+                      : current,
+                  );
+                } catch {
+                  // Realtime remains the primary update path if reconciliation fails.
+                }
+              }
+        }
+      } catch {
+        setClaimMutationError({
+          barId,
+          message: "The claim was not saved. Please try again.",
+        });
+      } finally {
+        setPendingClaimBarId(null);
+      }
+    },
+    [gameId, pendingClaimBarId, sessionId],
   );
 
   // --- Render --------------------------------------------------------------
@@ -574,19 +689,9 @@ export default function BoardPage(): React.JSX.Element {
     );
   }
 
-  if (access === "ended") {
-    // Ended-game indication; no Regions (R1.4).
-    return (
-      <main style={containerStyle}>
-        {header}
-        <p role="status" style={noticeStyle}>
-          This game has ended.
-        </p>
-      </main>
-    );
-  }
-
-  // access === "board": render the live Game_Board with all three Regions (R1.1).
+  // Both live and ended games render the board. Ended games remain available
+  // for final map/score inspection, but gameplay mutations are read-only.
+  const readOnly = view.lifecycle === "ended";
   return (
     <main style={containerStyle}>
       {header}
@@ -633,6 +738,12 @@ export default function BoardPage(): React.JSX.Element {
           will not update live.
         </p>
       ) : null}
+      {readOnly ? (
+        <p role="status" style={noticeStyle}>
+          This game has ended. The map and scoreboard are available in
+          read-only mode.
+        </p>
+      ) : null}
 
       {/* Targeted notifications for the current Team (R7.3/R7.8). Rendered above
           the Region content but inline (never modal), so they never obscure the
@@ -655,26 +766,42 @@ export default function BoardPage(): React.JSX.Element {
 
       {/* The active Region (exactly one displayed, R2.6). */}
       {activeRegion === "map" ? (
-        <MapRegion teams={mapTeams} ownTeamId={ownTeamId} />
+        <MapRegion
+          teams={mapTeams}
+          claims={claimState}
+          ownTeamId={ownTeamId}
+          onMutate={handleClaimMutation}
+          pendingBarId={pendingClaimBarId}
+          mutationError={claimMutationError}
+          readOnly={readOnly}
+        />
       ) : null}
       {activeRegion === "scoreboard" ? (
-        <ScoreboardRegion teams={view.teams} />
+        <ScoreboardRegion
+          teams={view.teams}
+          scoreTotals={scoreTotals}
+          claimedBarCounts={claimedBarCounts}
+        />
       ) : null}
       {activeRegion === "cards" ? (
         <CardsRegion
           hand={hand}
           adminNotPlayer={adminNotPlayer}
           onPlayCard={(card) => {
+            if (readOnly) {
+              return;
+            }
             setPlayError(null);
             setPlayingCard(card);
           }}
+          readOnly={readOnly}
         />
       ) : null}
 
       {/* Card_Play_Wireframe, presented on play (R6.1). The target list excludes
           the current Team (R6.2); confirm of a targeting card POSTs the one
           event (R7.1) and surfaces "not delivered" on failure (R7.7). */}
-      {playingCard !== null ? (
+      {playingCard !== null && !readOnly ? (
         <>
           <CardPlayWireframe
             card={playingCard}

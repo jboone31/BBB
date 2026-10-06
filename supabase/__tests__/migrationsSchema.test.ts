@@ -52,6 +52,7 @@ const EXPECTED_TABLES = [
   "team_decks",
   "card_draws",
   "game_events",
+  "score_ledger_entries",
 ] as const;
 
 /** Enum types the migration set must declare across all files. */
@@ -272,6 +273,20 @@ describe("migration files — static schema smoke check (Req 3.14)", () => {
       ),
       "team-owned inventory membership helper",
     ).toBe(true);
+
+    // Map and claiming: durable score ledger with game-scoped source claims.
+    expect(
+      /foreign\s+key\s*\(\s*source_claim_id\s*,\s*game_id\s*\)\s*references\s+claims\s*\(\s*id\s*,\s*game_id\s*\)/i.test(
+        union,
+      ),
+      "score ledger source claim stays in the same game",
+    ).toBe(true);
+    expect(
+      /create\s+unique\s+index\s+claims_active_game_team_bar_unique/i.test(
+        union,
+      ),
+      "only one active claim per game/team/bar",
+    ).toBe(true);
   });
 });
 
@@ -386,13 +401,33 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
           "game_events unique (game_id, seq)",
         ).toBe(true);
         expect(
-          constraintNames.has("claims_game_team_bar_unique"),
-          "claims unique (game_id, team_id, bar_id)",
+          constraintNames.has("claims_id_game_unique"),
+          "claims id/game composite source key",
         ).toBe(true);
         expect(
           constraintNames.has("game_events_payload_max_16kb"),
           "game_events payload <= 16 KB check",
         ).toBe(true);
+
+        const claimIndexes = await tx.query(
+          `select indexname, indexdef
+             from pg_indexes
+            where schemaname = $1
+              and tablename = 'claims'`,
+          [TEST_SCHEMA],
+        );
+        const activeClaimIndex = claimIndexes.rows.find(
+          (row) =>
+            String((row as { indexname: string }).indexname) ===
+            "claims_active_game_team_bar_unique",
+        ) as { indexdef: string } | undefined;
+        expect(
+          activeClaimIndex,
+          "one active claim per game/team/bar",
+        ).toBeDefined();
+        expect(activeClaimIndex?.indexdef).toMatch(
+          /where\s+\(revoked_at\s+is\s+null\)/i,
+        );
 
         return undefined;
       });

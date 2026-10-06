@@ -135,6 +135,12 @@ export interface BoardNotificationView {
   readonly display: Readonly<Record<string, unknown>>;
 }
 
+export interface BoardClaimView {
+  readonly claimId: string;
+  readonly barId: string;
+  readonly teamId: string;
+}
+
 export interface BoardScoreEntryView {
   readonly entryId: string;
   readonly teamId: string;
@@ -170,6 +176,7 @@ export interface GameBoardView {
   readonly activeEffects: BoardEffectView[];
   readonly activeRestrictions: BoardEffectView[];
   readonly notifications: BoardNotificationView[];
+  readonly activeClaims: BoardClaimView[];
   readonly scoreEntries: BoardScoreEntryView[];
   readonly lastSeenSequence: number;
 }
@@ -199,6 +206,7 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     activeEffects: [],
     activeRestrictions: [],
     notifications: [],
+    activeClaims: [],
     scoreEntries: [],
     lastSeenSequence: NO_EVENTS_SEQ,
   };
@@ -264,9 +272,11 @@ export function applyGameBoardEvent(
     case GAME_BOARD_EVENT_TYPES.scoreModifierApplied:
       return applyScoreEntry(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.claimBlocked:
-    case GAME_BOARD_EVENT_TYPES.claimRecorded:
-    case GAME_BOARD_EVENT_TYPES.claimRemoved:
       return advanced;
+    case GAME_BOARD_EVENT_TYPES.claimRecorded:
+      return applyClaimRecorded(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.claimRemoved:
+      return applyClaimRemoved(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.wireframeCardPlayed:
       return applyWireframeCardPlayed(advanced, event);
     default:
@@ -312,6 +322,52 @@ export function dismissTargetedNotice(
     return view;
   }
   return { ...view, targetedNotices: remaining };
+}
+
+/** Return active claims grouped by bar, preserving event order within each bar. */
+export function selectActiveClaimsByBar(
+  view: GameBoardView,
+): Readonly<Record<string, readonly BoardClaimView[]>> {
+  const grouped: Record<string, BoardClaimView[]> = {};
+  for (const claim of view.activeClaims) {
+    (grouped[claim.barId] ??= []).push(claim);
+  }
+  return grouped;
+}
+
+/** Return the map-compatible active claimant team ids grouped by bar. */
+export function selectClaimState(
+  view: GameBoardView,
+): Readonly<Record<string, readonly string[]>> {
+  const grouped = selectActiveClaimsByBar(view);
+  return Object.fromEntries(
+    Object.entries(grouped).map(([barId, claims]) => [
+      barId,
+      claims.map((claim) => claim.teamId),
+    ]),
+  );
+}
+
+/** Return deterministic signed score totals keyed by team id. */
+export function selectScoreTotals(
+  view: GameBoardView,
+): Readonly<Record<string, number>> {
+  const totals: Record<string, number> = {};
+  for (const entry of view.scoreEntries) {
+    totals[entry.teamId] = (totals[entry.teamId] ?? 0) + entry.points;
+  }
+  return totals;
+}
+
+/** Return active claimed-bar counts keyed by team id. */
+export function selectClaimedBarCounts(
+  view: GameBoardView,
+): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const claim of view.activeClaims) {
+    counts[claim.teamId] = (counts[claim.teamId] ?? 0) + 1;
+  }
+  return counts;
 }
 
 // ---------------------------------------------------------------------------
@@ -561,6 +617,39 @@ function applyNotificationCreated(
   return { ...view, notifications: [...view.notifications, notification] };
 }
 
+function applyClaimRecorded(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const claimId = readString(payload, "claimId");
+  const barId = readString(payload, "barId");
+  const teamId = readString(payload, "teamId");
+  if (claimId === undefined || barId === undefined || teamId === undefined) {
+    return view;
+  }
+  if (view.activeClaims.some((claim) => claim.claimId === claimId)) {
+    return view;
+  }
+  const claim: BoardClaimView = { claimId, barId, teamId };
+  return { ...view, activeClaims: [...view.activeClaims, claim] };
+}
+
+function applyClaimRemoved(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const claimId = readString(payload, "claimId");
+  if (claimId === undefined) {
+    return view;
+  }
+  const activeClaims = view.activeClaims.filter(
+    (claim) => claim.claimId !== claimId,
+  );
+  return activeClaims.length === view.activeClaims.length
+    ? view
+    : { ...view, activeClaims };
+}
+
 function applyScoreEntry(view: GameBoardView, payload: unknown): GameBoardView {
   const entryId = readString(payload, "entryId");
   const teamId = readString(payload, "teamId");
@@ -582,7 +671,10 @@ function applyScoreEntry(view: GameBoardView, payload: unknown): GameBoardView {
     teamId,
     category,
     points,
-    sourceId: readString(payload, "sourceId") ?? null,
+    sourceId:
+      readString(payload, "sourceId") ??
+      readString(payload, "sourceClaimId") ??
+      null,
   };
   return { ...view, scoreEntries: [...view.scoreEntries, entry] };
 }

@@ -45,13 +45,15 @@ export interface ScoreboardRegionProps {
    * from the folded {@link import("@/lib/gameboard/events").GameBoardView}.
    */
   readonly teams: readonly BoardTeamView[];
+  readonly scoreTotals?: Readonly<Record<string, number>>;
+  readonly claimedBarCounts?: Readonly<Record<string, number>>;
 }
 
 /** The placeholder score stand-in shown on every row (R4.3 — not a real score). */
-const PLACEHOLDER_SCORE = "—";
-
 export default function ScoreboardRegion({
   teams,
+  scoreTotals = {},
+  claimedBarCounts = {},
 }: ScoreboardRegionProps): React.JSX.Element {
   return (
     <section
@@ -83,7 +85,7 @@ export default function ScoreboardRegion({
             role="row"
             data-testid="scoreboard-row"
             data-team-id={team.id}
-            aria-label={`Team ${team.name}`}
+            aria-label={`Team ${team.name}: ${scoreTotals[team.id] ?? 0} points, ${claimedBarCounts[team.id] ?? 0} claimed bars`}
             style={{
               display: "flex",
               flexDirection: "row",
@@ -128,20 +130,20 @@ export default function ScoreboardRegion({
             {/* Placeholder score (R4.3): a fixed stand-in, never a real score. */}
             <span
               data-testid="team-score"
-              aria-label={`${team.name} score (placeholder)`}
+              aria-label={`${team.name} score`}
               style={{
                 flex: "0 0 auto",
                 fontVariantNumeric: "tabular-nums",
                 fontWeight: 700,
               }}
             >
-              {PLACEHOLDER_SCORE}
+              {scoreTotals[team.id] ?? 0}
             </span>
 
             {/* Placeholder claimed-bars area (R4.4): an empty stand-in region. */}
             <span
               data-testid="claimed-bars"
-              aria-label={`${team.name} claimed bars (placeholder)`}
+              aria-label={`${team.name} claimed bars`}
               style={{
                 flex: "0 0 auto",
                 minWidth: "3rem",
@@ -149,19 +151,11 @@ export default function ScoreboardRegion({
                 color: "#666",
               }}
             >
-              claimed bars
+              {claimedBarCounts[team.id] ?? 0} claimed
             </span>
           </div>
         ))}
       </div>
-
-      {/* Later-feature label (R4.5). */}
-      <p
-        data-testid="scoreboard-later-feature"
-        style={{ margin: 0, fontSize: "0.85rem", color: "#666" }}
-      >
-        Live scores and claimed bars are provided by a later feature.
-      </p>
     </section>
   );
 }

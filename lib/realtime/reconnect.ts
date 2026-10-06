@@ -48,6 +48,7 @@ import {
 import type {
   LastSeenStore,
   RealtimeChannel,
+  RealtimeChannelStatus,
   RealtimeTransport,
 } from "@/lib/realtime";
 
@@ -422,6 +423,8 @@ export interface ReconnectAttemptDeps {
    * order. Wired to the subscription's ordered-apply entry point.
    */
   readonly onEvent: (event: GameEvent) => void;
+  /** Receives status changes from the newly opened channel. */
+  readonly onChannelStatus?: (status: RealtimeChannelStatus) => void;
 }
 
 /**
@@ -446,7 +449,7 @@ export interface ReconnectAttemptDeps {
 export function makeReconnectAttempt(
   deps: ReconnectAttemptDeps,
 ): ReconnectAttempt {
-  const { gameId, transport, snapshotSource, onEvent } = deps;
+  const { gameId, transport, snapshotSource, onEvent, onChannelStatus } = deps;
   return {
     async reconnect(lastSeenSequence: number): Promise<ReconnectOutcome> {
       // 1. Catch up on events missed while disconnected: seq > Last_Seen_Sequence.
@@ -458,7 +461,7 @@ export function makeReconnectAttempt(
       }
 
       // 2. Resubscribe to the per-game channel (funneling rows into onEvent).
-      const channel = await transport.channel(gameId, onEvent);
+      const channel = await transport.channel(gameId, onEvent, onChannelStatus);
 
       // 3. Re-request a current snapshot (Req 6.4).
       const snapshot = await loadSnapshot(gameId, snapshotSource);

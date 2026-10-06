@@ -204,8 +204,8 @@ card is discarded.
 
 ### Voted Off the Island
 
-The card requires all four teams to have claimed a non-starting bar. The target team
-un-claims a bar all four teams have claimed and may later re-claim it.
+The card requires all other teams to have claimed a non-starting bar. The target team
+un-claims a bar all other teams have claimed and may later re-claim it.
 
 **App Mechanics:** Targets both a team and a qualifying bar; removes that team's claim,
 notifies the target, permits re-claiming, and sends informational toast to other teams.

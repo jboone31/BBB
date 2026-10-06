@@ -121,10 +121,20 @@ vi.mock("@/lib/realtime/supabaseBrowser", () => ({
 }));
 
 vi.mock("@/lib/realtime", () => ({
-  subscribe: async () => ({
-    snapshot: { lastSeenSequence: 0 },
-    close: async () => {},
-  }),
+  subscribe: async (
+    _gameId: string,
+    options: {
+      handlers?: {
+        onSnapshotEvents?: (events: GameEvent[]) => void;
+      };
+    },
+  ) => {
+    options.handlers?.onSnapshotEvents?.(snapshotEvents);
+    return {
+      snapshot: { lastSeenSequence: 0 },
+      close: async () => {},
+    };
+  },
 }));
 
 vi.mock("@/lib/realtime/lastSeenStore", () => ({
@@ -171,13 +181,25 @@ vi.mock("@/lib/session/supabaseSession", () => ({
 // pulling Leaflet into jsdom.
 vi.mock("@/components/board/BarLeafletMap", () => ({
   default: ({
-    onToggle,
+    onMutate,
   }: {
-    onToggle: (barId: string) => void;
+    onMutate: (
+      barId: string,
+      action: "claim" | "unclaim",
+      attestation: {
+        allMembersPresent: boolean;
+        finishedDrinkCount: number;
+      },
+    ) => void;
   }): React.JSX.Element => (
     <button
       type="button"
-      onClick={() => onToggle("stub-bar")}
+      onClick={() =>
+        onMutate("stub-bar", "claim", {
+          allMembersPresent: true,
+          finishedDrinkCount: 1,
+        })
+      }
       style={{ minWidth: "44px", minHeight: "44px" }}
     >
       Claim this bar

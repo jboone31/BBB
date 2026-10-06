@@ -33,8 +33,8 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { MAX_TEAMS } from "@/lib/gameend";
-import type { LobbyTeamView } from "@/lib/lobby/events";
-import { TEAM_COLORS, validateTeamName } from "@/lib/lobby/team";
+import type { LobbyPlayerView, LobbyTeamView } from "@/lib/lobby/events";
+import { validateTeamName } from "@/lib/lobby/team";
 
 /** Minimum touch-target size for interactive controls (R9.2). */
 const TOUCH_TARGET = "44px";
@@ -42,6 +42,7 @@ const TOUCH_TARGET = "44px";
 export interface TeamSelectionProps {
   /** The current Teams, each with its color and player ids (R9.4). */
   readonly teams: readonly LobbyTeamView[];
+  readonly players?: readonly LobbyPlayerView[];
   /**
    * The Team the requesting Player is currently on, or `null` while teamless
    * (a valid lobby state per R3.9). Used to mark the active Team and to avoid
@@ -66,6 +67,10 @@ export interface TeamSelectionProps {
    * closed). Local validation errors take priority and are shown inline.
    */
   readonly error?: string | null;
+  /** Live games allow existing-team selection but never new-team creation. */
+  readonly canCreateTeam?: boolean;
+  /** Admins may create another team even after joining one. */
+  readonly isAdmin?: boolean;
 }
 
 /** Shared inline style for full-width, ≥44px-tall text inputs (R9.1/R9.2). */
@@ -80,11 +85,14 @@ const inputStyle: React.CSSProperties = {
 
 export default function TeamSelection({
   teams,
+  players = [],
   currentTeamId = null,
   onSelectTeam,
   onCreateTeam,
   submitting = false,
   error = null,
+  canCreateTeam = true,
+  isAdmin = false,
 }: TeamSelectionProps): React.JSX.Element {
   const [teamName, setTeamName] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -92,15 +100,6 @@ export default function TeamSelection({
   // Create is gated on the team-count bound (R4.2/R4.3): once the Game holds
   // MAX_TEAMS teams no further team may be created.
   const atTeamLimit = teams.length >= MAX_TEAMS;
-
-  // Preview the color the next Team will be assigned — the first palette entry
-  // not already in use (R4.4) — so the Player sees the same choice the server
-  // will make. `undefined` only when the palette is exhausted, which coincides
-  // with `atTeamLimit`.
-  const nextColor = useMemo<string | undefined>(() => {
-    const usedColors = teams.map((team) => team.color);
-    return TEAM_COLORS.find((color) => !usedColors.includes(color));
-  }, [teams]);
 
   // Reuse the pure validator so the visible rule matches the server's exactly.
   const validationError = useMemo<string | null>(() => {
@@ -158,12 +157,69 @@ export default function TeamSelection({
         id="team-selection-heading"
         style={{ margin: 0, fontSize: "1.15rem" }}
       >
-        Pick your team
+        Join/view teams
       </h2>
       <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.4 }}>
         Join a team below, or create a new one. You can switch teams any time
         before the game starts.
       </p>
+
+      {/* Creating is intentionally first: a new player can create a team or
+          choose one of the existing cards below. */}
+      {canCreateTeam && (isAdmin || currentTeamId === null) ? (
+        <form
+          onSubmit={handleCreate}
+          noValidate
+          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
+        >
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+          >
+            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              New team name
+            </span>
+            <input
+              type="text"
+              name="teamName"
+              value={teamName}
+              onChange={(e) => setTeamName(e.target.value)}
+              placeholder="e.g. The Hop Hunters"
+              autoComplete="off"
+              maxLength={200}
+              disabled={submitting || atTeamLimit}
+              style={inputStyle}
+            />
+          </label>
+          {shownValidation !== null ? (
+            <p role="alert" style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}>
+              {shownValidation}
+            </p>
+          ) : null}
+          {error !== null && error !== "" ? (
+            <p role="alert" aria-live="assertive" style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}>
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={submitting || atTeamLimit}
+            style={{
+              width: "100%",
+              minHeight: TOUCH_TARGET,
+              padding: "0.7rem 1rem",
+              fontSize: "1rem",
+              fontWeight: 600,
+              borderRadius: "0.5rem",
+              border: "1px solid #444",
+              background: submitting || atTeamLimit ? "#e5e5e5" : "#1a1a1a",
+              color: submitting || atTeamLimit ? "#666" : "#ffffff",
+              cursor: submitting || atTeamLimit ? "not-allowed" : "pointer",
+            }}
+          >
+            {atTeamLimit ? `Team limit reached (${MAX_TEAMS})` : submitting ? "Creating…" : "Create team"}
+          </button>
+        </form>
+      ) : null}
 
       {/* Existing teams: join / switch (R4.1, R4.5) */}
       {teams.length === 0 ? (
@@ -218,7 +274,10 @@ export default function TeamSelection({
                     }}
                   />
                   <span style={{ flex: "1 1 auto", wordBreak: "break-word" }}>
-                    {team.name}
+                    <strong>{team.name}</strong>
+                    <span style={{ display: "block", fontSize: "0.8rem", color: "#666" }}>
+                      {team.playerIds.map((playerId) => players.find((player) => player.id === playerId)?.displayName ?? playerId).join(", ") || "No members yet"}
+                    </span>
                   </span>
                   <span style={{ flex: "0 0 auto", fontSize: "0.8rem" }}>
                     {isCurrent
@@ -234,93 +293,24 @@ export default function TeamSelection({
         </ul>
       )}
 
-      {/* Create a new team (R4.2, R4.3, R4.4, R4.7) */}
-      <form
-        onSubmit={handleCreate}
-        noValidate
-        style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-      >
-        <label
-          style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
-        >
-          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-            New team name
-          </span>
-          <input
-            type="text"
-            name="teamName"
-            value={teamName}
-            onChange={(e) => setTeamName(e.target.value)}
-            placeholder="e.g. The Hop Hunters"
-            autoComplete="off"
-            maxLength={200}
-            disabled={submitting || atTeamLimit}
-            style={inputStyle}
-          />
-        </label>
+      {players.some((player) => player.teamId === null) ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
+            Players not on a team (
+            {players.filter((player) => player.teamId === null).length})
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            {players
+              .filter((player) => player.teamId === null)
+              .map((player) => (
+                <li key={player.id} style={{ fontSize: "0.9rem" }}>
+                  {player.displayName}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
 
-        {shownValidation !== null ? (
-          <p
-            role="alert"
-            style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}
-          >
-            {shownValidation}
-          </p>
-        ) : null}
-
-        {error !== null && error !== "" ? (
-          <p
-            role="alert"
-            aria-live="assertive"
-            style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}
-          >
-            {error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={submitting || atTeamLimit}
-          style={{
-            width: "100%",
-            minHeight: TOUCH_TARGET,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "0.7rem 1rem",
-            fontSize: "1rem",
-            fontWeight: 600,
-            borderRadius: "0.5rem",
-            border: "1px solid #444",
-            background: submitting || atTeamLimit ? "#e5e5e5" : "#1a1a1a",
-            color: submitting || atTeamLimit ? "#666" : "#ffffff",
-            cursor: submitting || atTeamLimit ? "not-allowed" : "pointer",
-          }}
-        >
-          {/* Preview the color the new team will get (R4.4). */}
-          {nextColor !== undefined && !atTeamLimit ? (
-            <span
-              aria-hidden="true"
-              style={{
-                flex: "0 0 auto",
-                width: "0.9rem",
-                height: "0.9rem",
-                borderRadius: "50%",
-                background: nextColor,
-                border: "1px solid rgba(255, 255, 255, 0.6)",
-              }}
-            />
-          ) : null}
-          <span>
-            {atTeamLimit
-              ? `Team limit reached (${MAX_TEAMS})`
-              : submitting
-                ? "Creating…"
-                : "Create team"}
-          </span>
-        </button>
-      </form>
     </section>
   );
 }

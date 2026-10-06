@@ -26,6 +26,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { validateDisplayName } from "@/lib/lobby/displayName";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 
 /** Minimum touch-target size for interactive controls (R9.2). */
 const TOUCH_TARGET = "44px";
@@ -66,6 +67,14 @@ export interface CreateGameProps {
   readonly error?: string | null;
 }
 
+const barOptions = CANDIDATE_BARS.map((bar) => bar.name);
+
+function isCandidateBarName(value: string): boolean {
+  return CANDIDATE_BARS.some(
+    (bar) => bar.name.toLowerCase() === value.trim().toLowerCase(),
+  );
+}
+
 /** Shared inline style for full-width, ≥44px-tall text inputs (R9.1/R9.2). */
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -102,6 +111,12 @@ export default function CreateGame({
     }
     if (trimmedFinish.length === 0) {
       return "Enter a finish bar name.";
+    }
+    if (!isCandidateBarName(trimmedStart)) {
+      return "Choose a start bar from the available bars.";
+    }
+    if (!isCandidateBarName(trimmedFinish)) {
+      return "Choose a finish bar from the available bars.";
     }
     if (trimmedStart.toLowerCase() === trimmedFinish.toLowerCase()) {
       return "The start and finish bars must be different.";
@@ -177,7 +192,14 @@ export default function CreateGame({
             autoComplete="off"
             disabled={submitting}
             style={inputStyle}
+            list="available-bars"
+            role="textbox"
           />
+          <datalist id="available-bars">
+            {barOptions.map((barName) => (
+              <option key={barName} value={barName} />
+            ))}
+          </datalist>
         </label>
 
         <label
@@ -195,6 +217,8 @@ export default function CreateGame({
             autoComplete="off"
             disabled={submitting}
             style={inputStyle}
+            list="available-bars"
+            role="textbox"
           />
         </label>
 

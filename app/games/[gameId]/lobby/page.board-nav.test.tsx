@@ -175,6 +175,9 @@ describe("Lobby → Game_Board navigation entry point (Requirement 1.2)", () => 
     expect(
       screen.queryByRole("link", { name: /go to game board/i }),
     ).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: /start the game/i }),
+    ).not.toBeNull();
 
     // Deliver a game_started event through the page's live-event handler,
     // exactly as the realtime transport would (folded via applyLobbyEvent →
@@ -190,5 +193,8 @@ describe("Lobby → Game_Board navigation entry point (Requirement 1.2)", () => 
     });
     expect(link).not.toBeNull();
     expect(link.getAttribute("href")).toBe(`/games/${GAME_ID}/board`);
+    expect(
+      screen.queryByRole("heading", { name: /start the game/i }),
+    ).toBeNull();
   });
 });

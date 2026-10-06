@@ -324,8 +324,8 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Start Bar",
-      finish: "Finish Bar",
+      start: "Park Tavern",
+      finish: "Delbar",
       displayName: "  Alex  ",
     });
 
@@ -362,8 +362,8 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     // Bars body carries the raw (un-normalized) bar names.
     const bars = requestsTo("/bars")[0];
-    expect(bars.body.startBarName).toBe("Start Bar");
-    expect(bars.body.finishBarName).toBe("Finish Bar");
+    expect(bars.body.startBarName).toBe("Park Tavern");
+    expect(bars.body.finishBarName).toBe("Delbar");
   });
 
   it("writes bbb:player and navigates to the created lobby on a successful join (R2.3)", async () => {
@@ -384,8 +384,8 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Alpha",
-      finish: "Omega",
+      start: "Park Tavern",
+      finish: "Delbar",
       displayName: "Host",
     });
 
@@ -420,8 +420,8 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Alpha",
-      finish: "Omega",
+      start: "Park Tavern",
+      finish: "Delbar",
       displayName: "Host",
     });
 

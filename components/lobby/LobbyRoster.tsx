@@ -60,6 +60,10 @@ export interface LobbyRosterProps {
   readonly teams: readonly LobbyTeamView[];
   /** Every Player in the Game; teamless Players (`teamId === null`) are bucketed separately (R3.9). */
   readonly players: readonly LobbyPlayerView[];
+  /** Hide team cards when the interactive TeamSelection owns that section. */
+  readonly showTeams?: boolean;
+  /** Hide the teamless bucket when it is rendered after team selection. */
+  readonly showTeamless?: boolean;
 }
 
 /**
@@ -318,6 +322,8 @@ export default function LobbyRoster({
   joinCode,
   teams,
   players,
+  showTeams = true,
+  showTeamless = true,
 }: LobbyRosterProps): React.JSX.Element {
   // Players not on any team form the teamless bucket (R3.9). Team membership is
   // authoritative on the player's `teamId`, matching the reducer's invariant
@@ -362,7 +368,8 @@ export default function LobbyRoster({
       </div>
 
       {/* Teams with colors + players (R9.4) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+      {showTeams ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
         <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
           Teams ({teams.length})
         </h3>
@@ -385,10 +392,11 @@ export default function LobbyRoster({
             ))}
           </ul>
         )}
-      </div>
+        </div>
+      ) : null}
 
       {/* Teamless players (valid lobby state, R3.9) */}
-      {teamlessPlayers.length > 0 ? (
+      {showTeamless && teamlessPlayers.length > 0 ? (
         <div
           style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
         >

@@ -97,33 +97,33 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
 
 ## 2. Bars & Claiming
 
-- [~] **F2.1 — Bar selection & discovery.** Use a predetermined candidate-bar catalog rather
+- [x] **F2.1 — Bar selection & discovery.** Use a predetermined candidate-bar catalog rather
   than a map API: `lib/map/bars.ts` stores stable bar ids, names, and WGS-84 coordinates
   copied from the candidate list, with same-venue entries folded where appropriate. The
   current Map_Region renders those candidates on a client-only Leaflet/OpenStreetMap map,
   fits the initial viewport to the catalog bounds, and supports pan/zoom plus marker popups.
   The wireframe does not yet include propose-a-bar or admin approval; that remains part of
   the real discovery decision if the catalog needs to change during play.
-  - Depends on: F1.3.
-- [ ] **F2.2 — Claim a bar & scoring.** A team claims a bar once **at least half** its members
+  - Depends on: F1.3. Durable map state and live marker updates are wired through the board
+    reducer and server-owned claim route.
+- [x] **F2.2 — Claim a bar & scoring.** A team claims a bar once **at least half** its members
   finish a drink and taps "claim." Apply v1 scoring: start bar = 0; other bars split 12 among
   current claimers (12/6/4/3); finish bar awards 12 solo and **ends the game**. Recompute
-  shares live as new teams claim. The map wireframe currently models this only as local
-  toggling; the real claim transaction, half-team authorization, score ledger, and event
-  propagation are still pending.
+  shares live as new teams claim. Durable claims, half-team authorization, score ledger
+  corrections, finish handling, and event propagation are implemented.
   - Depends on: F2.1, F0.3.
-- [~] **F2.3 — Claim visualization.** The wireframe shows every candidate bar as a marker,
+- [x] **F2.3 — Claim visualization.** The map shows every candidate bar as a marker,
   reports its claimer count in the popup, and splits marker colors equally among all claiming
   teams (solid, two-, three-, or four-way bands). The popup control can claim/unclaim only for
-  the current player's own team, while all teams' colors remain visible. This is local-only
-  and non-scoring until F2.2 supplies durable claims and realtime state; the real design is
-  therefore now fixed as an in-house coordinate catalog plus Leaflet map, not a map API.
+  the current player's own team, while all teams' colors remain visible. Marker state is
+  reducer-derived, and popup actions show pending, failure, and server-confirmed updates.
   - Depends on: F2.2.
 
-- [ ] **U2.1 — Bars, claiming & scoreboard UI.** Wire the F2 backend into the app: bar
+- [x] **U2.1 — Bars, claiming & scoreboard UI.** Wire the F2 backend into the app: bar
   selection/discovery surface (and propose-a-bar flow if list-based), the claim action
   (half-team + "claim" tap), and the live claim visualization + scoreboard — all propagating
-  in real time. Reachable from the in-game view established by U1.1.
+  in real time. The board owns durable mutations and renders live totals and claimed-bar
+  counts. Reachable from the in-game view established by U1.1.
   - Depends on: F2.3, U1.1.
 
 ## 3. Cards

@@ -188,6 +188,7 @@ export default function LobbyPage(): React.JSX.Element {
   });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [startRequested, setStartRequested] = useState(false);
 
   const configured = isSupabaseConfigured();
 
@@ -610,6 +611,19 @@ export default function LobbyPage(): React.JSX.Element {
         const res = await postJson(`/api/games/${gameId}/teams`, { name });
         if (!res.applied) {
           setFormError(res.error);
+          return;
+        }
+        // Team creation also selects the new team for the creator. The
+        // create route returns only its event sequence, so read the newest
+        // team from the folded view after realtime applies it.
+        const teamId = String((res as { teamId?: unknown }).teamId ?? "");
+        if (teamId !== "" && myPlayerId !== null) {
+          const selected = await postJson(`/api/games/${gameId}/teams/select`, {
+            teamId,
+          });
+          if (!selected.applied) {
+            setFormError(selected.error);
+          }
         }
       } catch (err) {
         setFormError(err instanceof Error ? err.message : "create_team_failed");
@@ -617,7 +631,7 @@ export default function LobbyPage(): React.JSX.Element {
         setBusy(false);
       }
     },
-    [postJson, gameId],
+    [postJson, gameId, myPlayerId],
   );
 
   /** Join or switch to a team (R4.1/R4.5). */
@@ -643,11 +657,25 @@ export default function LobbyPage(): React.JSX.Element {
 
   /** Start the game (Admin only; R5). */
   const handleStart = useCallback(async (): Promise<void> => {
+    // Avoid issuing a stale start request after the realtime fold has already
+    // moved the game out of the lobby.
+    if (!inLobby) {
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
       const res = await postJson(`/api/games/${gameId}/start`, {});
-      if (!res.applied) {
+      if (res.applied) {
+        // Hide the control immediately; realtime delivery may arrive slightly
+        // after the successful response.
+        setStartRequested(true);
+      } else if (res.error === "not_in_lobby") {
+        // A stale tab can still have a lobby snapshot while another client has
+        // already started the game. Do not leave a control that can repeat the
+        // known-invalid request.
+        setStartRequested(true);
+      } else {
         setFormError(res.error);
       }
     } catch (err) {
@@ -655,7 +683,7 @@ export default function LobbyPage(): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [postJson, gameId]);
+  }, [postJson, gameId, inLobby]);
 
   // --- Render --------------------------------------------------------------
 
@@ -751,14 +779,16 @@ export default function LobbyPage(): React.JSX.Element {
           joinCode={view.joinCode}
           teams={view.teams}
           players={view.players}
+          showTeams={false}
+          showTeamless={false}
         />
       ) : null}
 
       {/* Lobby-phase controls only while the game is in the lobby (R4.8 mirror). */}
-      {inLobby ? (
+      {inLobby || view.lifecycle === "live" ? (
         <>
           {/* Admin: designate bars if not yet set (R2). */}
-          {isAdmin && !barsDesignated ? (
+          {inLobby && isAdmin && !barsDesignated ? (
             <CreateGame
               onCreate={async (designation) => {
                 setBusy(true);
@@ -791,9 +821,12 @@ export default function LobbyPage(): React.JSX.Element {
                 return (
                   <TeamSelection
                     teams={view.teams}
+                    players={view.players}
                     currentTeamId={myTeamId}
                     onSelectTeam={handleSelectTeam}
                     onCreateTeam={handleCreateTeam}
+                    canCreateTeam={inLobby}
+                    isAdmin={isAdmin}
                     submitting={busy}
                     error={formError}
                   />
@@ -831,7 +864,7 @@ export default function LobbyPage(): React.JSX.Element {
           })()}
 
           {/* Admin: start control, enabled only when eligible (R5). */}
-          {isAdmin ? (
+          {inLobby && isAdmin && !startRequested ? (
             <StartGame
               teamCount={view.teams.length}
               startBarId={view.startBarId}

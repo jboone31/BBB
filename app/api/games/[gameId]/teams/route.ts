@@ -36,7 +36,6 @@ import { isLobbyPhase } from "@/lib/lobby/gate";
 import { decideCreateTeam } from "@/lib/lobby/team";
 import { LOBBY_EVENT_TYPES } from "@/lib/lobby/events";
 import {
-  applied,
   assertMember,
   type LobbyErrorReason,
   notApplied,
@@ -126,7 +125,7 @@ export async function POST(
   // --- Membership + lobby-phase gate + atomic insert + one event -----------
   try {
     const result = await withTransaction<
-      | { applied: true; seq: number }
+      | { applied: true; seq: number; teamId: string }
       | { applied: false; reason: LobbyErrorReason }
     >(async (tx) => {
       // Membership (Req 8.4/8.5) — locks the game row FOR UPDATE.
@@ -172,12 +171,15 @@ export async function POST(
         payload: { teamId, name: trimmedName, color: decision.color },
       });
 
-      return { applied: true, seq: event.seq };
+      return { applied: true, seq: event.seq, teamId };
     });
 
     if (result.applied) {
       // Success: team + its single event committed together (Req 6.4).
-      return applied(result.seq, 201);
+      return NextResponse.json(
+        { applied: true, seq: result.seq, teamId: result.teamId },
+        { status: 201 },
+      );
     }
     // Guard/validation rejection (Req 6.5): nothing was written.
     return notApplied(result.reason);

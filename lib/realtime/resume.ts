@@ -67,6 +67,7 @@ import {
 import type {
   LastSeenStore,
   RealtimeChannel,
+  RealtimeChannelStatus,
   RealtimeTransport,
 } from "@/lib/realtime";
 
@@ -116,6 +117,8 @@ export interface ResumeDeps {
    * harmless.
    */
   readonly onEvent: (event: GameEvent) => void;
+  /** Receives status changes from the newly opened channel. */
+  readonly onChannelStatus?: (status: RealtimeChannelStatus) => void;
   /**
    * Optional: reset a terminal path-(a) controller back to reconnecting before
    * re-initializing (Req 6.8). See {@link ResetTransientRecovery}.
@@ -176,6 +179,7 @@ export async function resumeReinitialize(
     snapshotSource,
     transport,
     onEvent,
+    onChannelStatus,
     resetTransientRecovery,
   } = deps;
 
@@ -198,7 +202,7 @@ export async function resumeReinitialize(
   }
 
   // 4. Resubscribe to the per-game channel (Req 6.7), funneling rows into onEvent.
-  const channel = await transport.channel(gameId, onEvent);
+  const channel = await transport.channel(gameId, onEvent, onChannelStatus);
 
   // 5. Load a current snapshot (Req 6.4).
   const snapshot = await loadSnapshot(gameId, snapshotSource);
