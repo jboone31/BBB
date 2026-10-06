@@ -26,6 +26,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { validateDisplayName } from "@/lib/lobby/displayName";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 
 /** Minimum touch-target size for interactive controls (R9.2). */
 const TOUCH_TARGET = "44px";
@@ -65,6 +66,8 @@ export interface CreateGameProps {
    */
   readonly error?: string | null;
 }
+
+const barOptions = CANDIDATE_BARS.map((bar) => bar.name);
 
 /** Shared inline style for full-width, ≥44px-tall text inputs (R9.1/R9.2). */
 const inputStyle: React.CSSProperties = {
@@ -177,7 +180,14 @@ export default function CreateGame({
             autoComplete="off"
             disabled={submitting}
             style={inputStyle}
+            list="available-bars"
+            role="textbox"
           />
+          <datalist id="available-bars">
+            {barOptions.map((barName) => (
+              <option key={barName} value={barName} />
+            ))}
+          </datalist>
         </label>
 
         <label
@@ -195,6 +205,8 @@ export default function CreateGame({
             autoComplete="off"
             disabled={submitting}
             style={inputStyle}
+            list="available-bars"
+            role="textbox"
           />
         </label>
 

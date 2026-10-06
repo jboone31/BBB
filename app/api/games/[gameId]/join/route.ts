@@ -44,7 +44,6 @@ import {
   isValidSubmittedCode,
   normalizeSubmittedCode,
 } from "@/lib/lobby/joinCode";
-import { isLobbyPhase } from "@/lib/lobby/gate";
 
 import {
   type LobbyErrorReason,
@@ -193,8 +192,9 @@ export async function POST(
       }
       const lifecycle = gameRow.lifecycle as "lobby" | "live" | "ended";
 
-      // 2. Lobby-phase gate (R3.4).
-      if (!isLobbyPhase(lifecycle)) {
+      // Players may join a live game, but the team-selection step remains
+      // required before they can participate on the board.
+      if (lifecycle === "ended") {
         return { applied: false, reason: "lobby_closed" };
       }
 

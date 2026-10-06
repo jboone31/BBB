@@ -610,6 +610,19 @@ export default function LobbyPage(): React.JSX.Element {
         const res = await postJson(`/api/games/${gameId}/teams`, { name });
         if (!res.applied) {
           setFormError(res.error);
+          return;
+        }
+        // Team creation also selects the new team for the creator. The
+        // create route returns only its event sequence, so read the newest
+        // team from the folded view after realtime applies it.
+        const teamId = String((res as { teamId?: unknown }).teamId ?? "");
+        if (teamId !== "" && myPlayerId !== null) {
+          const selected = await postJson(`/api/games/${gameId}/teams/select`, {
+            teamId,
+          });
+          if (!selected.applied) {
+            setFormError(selected.error);
+          }
         }
       } catch (err) {
         setFormError(err instanceof Error ? err.message : "create_team_failed");
@@ -617,7 +630,7 @@ export default function LobbyPage(): React.JSX.Element {
         setBusy(false);
       }
     },
-    [postJson, gameId],
+    [postJson, gameId, myPlayerId],
   );
 
   /** Join or switch to a team (R4.1/R4.5). */
@@ -755,10 +768,10 @@ export default function LobbyPage(): React.JSX.Element {
       ) : null}
 
       {/* Lobby-phase controls only while the game is in the lobby (R4.8 mirror). */}
-      {inLobby ? (
+      {inLobby || view.lifecycle === "live" ? (
         <>
           {/* Admin: designate bars if not yet set (R2). */}
-          {isAdmin && !barsDesignated ? (
+          {inLobby && isAdmin && !barsDesignated ? (
             <CreateGame
               onCreate={async (designation) => {
                 setBusy(true);
@@ -791,9 +804,12 @@ export default function LobbyPage(): React.JSX.Element {
                 return (
                   <TeamSelection
                     teams={view.teams}
+                    players={view.players}
                     currentTeamId={myTeamId}
                     onSelectTeam={handleSelectTeam}
                     onCreateTeam={handleCreateTeam}
+                    canCreateTeam={inLobby}
+                    isAdmin={isAdmin}
                     submitting={busy}
                     error={formError}
                   />
