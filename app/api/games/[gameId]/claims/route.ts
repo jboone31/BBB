@@ -66,9 +66,13 @@ where game_id = $1 and team_id = $2
 `;
 
 const BAR_SQL = `
-select 1
+select id
 from bars
-where game_id = $1 and id = $2
+where game_id = $1
+  and (
+    id::text = $2
+    or trim(both '-' from lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g'))) = lower($2)
+  )
 limit 1
 `;
 
@@ -228,6 +232,10 @@ export async function POST(
 
       const { rows: barRows } = await tx.query(BAR_SQL, [gameId, barId]);
       if (barRows.length === 0) return { ok: false, reason: "not_found" };
+      // The map uses stable name slugs, while the database stores UUID bar ids.
+      // Keep the submitted value for board event payloads and use the resolved
+      // UUID for foreign-keyed claims, ledger entries, and lifecycle checks.
+      const resolvedBarId = String(barRows[0]?.id ?? barId);
 
       const { rows: playerRows } = await tx.query(PLAYER_SQL, [
         gameId,
@@ -239,7 +247,7 @@ export async function POST(
 
       const { rows: activeRows } = await tx.query(ACTIVE_CLAIMS_SQL, [
         gameId,
-        barId,
+        resolvedBarId,
       ]);
       const previousTeamIds = activeRows.map((row) => String(row.team_id));
 
@@ -248,7 +256,7 @@ export async function POST(
           (row) => String(row.team_id) === resolvedTeamId,
         );
         if (!active) return { ok: false, reason: "claim_not_active" };
-        if (barKind(game, barId) === "finish") {
+        if (barKind(game, resolvedBarId) === "finish") {
           return { ok: false, reason: "not_live" };
         }
 
@@ -263,7 +271,7 @@ export async function POST(
           (id) => id !== resolvedTeamId,
         );
         const adjustments = computeShareAdjustments({
-          barKind: barKind(game, barId),
+          barKind: barKind(game, resolvedBarId),
           previousClaimingTeamIds: previousTeamIds,
           nextClaimingTeamIds: nextTeamIds,
         });
@@ -281,7 +289,7 @@ export async function POST(
         const scoreSeq = await appendScoreAdjustments(
           tx,
           gameId,
-          barId,
+          resolvedBarId,
           String(active.id),
           adjustments,
         );
@@ -313,12 +321,12 @@ export async function POST(
       const { rows: claimRows } = await tx.query(INSERT_CLAIM_SQL, [
         gameId,
         resolvedTeamId,
-        barId,
+        resolvedBarId,
       ]);
       const claimId = String(claimRows[0]?.id);
       const nextTeamIds = [...previousTeamIds, resolvedTeamId];
       const adjustments = computeShareAdjustments({
-        barKind: barKind(game, barId),
+        barKind: barKind(game, resolvedBarId),
         previousClaimingTeamIds: previousTeamIds,
         nextClaimingTeamIds: nextTeamIds,
       });
@@ -336,12 +344,12 @@ export async function POST(
       const scoreSeq = await appendScoreAdjustments(
         tx,
         gameId,
-        barId,
+        resolvedBarId,
         claimId,
         adjustments,
       );
 
-      if (barKind(game, barId) === "finish") {
+      if (barKind(game, resolvedBarId) === "finish") {
         const { rows: endedRows } = await tx.query(END_FINISH_GAME_SQL, [
           gameId,
         ]);

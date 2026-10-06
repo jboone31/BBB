@@ -539,6 +539,23 @@ export default function BoardPage(): React.JSX.Element {
                     ? "Your team no longer claims this bar."
                     : "The claim was not saved. Please try again.",
           });
+            } else {
+              const client = createBrowserSupabaseClient();
+              if (client !== null) {
+                try {
+                  const events = await supabaseSnapshotSource(
+                    client,
+                  ).fetchEventsAscending(gameId);
+                  const refreshedView = foldGameBoardEvents(gameId, events);
+                  setView((current) =>
+                    refreshedView.lastSeenSequence >= current.lastSeenSequence
+                      ? refreshedView
+                      : current,
+                  );
+                } catch {
+                  // Realtime remains the primary update path if reconciliation fails.
+                }
+              }
         }
       } catch {
         setClaimMutationError({

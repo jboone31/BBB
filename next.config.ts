@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   // cross-origin, the client never hydrates, and forms fall back to a native GET
   // submission (you land back on `/?joinCode=…` instead of the lobby). Dev-only;
   // has no effect on the production build.
-  allowedDevOrigins: ["192.168.86.226"],
+  allowedDevOrigins: ["192.168.86.226", "192.168.86.249"],
 };
 
 export default nextConfig;
