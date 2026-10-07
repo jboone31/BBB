@@ -195,6 +195,21 @@ lifecycle behavior.
 - Add authorization, route/domain, realtime, and UI tests for host success,
   non-host denial/absence, cancellation, repeated requests, and failure.
 
+### Task 5 implementation notes
+
+- The active board now exposes a host-only `End Game` action with a touch-sized
+  confirmation dialog explaining that gameplay stops for everyone and the final
+  scores become read-only.
+- The action reuses `POST /api/games/{gameId}/end`, whose existing transaction
+  and authorization path atomically writes `ended` plus `game_ended`; the client
+  prevents concurrent submissions, closes the dialog on success, and surfaces
+  explicit mutation failures.
+- Existing `game_ended` folding makes every subscribed client enter the
+  read-only board state, disabling claims and card play while retaining the map
+  and scoreboard for final inspection.
+- Board coverage includes host cancellation and success, non-host control
+  absence, and failed end requests.
+
 ## 6. Replace top-left home navigation with the in-game menu
 
 - Remove the direct home navigation from the top-left in-game icon while

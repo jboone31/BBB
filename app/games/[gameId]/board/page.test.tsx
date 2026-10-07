@@ -38,6 +38,7 @@
 
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -286,6 +287,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => {
@@ -392,6 +394,106 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
       screen.getByText(/map and scoreboard are available in read-only mode/i),
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: /map/i })).not.toBeNull();
+  });
+
+  it("R5.1/R5.3: the host can cancel or confirm ending the live game", async () => {
+    const gameId = "game-admin-end";
+    routeParams.gameId = gameId;
+    globalThis.localStorage.setItem(`bbb:admin:${gameId}`, mockSessionId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ applied: true, seq: 4 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BoardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "End Game" })).not.toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(screen.getByText(/stop gameplay for everyone/i)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    fireEvent.click(
+      screen.getByRole("dialog").querySelector("button:last-child")!,
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/games/${gameId}/end`,
+        expect.objectContaining({
+          method: "POST",
+          headers: { "x-bbb-session-id": mockSessionId },
+        }),
+      );
+      expect(screen.getByText(/this game has ended/i)).not.toBeNull();
+    });
+  });
+
+  it("R5.1: non-host players do not see the host end-game control", async () => {
+    const gameId = "game-player-no-end";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+
+    render(<BoardPage />);
+
+    await waitFor(() => {
+      expect(queryRegionNav()).not.toBeNull();
+    });
+    expect(screen.queryByRole("button", { name: "End Game" })).toBeNull();
+  });
+
+  it("R5.5/R5.6: surfaces an explicit failure without ending the board", async () => {
+    const gameId = "game-admin-end-failure";
+    routeParams.gameId = gameId;
+    globalThis.localStorage.setItem(`bbb:admin:${gameId}`, mockSessionId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: async () => ({
+          applied: false,
+          error: "game cannot be ended from 'ended' state",
+        }),
+      }),
+    );
+
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "End Game" })).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    fireEvent.click(
+      screen.getByRole("dialog").querySelector("button:last-child")!,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/could not be ended because its state has changed/i),
+      ).not.toBeNull();
+    });
+    expect(screen.queryByText(/this game has ended/i)).toBeNull();
   });
 
   it("R1.5: a non-member (neither Admin nor Player) sees the not-authorized notice and no Regions", async () => {

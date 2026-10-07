@@ -138,6 +138,9 @@ type ClaimResponse =
   | { applied: true; seq?: number | null; result?: unknown }
   | { applied: false; error: string };
 
+type EndGameResponse =
+  { applied: true; seq: number } | { applied: false; error: string };
+
 /** Per-game durable local facts key helpers (survive reload, mirror the lobby). */
 const adminFlagKey = (gameId: string): string => `bbb:admin:${gameId}`;
 const playerIdKey = (gameId: string): string => `bbb:player:${gameId}`;
@@ -216,6 +219,9 @@ export default function BoardPage(): React.JSX.Element {
     barId: string;
     message: string;
   } | null>(null);
+  const [endGameDialogOpen, setEndGameDialogOpen] = useState(false);
+  const [endGamePending, setEndGamePending] = useState(false);
+  const [endGameError, setEndGameError] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -566,6 +572,7 @@ export default function BoardPage(): React.JSX.Element {
                 await supabaseSnapshotSource(client).fetchEventsAscending(
                   gameId,
                 );
+
               const refreshedView = foldGameBoardEvents(gameId, events);
               setView((current) =>
                 refreshedView.lastSeenSequence >= current.lastSeenSequence
@@ -588,6 +595,42 @@ export default function BoardPage(): React.JSX.Element {
     },
     [gameId, pendingClaimBarId, sessionId],
   );
+
+  const handleEndGame = useCallback(async (): Promise<void> => {
+    if (
+      !isAdmin ||
+      view.lifecycle !== "live" ||
+      sessionId === null ||
+      endGamePending
+    ) {
+      return;
+    }
+
+    setEndGameError(null);
+    setEndGamePending(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}/end`, {
+        method: "POST",
+        headers: { [SESSION_HEADER]: sessionId },
+      });
+      const body = (await response.json()) as EndGameResponse;
+      if (!body.applied) {
+        setEndGameError(
+          body.error.includes("cannot be ended")
+            ? "The game could not be ended because its state has changed."
+            : "The game could not be ended. Please try again.",
+        );
+        return;
+      }
+
+      setEndGameDialogOpen(false);
+      setView((current) => ({ ...current, lifecycle: "ended" }));
+    } catch {
+      setEndGameError("The game could not be ended. Please try again.");
+    } finally {
+      setEndGamePending(false);
+    }
+  }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
 
   // --- Render --------------------------------------------------------------
 
@@ -744,6 +787,118 @@ export default function BoardPage(): React.JSX.Element {
           This game has ended. The map and scoreboard are available in read-only
           mode.
         </p>
+      ) : null}
+
+      {isAdmin && !readOnly ? (
+        <section
+          aria-label="Game administration"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            padding: "0.75rem",
+            border: "1px solid #b00020",
+            borderRadius: "0.5rem",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setEndGameError(null);
+              setEndGameDialogOpen(true);
+            }}
+            disabled={endGamePending}
+            style={{
+              minHeight: "44px",
+              width: "100%",
+              border: "1px solid #b00020",
+              borderRadius: "0.5rem",
+              background: "#fff5f5",
+              color: "#b00020",
+              fontWeight: 700,
+            }}
+          >
+            End Game
+          </button>
+          {endGameError !== null ? (
+            <p role="alert" style={{ margin: 0, color: "#b00020" }}>
+              {endGameError}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {endGameDialogOpen && isAdmin && !readOnly ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="end-game-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10,
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            background: "rgba(0, 0, 0, 0.45)",
+          }}
+        >
+          <section
+            style={{
+              width: "100%",
+              maxWidth: "24rem",
+              padding: "1rem",
+              borderRadius: "0.75rem",
+              background: "#ffffff",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2 id="end-game-title" style={{ marginTop: 0 }}>
+              End game?
+            </h2>
+            <p>
+              Ending the game will stop gameplay for everyone and show the final
+              scores. This cannot be undone.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setEndGameDialogOpen(false);
+                  setEndGameError(null);
+                }}
+                disabled={endGamePending}
+                style={{ minHeight: "44px", padding: "0.5rem 0.75rem" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleEndGame();
+                }}
+                disabled={endGamePending}
+                style={{
+                  minHeight: "44px",
+                  padding: "0.5rem 0.75rem",
+                  border: "1px solid #b00020",
+                  borderRadius: "0.5rem",
+                  background: "#b00020",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
+              >
+                {endGamePending ? "Ending…" : "End Game"}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {/* Targeted notifications for the current Team (R7.3/R7.8). Rendered above
