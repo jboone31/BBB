@@ -54,6 +54,7 @@ export const LOBBY_EVENT_TYPES = {
   playerJoined: "player_joined",
   teamCreated: "team_created",
   teamChanged: "team_changed",
+  playerLeft: "player_left",
   gameStarted: "game_started",
 } as const;
 
@@ -195,6 +196,8 @@ export function applyLobbyEvent(view: LobbyView, event: GameEvent): LobbyView {
       return applyTeamCreated(advanced, event.payload);
     case LOBBY_EVENT_TYPES.teamChanged:
       return applyTeamChanged(advanced, event.payload);
+    case LOBBY_EVENT_TYPES.playerLeft:
+      return applyPlayerLeft(advanced, event.payload);
     case LOBBY_EVENT_TYPES.gameStarted:
       return { ...advanced, lifecycle: "live" };
     default:
@@ -255,7 +258,18 @@ function readString(payload: unknown, key: string): string | undefined {
 /** Apply `game_created`: record the Join_Code (design.md payload `{ joinCode }`). */
 function applyGameCreated(view: LobbyView, payload: unknown): LobbyView {
   const joinCode = readString(payload, "joinCode");
-  return joinCode === undefined ? view : { ...view, joinCode };
+  const teamId = readString(payload, "teamId");
+  const teamName = readString(payload, "name");
+  const teamColor = readString(payload, "color");
+  const teams =
+    teamId !== undefined && teamName !== undefined && teamColor !== undefined
+      ? [{ id: teamId, name: teamName, color: teamColor, playerIds: [] }]
+      : view.teams;
+  return {
+    ...view,
+    joinCode: joinCode ?? view.joinCode,
+    teams,
+  };
 }
 
 /**
@@ -340,4 +354,24 @@ function applyTeamChanged(view: LobbyView, payload: unknown): LobbyView {
   });
 
   return { ...view, players, teams };
+}
+
+/** Remove a departed player from the roster and every team's membership list. */
+function applyPlayerLeft(view: LobbyView, payload: unknown): LobbyView {
+  const playerId = readString(payload, "playerId");
+  if (playerId === undefined) {
+    return view;
+  }
+  const players = view.players.filter((player) => player.id !== playerId);
+  let teamChanged = false;
+  const teams = view.teams.map((team) => {
+    const playerIds = team.playerIds.filter((id) => id !== playerId);
+    teamChanged ||= playerIds.length !== team.playerIds.length;
+    return playerIds.length === team.playerIds.length
+      ? team
+      : { ...team, playerIds };
+  });
+  return players.length === view.players.length && !teamChanged
+    ? view
+    : { ...view, players, teams };
 }

@@ -23,8 +23,9 @@ cards and group-chat coordination.
 1. **Steering** - establish project context (this set of steering files). *(complete)*
 2. **Rules finalization** - refine and lock the v1 ruleset and card set. *(complete — see
    `game-rules.md` and `cards.md`)*
-3. **Web application** - design and build the app (Node.js, hosted on Vercel, backend TBD).
-   *(current phase — starting with a spec)*
+3. **Web application** - design and build the app (Node.js, hosted on Vercel, Supabase backend).
+   *(current phase — core shell, lobby, live board, realtime membership, sharing, and UAT
+   hardening are implemented; cards and final endgame polish remain in progress)*
 
 ## Problems v1 Must Solve
 

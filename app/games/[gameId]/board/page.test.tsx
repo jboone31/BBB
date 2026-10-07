@@ -401,65 +401,10 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     expect(screen.getByRole("button", { name: /map/i })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
     expect(
-      screen.queryByRole("menuitem", { name: "Share Join Code" }),
+      screen.queryByRole("menuitem", { name: /share join code/i }),
     ).toBeNull();
-  });
-
-  it("R7.1/R7.4: shows the authoritative join code and shares the current lobby URL", async () => {
-    const gameId = "game-share";
-    routeParams.gameId = gameId;
-    seedPlayer(gameId);
-    snapshotEvents = [
-      gameCreatedEvent(gameId),
-      teamCreatedEvent(gameId),
-      gameStartedEvent(gameId),
-    ];
-    const shareMock = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { share: shareMock });
-
-    render(<BoardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("ABCD12")).not.toBeNull();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Share Join Code" }));
-
-    await waitFor(() => {
-      expect(shareMock).toHaveBeenCalledWith({
-        title: "Beltline Bar Brawl",
-        text: "Join Beltline Bar Brawl with code ABCD12",
-        url: `http://localhost:3000/games/${gameId}/lobby?code=ABCD12`,
-      });
-      expect(screen.getByText(/join code ready to share/i)).not.toBeNull();
-    });
-  });
-
-  it("R7.2/R7.3: copies the current lobby URL when Web Share is unavailable", async () => {
-    const gameId = "game-share-clipboard";
-    routeParams.gameId = gameId;
-    seedPlayer(gameId);
-    snapshotEvents = [
-      gameCreatedEvent(gameId),
-      teamCreatedEvent(gameId),
-      gameStartedEvent(gameId),
-    ];
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { clipboard: { writeText: writeTextMock } });
-
-    render(<BoardPage />);
-    await waitFor(() => {
-      expect(screen.getByText("ABCD12")).not.toBeNull();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Share Join Code" }));
-
-    await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith(
-        `http://localhost:3000/games/${gameId}/lobby?code=ABCD12`,
-      );
-      expect(screen.getByText(/join code ready to share/i)).not.toBeNull();
-    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Leave Game" }));
+    expect(pushMock).toHaveBeenCalledWith("/");
   });
 
   it("R5.1/R5.3: the host can cancel or confirm ending the live game", async () => {
@@ -480,10 +425,13 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "End Game" })).not.toBeNull();
+      expect(
+        screen.getByRole("button", { name: /open game menu/i }),
+      ).not.toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "End Game" }));
     expect(screen.getByRole("dialog")).not.toBeNull();
     expect(screen.getByText(/stop gameplay for everyone/i)).not.toBeNull();
 
@@ -491,7 +439,8 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "End Game" }));
     fireEvent.click(
       screen.getByRole("dialog").querySelector("button:last-child")!,
     );
@@ -523,7 +472,8 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     await waitFor(() => {
       expect(queryRegionNav()).not.toBeNull();
     });
-    expect(screen.queryByRole("button", { name: "End Game" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    expect(screen.queryByRole("menuitem", { name: "End Game" })).toBeNull();
   });
 
   it("R5.5/R5.6: surfaces an explicit failure without ending the board", async () => {
@@ -547,9 +497,12 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
 
     render(<BoardPage />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "End Game" })).not.toBeNull();
+      expect(
+        screen.getByRole("button", { name: /open game menu/i }),
+      ).not.toBeNull();
     });
-    fireEvent.click(screen.getByRole("button", { name: "End Game" }));
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "End Game" }));
     fireEvent.click(
       screen.getByRole("dialog").querySelector("button:last-child")!,
     );
@@ -582,11 +535,8 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
     });
     fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
     const items = screen.getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual([
-      "Share Join Code",
-      "Leave Game",
-    ]);
-    fireEvent.click(items[1]!);
+    expect(items.map((item) => item.textContent)).toEqual(["Leave Game"]);
+    fireEvent.click(items[0]!);
     expect(
       screen.getByText(/game will continue for everyone else/i),
     ).not.toBeNull();
@@ -615,7 +565,7 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
       ).not.toBeNull();
     });
     fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
-    fireEvent.click(screen.getAllByRole("menuitem")[1]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Leave Game" }));
     expect(screen.getByText(/end the game for everyone/i)).not.toBeNull();
     fireEvent.click(
       screen.getByRole("dialog").querySelector("button:last-child")!,

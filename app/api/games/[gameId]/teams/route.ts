@@ -1,6 +1,9 @@
 /**
  * Create-team route (design.md "Server routes", Component 1c; Task 15).
  *
+ * GET /api/games/{gameId}/teams — an authorized member reads the current team
+ * roster for post-join hydration.
+ *
  * POST /api/games/{gameId}/teams — a Player (any game member) creates a new Team
  * in a Game that is still in its lobby phase. The route wraps the pure
  * `decideCreateTeam` decision (`lib/lobby/team.ts`) in a single transaction
@@ -30,7 +33,7 @@
  */
 import { NextResponse } from "next/server";
 
-import { withTransaction } from "@/lib/db/server";
+import { getSql, withTransaction } from "@/lib/db/server";
 import { appendEvent } from "@/lib/events";
 import { isLobbyPhase } from "@/lib/lobby/gate";
 import { decideCreateTeam } from "@/lib/lobby/team";
@@ -44,6 +47,82 @@ import {
 
 /** Node.js runtime: a real Postgres connection cannot be opened on Edge. */
 export const runtime = "nodejs";
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ gameId: string }> },
+): Promise<NextResponse> {
+  const session = requireSession(request);
+  if (!session.ok) {
+    return notApplied(session.reason);
+  }
+  const { gameId: rawGameId } = await context.params;
+  const gameId = typeof rawGameId === "string" ? rawGameId.trim() : "";
+  if (!gameId) {
+    return notApplied("not_member");
+  }
+
+  try {
+    const sql = getSql();
+    const rows = (await sql.unsafe(
+      `
+        select t.id, t.name, t.color,
+          coalesce(
+            array_agg(p.id order by p.id) filter (where p.id is not null),
+            '{}'
+          ) as player_ids
+        from teams t
+        left join players p on p.team_id = t.id
+        where t.game_id = $1
+          and exists (
+            select 1 from players member
+            where member.game_id = $1 and member.session_id = $2
+          )
+        group by t.id, t.name, t.color
+        order by t.id
+      `,
+      [gameId, session.sessionId],
+    )) as Array<{
+      id: unknown;
+      name: unknown;
+      color: unknown;
+      player_ids: unknown;
+    }>;
+    const playerRows = (await sql.unsafe(
+      `
+        select id, display_name, team_id
+        from players
+        where game_id = $1
+        order by id
+      `,
+      [gameId],
+    )) as Array<{
+      id: unknown;
+      display_name: unknown;
+      team_id: unknown;
+    }>;
+    return NextResponse.json({
+      teams: rows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+        color: String(row.color),
+        playerIds: Array.isArray(row.player_ids)
+          ? row.player_ids.map(String)
+          : [],
+      })),
+      players: playerRows.map((row) => ({
+        id: String(row.id),
+        displayName: String(row.display_name),
+        teamId: row.team_id === null ? null : String(row.team_id),
+      })),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "teams could not be loaded" },
+      { status: 500 },
+    );
+  }
+}
 
 /** Request body accepted by the create-team route. */
 interface CreateTeamBody {

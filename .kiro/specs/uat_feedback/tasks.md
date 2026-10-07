@@ -51,9 +51,8 @@ lifecycle behavior.
 - The root `components/shell/HeaderNav.tsx` wraps the logo/tagline in a link to
   `/`. The board page has no replacement top-right in-game menu, leave-game
   action, or leave confirmation flow.
-- Join-code generation and sharing primitives exist under `lib/lobby/` and the
-  lobby roster has sharing coverage, but the board page has no persistent join
-  code in its top bar and no in-game “Share Join Code” menu action.
+- Join-code generation and sharing primitives exist under `lib/lobby/`; the board
+  page needs a persistent join code in its top bar so players can copy it manually.
 
 **Existing server and realtime seams to reuse**
 
@@ -216,7 +215,8 @@ lifecycle behavior.
   preserving any intended visual affordance or replacing it with the approved
   in-game navigation treatment.
 - Add a touch- and keyboard-usable menu in the top-right of the active-game shell.
-- Add “Share Join Code” above “Leave Game” in the menu.
+- Keep the authoritative join code visible in the menu/header so players can copy
+  it manually when inviting others.
 - Add confirmation flows for leaving:
   - Non-host copy explains that only the participant will leave.
   - Host copy clearly states that leaving will end the game for everyone.
@@ -233,8 +233,8 @@ lifecycle behavior.
 ### Task 6 implementation notes
 
 - The active board shell now uses a touch- and keyboard-usable top-right menu
-  with `Share Join Code` above `Leave Game`; the board does not expose a direct
-  home-navigation control.
+  with the host-only `End Game` action and `Leave Game`;
+  the board does not expose a direct home-navigation control.
 - Participant leave uses the new authorized `/api/games/{gameId}/leave` mutation,
   atomically removes the participant and appends `player_left`. Host leave
   invokes the existing atomic end-game route and returns the host to home.
@@ -248,24 +248,21 @@ lifecycle behavior.
 
 - Add the current game's join code to the active-game top bar with a mobile-safe
   layout that does not obscure score or navigation controls.
-- Wire “Share Join Code” to the supported Web Share API when available and to a
-  copy-to-clipboard fallback when it is not.
-- Provide visible success and failure feedback, and keep the code recoverable
-  after a cancelled or failed share.
+- Do not depend on browser sharing APIs; keep the join code visible and manually
+  copyable from the active-game shell.
 - Verify that the code is read from the current game's authoritative state and
   is not stale after navigation or reconnect.
 - Prevent ended games from being represented as active join targets.
-- Add tests for top-bar rendering, share success, share cancellation/failure,
-  clipboard fallback, and active-game identity.
+- Add tests for top-bar rendering, manual code recovery, and active-game identity.
 
 ### Task 7 implementation notes
 
 - The active board header now displays the authoritative folded join code in a
   mobile-safe row beneath the game title and menu control.
-- Sharing uses the existing share-link helper to publish the current game's
-  lobby URL with its join code through Web Share, with a clipboard URL fallback.
-- Share success and cancellation/failure feedback remains visible in the menu;
-  ended boards do not expose an active share action.
+- The authoritative join code remains visible in the header for manual copying;
+  the unreliable in-game share action was removed.
+- Ended boards keep the `Leave Game` menu action, which returns the user home,
+  but do not expose active sharing.
 
 ## 8. Validate integration and mobile UX
 
@@ -279,3 +276,14 @@ lifecycle behavior.
   end-game transitions, and host departure converge for everyone.
 - Update directly related user-facing documentation or developer notes if the
   final implementation introduces new route, event, or state names.
+
+### Task 8 implementation notes
+
+- Full unit and component validation passed: 450 tests passed across 86 files,
+  with 31 intentionally skipped tests across 12 files.
+- The Supabase-backed integration suite passed: 26 tests across 11 files.
+- Type-checking, ESLint, Prettier formatting, and whitespace validation passed.
+- Existing viewport suites cover the 320–430px board, lobby, shell, landing,
+  and card-play surfaces, including single-column layout guards and touch-sized
+  controls. Real-device verification remains useful for menu/dialog layering
+  and multi-client realtime convergence.

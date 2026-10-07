@@ -74,6 +74,7 @@ import type { GameEvent } from "@/lib/events";
 import {
   applyLobbyEvent,
   foldLobbyEvents,
+  type LobbyTeamView,
   initialLobbyView,
   type LobbyView,
 } from "@/lib/lobby/events";
@@ -215,6 +216,28 @@ export default function LobbyPage(): React.JSX.Element {
     [sessionId],
   );
 
+  const refreshTeams = useCallback(async (): Promise<void> => {
+    if (sessionId === null) {
+      return;
+    }
+    const response = await fetch(`/api/games/${gameId}/teams`, {
+      headers: { [SESSION_HEADER]: sessionId },
+    });
+    if (!response.ok) {
+      throw new Error("teams_could_not_be_loaded");
+    }
+    const payload = (await response.json()) as {
+      teams?: unknown;
+      players?: unknown;
+    };
+    if (!Array.isArray(payload.teams) || !Array.isArray(payload.players)) {
+      throw new Error("teams_could_not_be_loaded");
+    }
+    const teams = payload.teams as LobbyTeamView[];
+    const players = payload.players as LobbyView["players"];
+    setView((current) => ({ ...current, teams, players }));
+  }, [gameId, sessionId]);
+
   // --- Establish the Supabase-auth session (async identity bootstrap) ------
   // Sign in anonymously (or reuse the persisted anonymous session), adopt the
   // UID as the BBB session id, and derive the per-game role facts from it. This
@@ -354,7 +377,16 @@ export default function LobbyPage(): React.JSX.Element {
         if (cancelled) {
           return;
         }
-        setView(foldLobbyEvents(gameId, priorEvents));
+        const snapshotView = foldLobbyEvents(gameId, priorEvents);
+        setView((current) => {
+          // A newly joined player may receive an empty RLS snapshot while the
+          // membership change propagates. Do not erase teams already hydrated
+          // by the authorized post-join roster read.
+          if (snapshotView.teams.length === 0 && current.teams.length > 0) {
+            return { ...snapshotView, teams: current.teams };
+          }
+          return snapshotView;
+        });
 
         const sub = await subscribe(gameId, {
           transport,
@@ -522,6 +554,7 @@ export default function LobbyPage(): React.JSX.Element {
         }
         const playerId = String((res as { playerId?: unknown }).playerId ?? "");
         if (playerId !== "") {
+          await refreshTeams();
           writeLocal(playerIdKey(gameId), playerId);
           setMyPlayerId(playerId);
         }
@@ -531,7 +564,7 @@ export default function LobbyPage(): React.JSX.Element {
         setBusy(false);
       }
     },
-    [postJson, gameId],
+    [postJson, gameId, refreshTeams],
   );
 
   /**

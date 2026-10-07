@@ -95,7 +95,6 @@ import {
 } from "@/lib/gameboard/region";
 
 import { foldLobbyEvents } from "@/lib/lobby/events";
-import { buildShareLink } from "@/lib/lobby/shareLink";
 import { WIREFRAME_TEAMS } from "@/lib/map/claims";
 
 import type { GameEvent } from "@/lib/events";
@@ -187,6 +186,36 @@ export default function BoardPage(): React.JSX.Element {
   const [view, setView] = useState<GameBoardView>(() =>
     initialGameBoardView(gameId),
   );
+  const refreshRoster = useCallback(async (): Promise<void> => {
+    if (sessionId === null) {
+      return;
+    }
+    const response = await fetch(`/api/games/${gameId}/teams`, {
+      headers: { "x-bbb-session-id": sessionId },
+    });
+    if (!response.ok) {
+      throw new Error("roster_could_not_be_loaded");
+    }
+    const payload = (await response.json()) as {
+      teams?: GameBoardView["teams"];
+      players?: GameBoardView["players"];
+    };
+    if (!Array.isArray(payload.teams) || !Array.isArray(payload.players)) {
+      throw new Error("roster_could_not_be_loaded");
+    }
+    setView((current) => ({
+      ...current,
+      teams: payload.teams ?? current.teams,
+      players: payload.players ?? current.players,
+    }));
+    if (myPlayerId !== null) {
+      const currentPlayer = payload.players.find(
+        (player) => player.id === myPlayerId,
+      );
+      setPlayerResolvedInSnapshot(currentPlayer !== undefined);
+      setMyTeamId(currentPlayer?.teamId ?? null);
+    }
+  }, [gameId, myPlayerId, sessionId]);
   // Whether the initial event snapshot has been fetched and folded. Until
   // this is true, view.lifecycle is still the initial "lobby" placeholder and
   // does NOT reflect the game's actual lifecycle, so the access gate must not
@@ -229,7 +258,6 @@ export default function BoardPage(): React.JSX.Element {
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -407,6 +435,19 @@ export default function BoardPage(): React.JSX.Element {
                     ?.teamId ?? null;
                 setMyTeamId(teamId);
               }
+              if (
+                snapshotEvents.some((event) =>
+                  ["player_joined", "team_changed", "player_left"].includes(
+                    event.eventType,
+                  ),
+                )
+              ) {
+                void refreshRoster().catch(() => {
+                  if (!cancelled) {
+                    setStatus("error");
+                  }
+                });
+              }
             },
           },
         });
@@ -434,7 +475,7 @@ export default function BoardPage(): React.JSX.Element {
         void sub.close();
       }
     };
-  }, [gameId, configured, sessionId]);
+  }, [gameId, configured, sessionId, refreshRoster]);
 
   // --- Derived role / access ----------------------------------------------
   const isPlayer = myPlayerId !== null;
@@ -640,41 +681,14 @@ export default function BoardPage(): React.JSX.Element {
     }
   }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
 
-  const handleShareJoinCode = useCallback(async (): Promise<void> => {
-    if (view.joinCode === null || view.lifecycle !== "live") {
-      setShareStatus("Join code is not available.");
-      return;
-    }
-    const shareLink = buildShareLink(
-      typeof window === "undefined" ? null : window.location.origin,
-      gameId,
-      view.joinCode,
-    );
-    const text = `Join Beltline Bar Brawl with code ${view.joinCode}`;
-    try {
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({
-          title: "Beltline Bar Brawl",
-          text,
-          url: shareLink.absolute ?? shareLink.path,
-        });
-      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(
-          shareLink.absolute ?? shareLink.path,
-        );
-      } else {
-        throw new Error("clipboard unavailable");
-      }
-      setShareStatus("Join code ready to share.");
-    } catch {
-      setShareStatus(
-        "Sharing was cancelled or unavailable. The join code remains available.",
-      );
-    }
-  }, [gameId, view.joinCode, view.lifecycle]);
+  const readOnly = view.lifecycle === "ended";
 
   const handleLeaveGame = useCallback(async (): Promise<void> => {
     if (leavePending || sessionId === null) {
+      return;
+    }
+    if (readOnly) {
+      router.push("/");
       return;
     }
     setLeaveError(null);
@@ -700,7 +714,7 @@ export default function BoardPage(): React.JSX.Element {
     } finally {
       setLeavePending(false);
     }
-  }, [gameId, isAdmin, leavePending, router, sessionId]);
+  }, [gameId, isAdmin, leavePending, readOnly, router, sessionId]);
 
   // --- Render --------------------------------------------------------------
 
@@ -722,8 +736,6 @@ export default function BoardPage(): React.JSX.Element {
     fontSize: "0.9rem",
     background: "#f7f7f7",
   };
-
-  const readOnly = view.lifecycle === "ended";
 
   // Header status line, shared across every access decision.
   const header = (
@@ -777,38 +789,63 @@ export default function BoardPage(): React.JSX.Element {
             display: "flex",
             flexDirection: "column",
             gap: "0.5rem",
+            width: "100%",
+            maxWidth: "26rem",
+            boxSizing: "border-box",
             padding: "0.6rem",
             border: "1px solid #888",
             borderRadius: "0.5rem",
             background: "#fff",
           }}
         >
-          {!readOnly ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => void handleShareJoinCode()}
-              style={{ minHeight: "44px", textAlign: "left" }}
-            >
-              Share Join Code
-            </button>
-          ) : null}
-          {!readOnly ? (
+          {isAdmin && !readOnly ? (
             <button
               type="button"
               role="menuitem"
               onClick={() => {
-                setLeaveError(null);
-                setLeaveDialogOpen(true);
+                setEndGameError(null);
+                setEndGameDialogOpen(true);
+                setMenuOpen(false);
               }}
-              style={{ minHeight: "44px", textAlign: "left" }}
+              disabled={endGamePending}
+              style={{
+                minHeight: "44px",
+                textAlign: "left",
+                border: "1px solid #b00020",
+                color: "#ffffff",
+                background: "#b00020",
+                fontWeight: 700,
+              }}
             >
-              Leave Game
+              End Game
             </button>
           ) : null}
-          {shareStatus !== null ? (
-            <p role="status" style={{ margin: 0, fontSize: "0.85rem" }}>
-              {shareStatus}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              if (readOnly) {
+                router.push("/");
+                return;
+              }
+              setLeaveError(null);
+              setLeaveDialogOpen(true);
+              setMenuOpen(false);
+            }}
+            style={{
+              minHeight: "44px",
+              textAlign: "left",
+              border: "1px solid #b00020",
+              background: "#b00020",
+              color: "#ffffff",
+              fontWeight: 700,
+            }}
+          >
+            Leave Game
+          </button>
+          {endGameError !== null ? (
+            <p role="alert" style={{ margin: 0, color: "#b00020" }}>
+              {endGameError}
             </p>
           ) : null}
         </div>
@@ -821,7 +858,7 @@ export default function BoardPage(): React.JSX.Element {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 10,
+            zIndex: 1000,
             display: "grid",
             placeItems: "center",
             padding: "1rem",
@@ -996,45 +1033,6 @@ export default function BoardPage(): React.JSX.Element {
         </p>
       ) : null}
 
-      {isAdmin && !readOnly ? (
-        <section
-          aria-label="Game administration"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.5rem",
-            padding: "0.75rem",
-            border: "1px solid #b00020",
-            borderRadius: "0.5rem",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setEndGameError(null);
-              setEndGameDialogOpen(true);
-            }}
-            disabled={endGamePending}
-            style={{
-              minHeight: "44px",
-              width: "100%",
-              border: "1px solid #b00020",
-              borderRadius: "0.5rem",
-              background: "#fff5f5",
-              color: "#b00020",
-              fontWeight: 700,
-            }}
-          >
-            End Game
-          </button>
-          {endGameError !== null ? (
-            <p role="alert" style={{ margin: 0, color: "#b00020" }}>
-              {endGameError}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
       {endGameDialogOpen && isAdmin && !readOnly ? (
         <div
           role="dialog"
@@ -1043,7 +1041,7 @@ export default function BoardPage(): React.JSX.Element {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 10,
+            zIndex: 1000,
             display: "grid",
             placeItems: "center",
             padding: "1rem",
@@ -1067,6 +1065,11 @@ export default function BoardPage(): React.JSX.Element {
               Ending the game will stop gameplay for everyone and show the final
               scores. This cannot be undone.
             </p>
+            {endGameError !== null ? (
+              <p role="alert" style={{ color: "#b00020" }}>
+                {endGameError}
+              </p>
+            ) : null}
             <div
               style={{
                 display: "flex",

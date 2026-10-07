@@ -50,7 +50,7 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
     apply migrations `0001`–`0007` to the Supabase project, and enable Realtime on the
     `game_events` table. This connects the built backbone to a live Supabase instance.
 
-- [ ] **U0.1 — App shell, navigation & entry points.** The app's UI skeleton that every later
+- [x] **U0.1 — App shell, navigation & entry points.** The app's UI skeleton that every later
   feature plugs into: replace the foundation "baseline is running" splash with a real
   mobile-first landing page, app-wide layout/navigation, and the entry points into a game.
   This is the home for the decisions the `game-setup-lobby` spec deliberately left out of
@@ -67,6 +67,8 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
   - _Rationale: `game-setup-lobby` built the lobby pages/components and the six routes, but no
     landing page or join-by-code entry (out of that spec's scope). Without this, the lobby is
     only reachable by typing a URL by hand._
+  - _Done via the `app-shell-navigation` spec. The root shell, branded landing page,
+    join-by-code resolution, lobby prefill, and mobile viewport coverage are implemented._
 
 ## 1. Game Setup & Lobby
 
@@ -125,6 +127,15 @@ For product vision see `.kiro/steering/product.md`, for the finalized ruleset se
   in real time. The board owns durable mutations and renders live totals and claimed-bar
   counts. Reachable from the in-game view established by U1.1.
   - Depends on: F2.3, U1.1.
+
+- [x] **UAT — Active-game flow hardening.** Address the first UAT pass across the live board:
+  authoritative team rosters, host end-game behavior, in-game menu and leave flows,
+  authoritative join-code display/sharing, and integration/mobile validation.
+  - Depends on: U1.1, U2.1.
+  - _Done via `.kiro/specs/uat_feedback`. Participant leave removes the player and appends
+    `player_left`; host leave uses the atomic end-game transition; ended boards become
+    read-only; sharing uses the current game's lobby URL; focused, full, integration, lint,
+    type-check, formatting, and viewport validation pass._
 
 ## 3. Cards
 
