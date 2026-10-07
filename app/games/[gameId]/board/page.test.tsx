@@ -202,11 +202,6 @@ function seedPlayer(gameId: string, playerId = "player-1"): void {
   globalThis.localStorage.setItem(`bbb:player:${gameId}`, playerId);
 }
 
-/** Mark THIS session as the game's Admin (durable per-game fact). */
-function seedAdmin(gameId: string): void {
-  globalThis.localStorage.setItem(`bbb:admin:${gameId}`, mockSessionId);
-}
-
 // --- Snapshot event builders ------------------------------------------------
 //
 // The page seeds its GameBoardView by folding the snapshot with the pure

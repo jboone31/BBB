@@ -558,23 +558,24 @@ export default function BoardPage(): React.JSX.Element {
                     ? "Your team no longer claims this bar."
                     : "The claim was not saved. Please try again.",
           });
-            } else {
-              const client = createBrowserSupabaseClient();
-              if (client !== null) {
-                try {
-                  const events = await supabaseSnapshotSource(
-                    client,
-                  ).fetchEventsAscending(gameId);
-                  const refreshedView = foldGameBoardEvents(gameId, events);
-                  setView((current) =>
-                    refreshedView.lastSeenSequence >= current.lastSeenSequence
-                      ? refreshedView
-                      : current,
-                  );
-                } catch {
-                  // Realtime remains the primary update path if reconciliation fails.
-                }
-              }
+        } else {
+          const client = createBrowserSupabaseClient();
+          if (client !== null) {
+            try {
+              const events =
+                await supabaseSnapshotSource(client).fetchEventsAscending(
+                  gameId,
+                );
+              const refreshedView = foldGameBoardEvents(gameId, events);
+              setView((current) =>
+                refreshedView.lastSeenSequence >= current.lastSeenSequence
+                  ? refreshedView
+                  : current,
+              );
+            } catch {
+              // Realtime remains the primary update path if reconciliation fails.
+            }
+          }
         }
       } catch {
         setClaimMutationError({
@@ -740,8 +741,8 @@ export default function BoardPage(): React.JSX.Element {
       ) : null}
       {readOnly ? (
         <p role="status" style={noticeStyle}>
-          This game has ended. The map and scoreboard are available in
-          read-only mode.
+          This game has ended. The map and scoreboard are available in read-only
+          mode.
         </p>
       ) : null}
 
@@ -779,6 +780,7 @@ export default function BoardPage(): React.JSX.Element {
       {activeRegion === "scoreboard" ? (
         <ScoreboardRegion
           teams={view.teams}
+          players={view.players}
           scoreTotals={scoreTotals}
           claimedBarCounts={claimedBarCounts}
         />

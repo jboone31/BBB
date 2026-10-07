@@ -169,6 +169,18 @@ lifecycle behavior.
 - Add tests for populated teams, empty teams, membership updates, and stale or
   duplicate membership data.
 
+### Task 4 implementation notes
+
+- `GameBoardView` now folds `player_joined`, `team_changed`, and `player_left`
+  events into a canonical player projection, so initial snapshots and realtime
+  updates use the same membership state.
+- `ScoreboardRegion` renders each assigned player's display name under the
+  corresponding team, deduplicates repeated player records, and shows an
+  explicit empty-team state.
+- Membership projection and scoreboard coverage includes populated teams,
+  empty teams, duplicate membership data, unavailable team assignments, and
+  departures.
+
 ## 5. Add host end-game action
 
 - Add a host-only “End Game” control to the active-game interface.

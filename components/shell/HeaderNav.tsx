@@ -26,6 +26,7 @@
  */
 
 import Link from "next/link";
+import Image from "next/image";
 
 /**
  * Intrinsic logo dimensions used to reserve layout space (avoids layout shift).
@@ -65,7 +66,7 @@ export default function HeaderNav(): React.JSX.Element {
           maxWidth: "100%",
         }}
       >
-        <img
+        <Image
           src="/BBB_logo.png"
           alt="Beltline Bar Brawl"
           width={LOGO_WIDTH}
