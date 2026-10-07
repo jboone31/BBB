@@ -399,6 +399,67 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
       screen.getByText(/map and scoreboard are available in read-only mode/i),
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: /map/i })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Share Join Code" }),
+    ).toBeNull();
+  });
+
+  it("R7.1/R7.4: shows the authoritative join code and shares the current lobby URL", async () => {
+    const gameId = "game-share";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    const shareMock = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { share: shareMock });
+
+    render(<BoardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ABCD12")).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Share Join Code" }));
+
+    await waitFor(() => {
+      expect(shareMock).toHaveBeenCalledWith({
+        title: "Beltline Bar Brawl",
+        text: "Join Beltline Bar Brawl with code ABCD12",
+        url: `http://localhost:3000/games/${gameId}/lobby?code=ABCD12`,
+      });
+      expect(screen.getByText(/join code ready to share/i)).not.toBeNull();
+    });
+  });
+
+  it("R7.2/R7.3: copies the current lobby URL when Web Share is unavailable", async () => {
+    const gameId = "game-share-clipboard";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText: writeTextMock } });
+
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(screen.getByText("ABCD12")).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Share Join Code" }));
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(
+        `http://localhost:3000/games/${gameId}/lobby?code=ABCD12`,
+      );
+      expect(screen.getByText(/join code ready to share/i)).not.toBeNull();
+    });
   });
 
   it("R5.1/R5.3: the host can cancel or confirm ending the live game", async () => {

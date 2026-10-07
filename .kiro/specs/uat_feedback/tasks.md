@@ -258,6 +258,15 @@ lifecycle behavior.
 - Add tests for top-bar rendering, share success, share cancellation/failure,
   clipboard fallback, and active-game identity.
 
+### Task 7 implementation notes
+
+- The active board header now displays the authoritative folded join code in a
+  mobile-safe row beneath the game title and menu control.
+- Sharing uses the existing share-link helper to publish the current game's
+  lobby URL with its join code through Web Share, with a clipboard URL fallback.
+- Share success and cancellation/failure feedback remains visible in the menu;
+  ended boards do not expose an active share action.
+
 ## 8. Validate integration and mobile UX
 
 - Run focused unit/component tests for all changed modules, then run the existing

@@ -95,6 +95,7 @@ import {
 } from "@/lib/gameboard/region";
 
 import { foldLobbyEvents } from "@/lib/lobby/events";
+import { buildShareLink } from "@/lib/lobby/shareLink";
 import { WIREFRAME_TEAMS } from "@/lib/map/claims";
 
 import type { GameEvent } from "@/lib/events";
@@ -640,16 +641,27 @@ export default function BoardPage(): React.JSX.Element {
   }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
 
   const handleShareJoinCode = useCallback(async (): Promise<void> => {
-    if (view.joinCode === null) {
+    if (view.joinCode === null || view.lifecycle !== "live") {
       setShareStatus("Join code is not available.");
       return;
     }
+    const shareLink = buildShareLink(
+      typeof window === "undefined" ? null : window.location.origin,
+      gameId,
+      view.joinCode,
+    );
     const text = `Join Beltline Bar Brawl with code ${view.joinCode}`;
     try {
       if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({ title: "Beltline Bar Brawl", text });
+        await navigator.share({
+          title: "Beltline Bar Brawl",
+          text,
+          url: shareLink.absolute ?? shareLink.path,
+        });
       } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(view.joinCode);
+        await navigator.clipboard.writeText(
+          shareLink.absolute ?? shareLink.path,
+        );
       } else {
         throw new Error("clipboard unavailable");
       }
@@ -659,7 +671,7 @@ export default function BoardPage(): React.JSX.Element {
         "Sharing was cancelled or unavailable. The join code remains available.",
       );
     }
-  }, [view.joinCode]);
+  }, [gameId, view.joinCode, view.lifecycle]);
 
   const handleLeaveGame = useCallback(async (): Promise<void> => {
     if (leavePending || sessionId === null) {
@@ -730,6 +742,27 @@ export default function BoardPage(): React.JSX.Element {
           ☰
         </button>
       </div>
+      <div
+        aria-label="Game join code"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          minWidth: 0,
+          fontSize: "0.9rem",
+        }}
+      >
+        <span>Join code:</span>
+        <strong
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            letterSpacing: "0.08em",
+          }}
+        >
+          {view.joinCode ?? "Unavailable"}
+        </strong>
+      </div>
       <p
         role="status"
         aria-live="polite"
@@ -750,14 +783,16 @@ export default function BoardPage(): React.JSX.Element {
             background: "#fff",
           }}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => void handleShareJoinCode()}
-            style={{ minHeight: "44px", textAlign: "left" }}
-          >
-            Share Join Code
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void handleShareJoinCode()}
+              style={{ minHeight: "44px", textAlign: "left" }}
+            >
+              Share Join Code
+            </button>
+          ) : null}
           {!readOnly ? (
             <button
               type="button"
