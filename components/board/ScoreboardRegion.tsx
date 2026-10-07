@@ -37,7 +37,7 @@
  * border-box`, `width: 100%`, `maxWidth: 100%`).
  */
 
-import type { BoardTeamView } from "@/lib/gameboard/events";
+import type { BoardPlayerView, BoardTeamView } from "@/lib/gameboard/events";
 
 export interface ScoreboardRegionProps {
   /**
@@ -45,6 +45,7 @@ export interface ScoreboardRegionProps {
    * from the folded {@link import("@/lib/gameboard/events").GameBoardView}.
    */
   readonly teams: readonly BoardTeamView[];
+  readonly players?: readonly BoardPlayerView[];
   readonly scoreTotals?: Readonly<Record<string, number>>;
   readonly claimedBarCounts?: Readonly<Record<string, number>>;
 }
@@ -52,9 +53,17 @@ export interface ScoreboardRegionProps {
 /** The placeholder score stand-in shown on every row (R4.3 — not a real score). */
 export default function ScoreboardRegion({
   teams,
+  players = [],
   scoreTotals = {},
   claimedBarCounts = {},
 }: ScoreboardRegionProps): React.JSX.Element {
+  const playersById = new Map<string, BoardPlayerView>();
+  for (const player of players) {
+    if (!playersById.has(player.id)) {
+      playersById.set(player.id, player);
+    }
+  }
+
   return (
     <section
       aria-label="Scoreboard"
@@ -62,6 +71,7 @@ export default function ScoreboardRegion({
         display: "flex",
         flexDirection: "column",
         gap: "0.75rem",
+        flexWrap: "wrap",
         width: "100%",
         maxWidth: "100%",
       }}
@@ -153,6 +163,32 @@ export default function ScoreboardRegion({
             >
               {claimedBarCounts[team.id] ?? 0} claimed
             </span>
+            <div
+              aria-label={`${team.name} roster`}
+              data-testid="team-roster"
+              style={{
+                flex: "1 1 100%",
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.15rem",
+                fontSize: "0.8rem",
+              }}
+            >
+              <strong>Players</strong>
+              {Array.from(playersById.values())
+                .filter((player) => player.teamId === team.id)
+                .map((player) => (
+                  <span key={player.id} data-testid="team-player">
+                    {player.displayName}
+                  </span>
+                ))}
+              {!Array.from(playersById.values()).some(
+                (player) => player.teamId === team.id,
+              ) ? (
+                <span data-testid="empty-team">No players assigned</span>
+              ) : null}
+            </div>
           </div>
         ))}
       </div>

@@ -138,6 +138,11 @@ type ClaimResponse =
   | { applied: true; seq?: number | null; result?: unknown }
   | { applied: false; error: string };
 
+type EndGameResponse =
+  { applied: true; seq: number } | { applied: false; error: string };
+type LeaveGameResponse =
+  { applied: true; seq: number } | { applied: false; error: string };
+
 /** Per-game durable local facts key helpers (survive reload, mirror the lobby). */
 const adminFlagKey = (gameId: string): string => `bbb:admin:${gameId}`;
 const playerIdKey = (gameId: string): string => `bbb:player:${gameId}`;
@@ -181,6 +186,36 @@ export default function BoardPage(): React.JSX.Element {
   const [view, setView] = useState<GameBoardView>(() =>
     initialGameBoardView(gameId),
   );
+  const refreshRoster = useCallback(async (): Promise<void> => {
+    if (sessionId === null) {
+      return;
+    }
+    const response = await fetch(`/api/games/${gameId}/teams`, {
+      headers: { "x-bbb-session-id": sessionId },
+    });
+    if (!response.ok) {
+      throw new Error("roster_could_not_be_loaded");
+    }
+    const payload = (await response.json()) as {
+      teams?: GameBoardView["teams"];
+      players?: GameBoardView["players"];
+    };
+    if (!Array.isArray(payload.teams) || !Array.isArray(payload.players)) {
+      throw new Error("roster_could_not_be_loaded");
+    }
+    setView((current) => ({
+      ...current,
+      teams: payload.teams ?? current.teams,
+      players: payload.players ?? current.players,
+    }));
+    if (myPlayerId !== null) {
+      const currentPlayer = payload.players.find(
+        (player) => player.id === myPlayerId,
+      );
+      setPlayerResolvedInSnapshot(currentPlayer !== undefined);
+      setMyTeamId(currentPlayer?.teamId ?? null);
+    }
+  }, [gameId, myPlayerId, sessionId]);
   // Whether the initial event snapshot has been fetched and folded. Until
   // this is true, view.lifecycle is still the initial "lobby" placeholder and
   // does NOT reflect the game's actual lifecycle, so the access gate must not
@@ -216,6 +251,13 @@ export default function BoardPage(): React.JSX.Element {
     barId: string;
     message: string;
   } | null>(null);
+  const [endGameDialogOpen, setEndGameDialogOpen] = useState(false);
+  const [endGamePending, setEndGamePending] = useState(false);
+  const [endGameError, setEndGameError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [leavePending, setLeavePending] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -393,6 +435,19 @@ export default function BoardPage(): React.JSX.Element {
                     ?.teamId ?? null;
                 setMyTeamId(teamId);
               }
+              if (
+                snapshotEvents.some((event) =>
+                  ["player_joined", "team_changed", "player_left"].includes(
+                    event.eventType,
+                  ),
+                )
+              ) {
+                void refreshRoster().catch(() => {
+                  if (!cancelled) {
+                    setStatus("error");
+                  }
+                });
+              }
             },
           },
         });
@@ -420,7 +475,7 @@ export default function BoardPage(): React.JSX.Element {
         void sub.close();
       }
     };
-  }, [gameId, configured, sessionId]);
+  }, [gameId, configured, sessionId, refreshRoster]);
 
   // --- Derived role / access ----------------------------------------------
   const isPlayer = myPlayerId !== null;
@@ -558,23 +613,25 @@ export default function BoardPage(): React.JSX.Element {
                     ? "Your team no longer claims this bar."
                     : "The claim was not saved. Please try again.",
           });
-            } else {
-              const client = createBrowserSupabaseClient();
-              if (client !== null) {
-                try {
-                  const events = await supabaseSnapshotSource(
-                    client,
-                  ).fetchEventsAscending(gameId);
-                  const refreshedView = foldGameBoardEvents(gameId, events);
-                  setView((current) =>
-                    refreshedView.lastSeenSequence >= current.lastSeenSequence
-                      ? refreshedView
-                      : current,
-                  );
-                } catch {
-                  // Realtime remains the primary update path if reconciliation fails.
-                }
-              }
+        } else {
+          const client = createBrowserSupabaseClient();
+          if (client !== null) {
+            try {
+              const events =
+                await supabaseSnapshotSource(client).fetchEventsAscending(
+                  gameId,
+                );
+
+              const refreshedView = foldGameBoardEvents(gameId, events);
+              setView((current) =>
+                refreshedView.lastSeenSequence >= current.lastSeenSequence
+                  ? refreshedView
+                  : current,
+              );
+            } catch {
+              // Realtime remains the primary update path if reconciliation fails.
+            }
+          }
         }
       } catch {
         setClaimMutationError({
@@ -587,6 +644,77 @@ export default function BoardPage(): React.JSX.Element {
     },
     [gameId, pendingClaimBarId, sessionId],
   );
+
+  const handleEndGame = useCallback(async (): Promise<void> => {
+    if (
+      !isAdmin ||
+      view.lifecycle !== "live" ||
+      sessionId === null ||
+      endGamePending
+    ) {
+      return;
+    }
+
+    setEndGameError(null);
+    setEndGamePending(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}/end`, {
+        method: "POST",
+        headers: { [SESSION_HEADER]: sessionId },
+      });
+      const body = (await response.json()) as EndGameResponse;
+      if (!body.applied) {
+        setEndGameError(
+          body.error.includes("cannot be ended")
+            ? "The game could not be ended because its state has changed."
+            : "The game could not be ended. Please try again.",
+        );
+        return;
+      }
+
+      setEndGameDialogOpen(false);
+      setView((current) => ({ ...current, lifecycle: "ended" }));
+    } catch {
+      setEndGameError("The game could not be ended. Please try again.");
+    } finally {
+      setEndGamePending(false);
+    }
+  }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
+
+  const readOnly = view.lifecycle === "ended";
+
+  const handleLeaveGame = useCallback(async (): Promise<void> => {
+    if (leavePending || sessionId === null) {
+      return;
+    }
+    if (readOnly) {
+      router.push("/");
+      return;
+    }
+    setLeaveError(null);
+    setLeavePending(true);
+    try {
+      const response = await fetch(
+        isAdmin ? `/api/games/${gameId}/end` : `/api/games/${gameId}/leave`,
+        {
+          method: "POST",
+          headers: { [SESSION_HEADER]: sessionId },
+        },
+      );
+      const body = (await response.json()) as LeaveGameResponse;
+      if (!body.applied) {
+        setLeaveError("You could not leave the game. Please try again.");
+        return;
+      }
+      setLeaveDialogOpen(false);
+      setMenuOpen(false);
+      router.push("/");
+    } catch {
+      setLeaveError("You could not leave the game. Please try again.");
+    } finally {
+      setLeavePending(false);
+    }
+  }, [gameId, isAdmin, leavePending, readOnly, router, sessionId]);
 
   // --- Render --------------------------------------------------------------
 
@@ -611,10 +739,42 @@ export default function BoardPage(): React.JSX.Element {
 
   // Header status line, shared across every access decision.
   const header = (
-    <header
-      style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
-    >
-      <h1 style={{ margin: 0, fontSize: "1.35rem" }}>Beltline Bar Brawl</h1>
+    <header style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.35rem", flex: "1 1 auto" }}>
+          Beltline Bar Brawl
+        </h1>
+        <button
+          type="button"
+          aria-label="Open game menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          style={{ minWidth: "44px", minHeight: "44px", fontSize: "1.25rem" }}
+        >
+          ☰
+        </button>
+      </div>
+      <div
+        aria-label="Game join code"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          minWidth: 0,
+          fontSize: "0.9rem",
+        }}
+      >
+        <span>Join code:</span>
+        <strong
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            letterSpacing: "0.08em",
+          }}
+        >
+          {view.joinCode ?? "Unavailable"}
+        </strong>
+      </div>
       <p
         role="status"
         aria-live="polite"
@@ -622,6 +782,135 @@ export default function BoardPage(): React.JSX.Element {
       >
         {`Game board · ${status}`}
       </p>
+      {menuOpen ? (
+        <div
+          role="menu"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            width: "100%",
+            maxWidth: "26rem",
+            boxSizing: "border-box",
+            padding: "0.6rem",
+            border: "1px solid #888",
+            borderRadius: "0.5rem",
+            background: "#fff",
+          }}
+        >
+          {isAdmin && !readOnly ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setEndGameError(null);
+                setEndGameDialogOpen(true);
+                setMenuOpen(false);
+              }}
+              disabled={endGamePending}
+              style={{
+                minHeight: "44px",
+                textAlign: "left",
+                border: "1px solid #b00020",
+                color: "#ffffff",
+                background: "#b00020",
+                fontWeight: 700,
+              }}
+            >
+              End Game
+            </button>
+          ) : null}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              if (readOnly) {
+                router.push("/");
+                return;
+              }
+              setLeaveError(null);
+              setLeaveDialogOpen(true);
+              setMenuOpen(false);
+            }}
+            style={{
+              minHeight: "44px",
+              textAlign: "left",
+              border: "1px solid #b00020",
+              background: "#b00020",
+              color: "#ffffff",
+              fontWeight: 700,
+            }}
+          >
+            Leave Game
+          </button>
+          {endGameError !== null ? (
+            <p role="alert" style={{ margin: 0, color: "#b00020" }}>
+              {endGameError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {leaveDialogOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-game-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            background: "rgba(0, 0, 0, 0.45)",
+          }}
+        >
+          <section
+            style={{
+              width: "100%",
+              maxWidth: "24rem",
+              padding: "1rem",
+              background: "#fff",
+              borderRadius: "0.75rem",
+            }}
+          >
+            <h2 id="leave-game-title">Leave game?</h2>
+            <p>
+              {isAdmin
+                ? "Leaving will end the game for everyone and show the final scores."
+                : "You will leave this game and disappear from your team roster. The game will continue for everyone else."}
+            </p>
+            {leaveError !== null ? <p role="alert">{leaveError}</p> : null}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveDialogOpen(false);
+                  setLeaveError(null);
+                }}
+                disabled={leavePending}
+                style={{ minHeight: "44px" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLeaveGame()}
+                disabled={leavePending}
+                style={{ minHeight: "44px" }}
+              >
+                {leavePending ? "Leaving…" : "Leave Game"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </header>
   );
 
@@ -691,7 +980,6 @@ export default function BoardPage(): React.JSX.Element {
 
   // Both live and ended games render the board. Ended games remain available
   // for final map/score inspection, but gameplay mutations are read-only.
-  const readOnly = view.lifecycle === "ended";
   return (
     <main style={containerStyle}>
       {header}
@@ -740,9 +1028,87 @@ export default function BoardPage(): React.JSX.Element {
       ) : null}
       {readOnly ? (
         <p role="status" style={noticeStyle}>
-          This game has ended. The map and scoreboard are available in
-          read-only mode.
+          This game has ended. The map and scoreboard are available in read-only
+          mode.
         </p>
+      ) : null}
+
+      {endGameDialogOpen && isAdmin && !readOnly ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="end-game-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            background: "rgba(0, 0, 0, 0.45)",
+          }}
+        >
+          <section
+            style={{
+              width: "100%",
+              maxWidth: "24rem",
+              padding: "1rem",
+              borderRadius: "0.75rem",
+              background: "#ffffff",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2 id="end-game-title" style={{ marginTop: 0 }}>
+              End game?
+            </h2>
+            <p>
+              Ending the game will stop gameplay for everyone and show the final
+              scores. This cannot be undone.
+            </p>
+            {endGameError !== null ? (
+              <p role="alert" style={{ color: "#b00020" }}>
+                {endGameError}
+              </p>
+            ) : null}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setEndGameDialogOpen(false);
+                  setEndGameError(null);
+                }}
+                disabled={endGamePending}
+                style={{ minHeight: "44px", padding: "0.5rem 0.75rem" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleEndGame();
+                }}
+                disabled={endGamePending}
+                style={{
+                  minHeight: "44px",
+                  padding: "0.5rem 0.75rem",
+                  border: "1px solid #b00020",
+                  borderRadius: "0.5rem",
+                  background: "#b00020",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
+              >
+                {endGamePending ? "Ending…" : "End Game"}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {/* Targeted notifications for the current Team (R7.3/R7.8). Rendered above
@@ -779,6 +1145,7 @@ export default function BoardPage(): React.JSX.Element {
       {activeRegion === "scoreboard" ? (
         <ScoreboardRegion
           teams={view.teams}
+          players={view.players}
           scoreTotals={scoreTotals}
           claimedBarCounts={claimedBarCounts}
         />

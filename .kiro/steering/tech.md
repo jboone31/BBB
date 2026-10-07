@@ -23,10 +23,17 @@ technical direction. The AWS hosting alternative remains a documented fallback._
 
 The core v0 problem was latency — card plays reached opposing teams up to 15 minutes late.
 The v1 approach: an **append-only `game_events` log** in Postgres. Clients subscribe via
-**Supabase Realtime Postgres-changes** on that table, so every state change (card plays,
-bar claims, targeting/notifications, score updates) propagates to all clients in near real
-time. Server routes write the domain change and append the corresponding event in a single
+**Supabase Realtime Postgres-changes** on that table, so every state change (membership joins,
+team assignments, departures, game start/end, card plays, bar claims,
+targeting/notifications, and score updates) propagates to all clients in near real time.
+Server routes write the domain change and append the corresponding event in a single
 transaction, keeping state and the event log consistent.
+
+The active board folds the event stream into one authoritative client projection. This keeps
+initial snapshots, reconnects, and live events consistent for rosters, join-code identity,
+lifecycle/read-only state, scores, claims, and notifications. Participant departure uses an
+authorized transactional removal plus `player_left`; host departure reuses the atomic
+live-to-ended transition.
 
 ## Fallback / Deferred
 

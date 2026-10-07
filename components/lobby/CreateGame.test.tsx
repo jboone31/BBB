@@ -139,3 +139,37 @@ describe("CreateGame emits a valid submission with trimmed values (R1.5)", () =>
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("CreateGame bar pickers support touch-safe option menus", () => {
+  it("opens each picker and selects its option", () => {
+    render(<CreateGame onCreate={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /show start bar options/i }),
+    );
+    expect(
+      screen.getByRole("listbox", { name: /start bar options/i }),
+    ).not.toBeNull();
+    fireEvent.click(screen.getByRole("option", { name: "Park Tavern" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /show finish bar options/i }),
+    );
+    expect(
+      screen.getByRole("listbox", { name: /finish bar options/i }),
+    ).not.toBeNull();
+    fireEvent.click(
+      screen.getByRole("option", { name: "New Realm Brewing Company" }),
+    );
+
+    expect(
+      (screen.getByRole("textbox", { name: /start bar/i }) as HTMLInputElement)
+        .value,
+    ).toBe("Park Tavern");
+    expect(
+      (screen.getByRole("textbox", { name: /finish bar/i }) as HTMLInputElement)
+        .value,
+    ).toBe("New Realm Brewing Company");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});

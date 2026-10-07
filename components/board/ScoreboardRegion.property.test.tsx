@@ -37,6 +37,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fc from "fast-check";
 
 import type { BoardTeamView } from "@/lib/gameboard/events";
+import type { BoardPlayerView } from "@/lib/gameboard/events";
 
 import ScoreboardRegion from "./ScoreboardRegion";
 
@@ -160,5 +161,29 @@ describe("Feature: in-game-landing-wireframe, Property 6: Scoreboard renders one
     expect(
       rows[1]?.querySelector('[data-testid="claimed-bars"]')?.textContent,
     ).toBe("0 claimed");
+  });
+
+  it("renders each assigned player once and labels empty teams", () => {
+    const teams: readonly BoardTeamView[] = [
+      { id: "team-a", name: "Red", color: "#f00" },
+      { id: "team-b", name: "Blue", color: "#00f" },
+    ];
+    const players: readonly BoardPlayerView[] = [
+      { id: "p1", displayName: "Alex", teamId: "team-a" },
+      { id: "p1", displayName: "Alex duplicate", teamId: "team-b" },
+    ];
+
+    const { container } = render(
+      <ScoreboardRegion teams={teams} players={players} />,
+    );
+
+    const rows = container.querySelectorAll('[data-testid="scoreboard-row"]');
+    expect(
+      rows[0]?.querySelectorAll('[data-testid="team-player"]'),
+    ).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain("Alex");
+    expect(
+      rows[1]?.querySelector('[data-testid="empty-team"]')?.textContent,
+    ).toBe("No players assigned");
   });
 });

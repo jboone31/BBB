@@ -85,6 +85,134 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid #888",
 };
 
+interface BarPickerProps {
+  readonly label: string;
+  readonly name: string;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly disabled: boolean;
+  readonly onChange: (value: string) => void;
+}
+
+/**
+ * A text input with an explicit touch-safe option menu. Native `datalist`
+ * rendering is inconsistent across mobile browsers, so the menu is rendered
+ * by the application while keeping free-text input for validation feedback and
+ * keyboard users.
+ */
+function BarPicker({
+  label,
+  name,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: BarPickerProps): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const menuId = `${name}-options`;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.3rem",
+        position: "relative",
+      }}
+    >
+      <label htmlFor={name} style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+        {label}
+      </label>
+      <div style={{ display: "flex", width: "100%", maxWidth: "100%" }}>
+        <input
+          id={name}
+          type="text"
+          name={name}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+          disabled={disabled}
+          style={{ ...inputStyle, flex: "1 1 auto", minWidth: 0 }}
+          role="textbox"
+          aria-controls={menuId}
+        />
+        <button
+          type="button"
+          aria-label={`Show ${label.toLowerCase()} options`}
+          aria-controls={menuId}
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => setOpen((current) => !current)}
+          style={{
+            flex: "0 0 auto",
+            minWidth: TOUCH_TARGET,
+            minHeight: TOUCH_TARGET,
+            padding: "0 0.65rem",
+            border: "1px solid #888",
+            borderLeft: 0,
+            borderRadius: "0 0.5rem 0.5rem 0",
+            background: "#f2f2f2",
+            color: "#1a1a1a",
+            fontSize: "1rem",
+            cursor: disabled ? "not-allowed" : "pointer",
+          }}
+        >
+          ▾
+        </button>
+      </div>
+      {open ? (
+        <div
+          id={menuId}
+          role="listbox"
+          aria-label={`${label} options`}
+          style={{
+            position: "absolute",
+            zIndex: 2,
+            top: "calc(100% + 0.2rem)",
+            left: 0,
+            right: 0,
+            maxHeight: "16rem",
+            overflowY: "auto",
+            border: "1px solid #888",
+            borderRadius: "0.5rem",
+            background: "#ffffff",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.18)",
+          }}
+        >
+          {barOptions.map((barName) => (
+            <button
+              key={barName}
+              type="button"
+              role="option"
+              aria-selected={value === barName}
+              onClick={() => {
+                onChange(barName);
+                setOpen(false);
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                minHeight: TOUCH_TARGET,
+                padding: "0.65rem 0.75rem",
+                border: 0,
+                borderBottom: "1px solid #eee",
+                background: value === barName ? "#e8f0fe" : "#ffffff",
+                color: "#1a1a1a",
+                textAlign: "left",
+                fontSize: "1rem",
+                cursor: "pointer",
+              }}
+            >
+              {barName}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CreateGame({
   onCreate,
   submitting = false,
@@ -179,48 +307,23 @@ export default function CreateGame({
         noValidate
         style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
       >
-        <label
-          style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
-        >
-          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Start bar</span>
-          <input
-            type="text"
-            name="startBarName"
-            value={startBarName}
-            onChange={(e) => setStartBarName(e.target.value)}
-            placeholder="e.g. Ladybird Grove"
-            autoComplete="off"
-            disabled={submitting}
-            style={inputStyle}
-            list="available-bars"
-            role="textbox"
-          />
-          <datalist id="available-bars">
-            {barOptions.map((barName) => (
-              <option key={barName} value={barName} />
-            ))}
-          </datalist>
-        </label>
+        <BarPicker
+          label="Start bar"
+          name="startBarName"
+          value={startBarName}
+          onChange={setStartBarName}
+          placeholder="e.g. Ladybird Grove"
+          disabled={submitting}
+        />
 
-        <label
-          style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
-        >
-          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-            Finish bar
-          </span>
-          <input
-            type="text"
-            name="finishBarName"
-            value={finishBarName}
-            onChange={(e) => setFinishBarName(e.target.value)}
-            placeholder="e.g. New Realm Brewing"
-            autoComplete="off"
-            disabled={submitting}
-            style={inputStyle}
-            list="available-bars"
-            role="textbox"
-          />
-        </label>
+        <BarPicker
+          label="Finish bar"
+          name="finishBarName"
+          value={finishBarName}
+          onChange={setFinishBarName}
+          placeholder="e.g. New Realm Brewing"
+          disabled={submitting}
+        />
 
         <label
           style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}

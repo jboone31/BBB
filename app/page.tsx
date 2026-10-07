@@ -22,6 +22,7 @@
 
 import HostEntry from "@/components/shell/HostEntry";
 import JoinEntry from "@/components/shell/JoinEntry";
+import Image from "next/image";
 
 /** The BBB tagline shown in the landing hero (R2.2). */
 const TAGLINE = "Race the Beltline. Claim the bars.";
@@ -55,11 +56,12 @@ export default function HomePage(): React.JSX.Element {
           color: "#1a1a1a",
         }}
       >
-        <img
+        <Image
           src="/BBB_logo.png"
           alt="Beltline Bar Brawl"
           width={120}
           height={120}
+          priority
           style={{ height: "auto", maxWidth: "60%" }}
         />
         <h1 style={{ margin: 0, fontSize: "1.6rem", lineHeight: 1.2 }}>

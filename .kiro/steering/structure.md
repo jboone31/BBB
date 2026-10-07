@@ -61,11 +61,15 @@ lib/
   env/        # startup env loading + validation (fail fast on missing config)
   scoring/    # bar point-split scoring
   gameend/    # game-end / winner determination
-  events/     # append-only game_events log helpers
-  realtime/   # Supabase Realtime subscription helpers
-  db/         # transactional server writes (postgres.js) + client access
-  games/      # game domain operations
-  claims/     # bar-claim domain operations
+ gameboard/  # live board projection, access decisions, and event folding
+ lobby/      # lobby projection, join-code, and share-link helpers
+ events/     # append-only game_events log helpers
+ realtime/   # Supabase Realtime subscription helpers
+ db/         # transactional server writes (postgres.js) + client access
+ games/      # game domain operations
+ claims/     # bar-claim domain operations
+ map/        # candidate bars, map claims, and marker projection helpers
+ session/    # browser/session identity bridge
 ```
 
 ### `supabase/` — database + backend config

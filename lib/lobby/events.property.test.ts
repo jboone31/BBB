@@ -333,4 +333,78 @@ describe("lobby events — Lobby reducer applies each event once, in order (Prop
     // Applying once == applying with duplicates.
     expect(withDupes).toEqual(foldLobbyEvents(gameId, [e1, e2]));
   });
+
+  it("retains a team included in the game-created snapshot payload", () => {
+    const view = foldLobbyEvents("game-created-team", [
+      {
+        id: "created",
+        gameId: "game-created-team",
+        seq: 1,
+        eventType: LOBBY_EVENT_TYPES.gameCreated,
+        actorKind: "admin",
+        actorTeamId: null,
+        payload: {
+          joinCode: "ABCD12",
+          teamId: "team-red",
+          name: "Red",
+          color: "#f00",
+        },
+        createdAt: new Date(1).toISOString(),
+      },
+    ]);
+
+    expect(view.teams).toEqual([
+      { id: "team-red", name: "Red", color: "#f00", playerIds: [] },
+    ]);
+  });
+
+  it("removes departed players from the current roster", () => {
+    const view = foldLobbyEvents("player-left", [
+      {
+        id: "joined",
+        gameId: "player-left",
+        seq: 1,
+        eventType: LOBBY_EVENT_TYPES.playerJoined,
+        actorKind: "team",
+        actorTeamId: null,
+        payload: { playerId: "p1", displayName: "Ada" },
+        createdAt: new Date(1).toISOString(),
+      },
+      {
+        id: "team",
+        gameId: "player-left",
+        seq: 2,
+        eventType: LOBBY_EVENT_TYPES.teamCreated,
+        actorKind: "team",
+        actorTeamId: null,
+        payload: { teamId: "red", name: "Red", color: "#f00" },
+        createdAt: new Date(2).toISOString(),
+      },
+      {
+        id: "assigned",
+        gameId: "player-left",
+        seq: 3,
+        eventType: LOBBY_EVENT_TYPES.teamChanged,
+        actorKind: "team",
+        actorTeamId: "red",
+        payload: { playerId: "p1", fromTeamId: null, toTeamId: "red" },
+        createdAt: new Date(3).toISOString(),
+      },
+      {
+        id: "left",
+        gameId: "player-left",
+        seq: 4,
+        eventType: LOBBY_EVENT_TYPES.playerLeft,
+        actorKind: "team",
+        actorTeamId: null,
+        payload: { playerId: "p1" },
+        createdAt: new Date(4).toISOString(),
+      },
+    ]);
+
+    expect(view.players).toEqual([]);
+    expect(view.teams).toEqual([
+      { id: "red", name: "Red", color: "#f00", playerIds: [] },
+    ]);
+  });
 });

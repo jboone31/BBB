@@ -1,18 +1,18 @@
+"use client";
+
 /**
  * Header_Nav (design §Components 3; Task 2.1; Requirements 1.2, 1.3, 1.4, 1.6).
  *
  * The small persistent header the App_Shell renders above every page's content
- * (mounted once in the root layout). It is a plain server component — no client
- * state or handlers — with the whole brand row wrapped in a Next.js `<Link>` so
- * activating it navigates home. `<Link>` handles the client-side navigation on
- * its own, so no `"use client"` is needed.
+ * (mounted once in the root layout). The brand row links home outside an active
+ * game; on the board, the board menu owns navigation and leave actions.
  *
  * Requirement mapping:
  *  - R1.2: renders the BBB logo from the served asset path `/BBB_logo.png`
  *          (the project logo relocated into `public/` so Next.js serves it).
  *  - R1.3: renders the BBB tagline text.
- *  - R1.4: the brand row is wrapped in `<Link href="/">`, so activating it
- *          navigates to the Landing_Page at `/`.
+ *  - R1.4: outside an active board, the brand row is wrapped in
+ *          `<Link href="/">`, so activating it navigates to the Landing_Page.
  *  - R1.6: applies the BBB brand colors to the header background and text.
  *
  * Brand styling mirrors HostEntry / the lobby primary-button convention (dark
@@ -25,7 +25,9 @@
  * not force horizontal scroll on its own.
  */
 
+import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 /**
  * Intrinsic logo dimensions used to reserve layout space (avoids layout shift).
@@ -39,6 +41,34 @@ const LOGO_HEIGHT = 40;
 const TAGLINE = "Race the Beltline. Claim the bars.";
 
 export default function HeaderNav(): React.JSX.Element {
+  const pathname = usePathname();
+  const isBoardRoute = /\/games\/[^/]+\/board(?:\/|$)/.test(pathname);
+  const brand = (
+    <>
+      <Image
+        src="/BBB_logo.png"
+        alt="Beltline Bar Brawl"
+        width={LOGO_WIDTH}
+        height={LOGO_HEIGHT}
+        style={{
+          flex: "0 0 auto",
+          height: "auto",
+          maxWidth: "100%",
+        }}
+      />
+      <span
+        style={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          fontWeight: 600,
+        }}
+      >
+        {TAGLINE}
+      </span>
+    </>
+  );
+
   return (
     <header
       style={{
@@ -52,44 +82,34 @@ export default function HeaderNav(): React.JSX.Element {
         padding: "0.6rem 1rem",
       }}
     >
-      <Link
-        href="/"
-        aria-label="Beltline Bar Brawl home"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.6rem",
-          // Inherit the header's brand text color; strip the default underline.
-          color: "inherit",
-          textDecoration: "none",
-          maxWidth: "100%",
-        }}
-      >
-        <img
-          src="/BBB_logo.png"
-          alt="Beltline Bar Brawl"
-          width={LOGO_WIDTH}
-          height={LOGO_HEIGHT}
+      {isBoardRoute ? (
+        <div
+          aria-label="Beltline Bar Brawl in-game"
           style={{
-            // Cap the rendered size on narrow screens while preserving aspect
-            // ratio; the width/height attrs above still reserve the space.
-            flex: "0 0 auto",
-            height: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
             maxWidth: "100%",
           }}
-        />
-        <span
+        >
+          {brand}
+        </div>
+      ) : (
+        <Link
+          href="/"
+          aria-label="Beltline Bar Brawl home"
           style={{
-            // Let the tagline shrink/wrap rather than push the header wide.
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            color: "inherit",
+            textDecoration: "none",
+            maxWidth: "100%",
           }}
         >
-          {TAGLINE}
-        </span>
-      </Link>
+          {brand}
+        </Link>
+      )}
     </header>
   );
 }

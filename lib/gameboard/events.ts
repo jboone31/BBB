@@ -38,6 +38,9 @@ import type { GameEvent } from "@/lib/events";
  *
  *   - `game_created`         — a Game was created (carries Team-less game facts).
  *   - `team_created`         — a Team was created with a name + color (R4.1, R4.2).
+ *   - `player_joined`        — a Player joined the Game (R4.4).
+ *   - `team_changed`         — a Player joined or switched Teams (R4.4).
+ *   - `player_left`          — a Player left the Game (R4.4).
  *   - `game_started`         — the Game transitioned `lobby → live`.
  *   - `game_ended`           — the Game transitioned to `ended` (R1.4).
  *   - `wireframe_card_played`— a wireframe targeting card play; folded into a
@@ -46,6 +49,9 @@ import type { GameEvent } from "@/lib/events";
 export const GAME_BOARD_EVENT_TYPES = {
   gameCreated: "game_created",
   teamCreated: "team_created",
+  playerJoined: "player_joined",
+  teamChanged: "team_changed",
+  playerLeft: "player_left",
   gameStarted: "game_started",
   gameEnded: "game_ended",
   deckSeeded: "deck_seeded",
@@ -84,6 +90,13 @@ export interface BoardTeamView {
   readonly id: string;
   readonly name: string;
   readonly color: string;
+}
+
+/** A Player as seen on the Game_Board scoreboard roster. */
+export interface BoardPlayerView {
+  readonly id: string;
+  readonly displayName: string;
+  readonly teamId: string | null;
 }
 
 /**
@@ -160,6 +173,8 @@ export interface BoardScoreEntryView {
  *     on `game_ended` — drives the access gate (R1).
  *   - `teams`: the Team roster (id, name, color) built from `game_created` /
  *     `team_created`; the scoreboard rows + target list.
+ *   - `players`: the current player roster, updated by membership events and
+ *     rendered under the assigned Team on the scoreboard.
  *   - `targetedNotices`: one notice per `wireframe_card_played` event (R7.8);
  *     folded for all teams, filtered to the viewing Team by the client (R7.3).
  *   - `lastSeenSequence`: the highest `seq` folded in — the idempotence watermark
@@ -168,7 +183,9 @@ export interface BoardScoreEntryView {
 export interface GameBoardView {
   readonly gameId: string;
   readonly lifecycle: GameBoardLifecycle;
+  readonly joinCode: string | null;
   readonly teams: BoardTeamView[];
+  readonly players: BoardPlayerView[];
   /** Notices whose `targetTeamId` is the viewing team; one per targeting event (R7.8). */
   readonly targetedNotices: TargetedNotice[];
   readonly cards: BoardCardView[];
@@ -199,7 +216,9 @@ export function initialGameBoardView(gameId: string): GameBoardView {
   return {
     gameId,
     lifecycle: "lobby",
+    joinCode: null,
     teams: [],
+    players: [],
     targetedNotices: [],
     cards: [],
     activeChallenges: [],
@@ -244,8 +263,15 @@ export function applyGameBoardEvent(
 
   switch (event.eventType) {
     case GAME_BOARD_EVENT_TYPES.gameCreated:
+      return applyGameCreated(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.teamCreated:
       return applyTeamFromPayload(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.playerJoined:
+      return applyPlayerJoined(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.teamChanged:
+      return applyTeamChanged(advanced, event.payload);
+    case GAME_BOARD_EVENT_TYPES.playerLeft:
+      return applyPlayerLeft(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.gameStarted:
       return { ...advanced, lifecycle: "live" };
     case GAME_BOARD_EVENT_TYPES.gameEnded:
@@ -285,6 +311,62 @@ export function applyGameBoardEvent(
       // untouched.
       return advanced;
   }
+
+  function applyGameCreated(
+    view: GameBoardView,
+    payload: unknown,
+  ): GameBoardView {
+    const joinCode = readString(payload, "joinCode");
+    return joinCode === undefined ? view : { ...view, joinCode };
+  }
+}
+
+function applyPlayerJoined(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const playerId = readString(payload, "playerId");
+  const displayName = readString(payload, "displayName");
+  if (playerId === undefined || displayName === undefined) {
+    return view;
+  }
+  if (view.players.some((player) => player.id === playerId)) {
+    return view;
+  }
+  return {
+    ...view,
+    players: [...view.players, { id: playerId, displayName, teamId: null }],
+  };
+}
+
+function applyTeamChanged(
+  view: GameBoardView,
+  payload: unknown,
+): GameBoardView {
+  const playerId = readString(payload, "playerId");
+  const toTeamId = readString(payload, "toTeamId");
+  if (
+    playerId === undefined ||
+    toTeamId === undefined ||
+    !view.teams.some((team) => team.id === toTeamId)
+  ) {
+    return view;
+  }
+  return {
+    ...view,
+    players: view.players.map((player) =>
+      player.id === playerId ? { ...player, teamId: toTeamId } : player,
+    ),
+  };
+}
+
+function applyPlayerLeft(view: GameBoardView, payload: unknown): GameBoardView {
+  const playerId = readString(payload, "playerId");
+  if (playerId === undefined) {
+    return view;
+  }
+  const players = view.players.filter((player) => player.id !== playerId);
+  return players.length === view.players.length ? view : { ...view, players };
 }
 
 /**
