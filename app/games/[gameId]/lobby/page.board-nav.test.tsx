@@ -1,17 +1,15 @@
 // @vitest-environment jsdom
 //
-// Interaction test for the lobby → Game_Board navigation entry point
+// Interaction test for automatic lobby → Game_Board navigation
 // (in-game-landing-wireframe Task 12.1; Requirement 1.2).
 //
 // R1.2: WHEN a Game_Board_Client applies a Game_Event that sets a Game's
-// `lifecycle` to `live`, THE Game_Board_Client SHALL, within 5 seconds of
-// applying that Game_Event, present a control that navigates from the lobby to
+// `lifecycle` to `live`, an authorized admin SHALL be routed automatically to
 // the Game_Board for that Game.
 //
-// The lobby page realizes this by surfacing a Next.js <Link> with the accessible
-// name "Go to game board" pointing at `/games/{gameId}/board` once its folded
-// LobbyView reaches `lifecycle === "live"`. The lifecycle flips to `live` only
-// when the page folds a `game_started` event.
+// The lobby page realizes this with router.replace once its folded LobbyView
+// reaches `lifecycle === "live"` for an admin or assigned player. The lifecycle
+// flips to `live` only when the page folds a `game_started` event.
 //
 // This test drives that fold through the SAME seam the real page uses: the
 // realtime `subscribe()` delivers live events to the page's `onEvent` handler,
@@ -45,13 +43,14 @@ import { LOBBY_EVENT_TYPES } from "@/lib/lobby/events";
 // --- next/navigation: route param + inert router ---------------------------
 
 const routeParams: { gameId: string } = { gameId: "" };
+const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useParams: () => routeParams,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     push: vi.fn(),
-    replace: vi.fn(),
+    replace: replaceMock,
     prefetch: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
@@ -122,6 +121,45 @@ function gameStartedEvent(seq: number): GameEvent {
   };
 }
 
+function teamCreatedEvent(seq: number): GameEvent {
+  return {
+    id: `evt-${GAME_ID}-${seq}`,
+    gameId: GAME_ID,
+    seq,
+    eventType: LOBBY_EVENT_TYPES.teamCreated,
+    actorKind: "admin",
+    actorTeamId: null,
+    payload: { teamId: "team-1", name: "Team One", color: "#123456" },
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+}
+
+function playerJoinedEvent(seq: number): GameEvent {
+  return {
+    id: `evt-${GAME_ID}-${seq}`,
+    gameId: GAME_ID,
+    seq,
+    eventType: LOBBY_EVENT_TYPES.playerJoined,
+    actorKind: "admin",
+    actorTeamId: null,
+    payload: { playerId: "player-1", displayName: "Player One" },
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+}
+
+function teamChangedEvent(seq: number): GameEvent {
+  return {
+    id: `evt-${GAME_ID}-${seq}`,
+    gameId: GAME_ID,
+    seq,
+    eventType: LOBBY_EVENT_TYPES.teamChanged,
+    actorKind: "team",
+    actorTeamId: "team-1",
+    payload: { playerId: "player-1", fromTeamId: null, toTeamId: "team-1" },
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+}
+
 /** Install a real, Map-backed localStorage so the page's role facts persist. */
 function installMemoryLocalStorage(): void {
   const map = new Map<string, string>();
@@ -150,6 +188,7 @@ function installMemoryLocalStorage(): void {
 beforeEach(() => {
   routeParams.gameId = GAME_ID;
   deliveredOnEvent = null;
+  replaceMock.mockReset();
   installMemoryLocalStorage();
   // This session is the game's Admin (a member), so the subscription runs.
   globalThis.localStorage.setItem(`bbb:admin:${GAME_ID}`, ADMIN_SESSION_ID);
@@ -159,8 +198,8 @@ afterEach(() => {
   cleanup();
 });
 
-describe("Lobby → Game_Board navigation entry point (Requirement 1.2)", () => {
-  it("surfaces a 'Go to game board' control pointing at the board only after folding a game_started event", async () => {
+describe("Lobby → Game_Board automatic navigation (Requirement 1.2)", () => {
+  it("routes the admin to the board only after folding a game_started event", async () => {
     render(<LobbyPage />);
 
     // The subscription effect runs once the async session bootstrap resolves;
@@ -169,12 +208,9 @@ describe("Lobby → Game_Board navigation entry point (Requirement 1.2)", () => 
       expect(deliveredOnEvent).not.toBeNull();
     });
 
-    // Before any game_started event the game is still in the lobby, so the
-    // board-navigation control is absent (proves the control follows from
-    // applying the event, not from the initial render).
-    expect(
-      screen.queryByRole("link", { name: /go to game board/i }),
-    ).toBeNull();
+    // Before any game_started event the game is still in the lobby, so no board
+    // navigation has occurred.
+    expect(replaceMock).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: /start the game/i }),
     ).not.toBeNull();
@@ -186,15 +222,53 @@ describe("Lobby → Game_Board navigation entry point (Requirement 1.2)", () => 
       deliveredOnEvent?.(gameStartedEvent(1));
     });
 
-    // Within the propagation window the lobby presents a navigate-to-board
-    // control pointing at this game's Game_Board (R1.2).
-    const link = await screen.findByRole("link", {
-      name: /go to game board/i,
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith(`/games/${GAME_ID}/board`);
     });
-    expect(link).not.toBeNull();
-    expect(link.getAttribute("href")).toBe(`/games/${GAME_ID}/board`);
     expect(
       screen.queryByRole("heading", { name: /start the game/i }),
     ).toBeNull();
+  });
+
+  it("keeps a teamless live player on team selection instead of routing early", async () => {
+    globalThis.localStorage.setItem(`bbb:player:${GAME_ID}`, "player-1");
+    globalThis.localStorage.removeItem(`bbb:admin:${GAME_ID}`);
+    render(<LobbyPage />);
+
+    await waitFor(() => {
+      expect(deliveredOnEvent).not.toBeNull();
+    });
+
+    act(() => {
+      deliveredOnEvent?.(teamCreatedEvent(1));
+      deliveredOnEvent?.(playerJoinedEvent(2));
+      deliveredOnEvent?.(gameStartedEvent(3));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /join\/view teams/i })).not.toBeNull();
+    });
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("routes an existing player after the folded snapshot resolves their team", async () => {
+    globalThis.localStorage.setItem(`bbb:player:${GAME_ID}`, "player-1");
+    globalThis.localStorage.removeItem(`bbb:admin:${GAME_ID}`);
+    render(<LobbyPage />);
+
+    await waitFor(() => {
+      expect(deliveredOnEvent).not.toBeNull();
+    });
+
+    act(() => {
+      deliveredOnEvent?.(teamCreatedEvent(1));
+      deliveredOnEvent?.(playerJoinedEvent(2));
+      deliveredOnEvent?.(teamChangedEvent(3));
+      deliveredOnEvent?.(gameStartedEvent(4));
+    });
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith(`/games/${GAME_ID}/board`);
+    });
   });
 });

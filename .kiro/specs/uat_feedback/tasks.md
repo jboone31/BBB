@@ -125,6 +125,21 @@ lifecycle behavior.
   catalog rule in its oracle, so generated non-candidate names are correctly
   expected to be rejected.
 
+### Task 3 implementation notes
+
+- `app/games/[gameId]/lobby/page.tsx` now automatically replaces the lobby route
+  with `/games/{gameId}/board` after a live lifecycle is folded for an admin or
+  a player whose team membership is resolved.
+- Teamless live players remain on the lobby team-selection surface rather than
+  being routed into team-specific board play. A successful live
+  `teams/select` response immediately routes that player to the board.
+- The former `Go to game board` link has been removed; this prevents the host
+  from being stranded on the lobby and removes the mobile-only extra action.
+- `page.board-nav.test.tsx` now covers automatic admin routing, teamless-player
+  retention for team selection, and existing-player routing after team
+  membership is folded. Existing board access and lobby orchestration suites
+  continue to pass.
+
 ## 3. Implement game-start routing and team-selection flow
 
 - Define the client-visible game phases needed to distinguish lobby, active game,

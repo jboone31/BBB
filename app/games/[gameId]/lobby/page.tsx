@@ -57,7 +57,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import CreateGame, {
@@ -405,6 +404,19 @@ export default function LobbyPage(): React.JSX.Element {
   }, [view.players, myPlayerId]);
   const barsDesignated = view.startBarId !== null && view.finishBarId !== null;
 
+  // Once a live game is folded, admins and players with an assigned team go
+  // directly to the board. Teamless players remain on this page so the live
+  // TeamSelection surface can prompt them before they enter team-specific play.
+  useEffect(() => {
+    if (
+      view.lifecycle === "live" &&
+      gameId !== "" &&
+      (isAdmin || (myPlayerId !== null && myTeamId !== null))
+    ) {
+      router.replace(`/games/${gameId}/board`);
+    }
+  }, [view.lifecycle, gameId, isAdmin, myPlayerId, myTeamId, router]);
+
   // Join-form prefill precedence (R4.4/R5.1/R5.2): prefer the authoritative
   // folded `view.joinCode` once the snapshot resolves it; until then fall back
   // to the `?code=` carried by a Join_Entry submission or share link. A
@@ -645,6 +657,8 @@ export default function LobbyPage(): React.JSX.Element {
         });
         if (!res.applied) {
           setFormError(res.error);
+        } else if (view.lifecycle === "live") {
+          router.replace(`/games/${gameId}/board`);
         }
       } catch (err) {
         setFormError(err instanceof Error ? err.message : "select_team_failed");
@@ -652,7 +666,7 @@ export default function LobbyPage(): React.JSX.Element {
         setBusy(false);
       }
     },
-    [postJson, gameId],
+    [postJson, gameId, router, view.lifecycle],
   );
 
   /** Start the game (Admin only; R5). */
@@ -877,36 +891,8 @@ export default function LobbyPage(): React.JSX.Element {
         </>
       ) : null}
 
-      {/* Lobby → Game_Board navigation entry point (in-game-landing-wireframe
-          R1.2). Once this lobby page folds a `game_started` event the lifecycle
-          becomes "live" and the lobby controls above disappear; here we surface
-          a control that navigates to this Game's Game_Board within the
-          propagation window. This is purely additive — it changes no other lobby
-          behavior. The `game_started` fold is owned by the lobby feature; this
-          only consumes the resulting `live` state. */}
-      {view.lifecycle === "live" ? (
-        <Link
-          href={`/games/${gameId}/board`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: "44px",
-            padding: "0.75rem 1rem",
-            border: "1px solid #0b57d0",
-            borderRadius: "0.5rem",
-            fontSize: "1rem",
-            fontWeight: 600,
-            textAlign: "center",
-            textDecoration: "none",
-            color: "#fff",
-            background: "#0b57d0",
-            boxSizing: "border-box",
-          }}
-        >
-          Go to game board
-        </Link>
-      ) : null}
+      {/* Live admins and assigned players are routed by the effect above.
+          Teamless live players remain on this page for TeamSelection. */}
     </main>
   );
 }
