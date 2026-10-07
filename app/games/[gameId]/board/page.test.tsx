@@ -217,7 +217,12 @@ function gameCreatedEvent(gameId: string): GameEvent {
     eventType: "game_created",
     actorKind: "admin",
     actorTeamId: null,
-    payload: { teamId: "team-1", name: "Red", color: "#f00" },
+    payload: {
+      teamId: "team-1",
+      name: "Red",
+      color: "#f00",
+      joinCode: "ABCD12",
+    },
     createdAt: "2024-01-01T00:00:00.000Z",
   };
 }
@@ -494,6 +499,74 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
       ).not.toBeNull();
     });
     expect(screen.queryByText(/this game has ended/i)).toBeNull();
+  });
+
+  it("R6.2/R6.3: orders menu actions and cancels participant leave without mutation", async () => {
+    const gameId = "game-menu-player";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /open game menu/i }),
+      ).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Share Join Code",
+      "Leave Game",
+    ]);
+    fireEvent.click(items[1]!);
+    expect(
+      screen.getByText(/game will continue for everyone else/i),
+    ).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("R6.4: host leave invokes the authoritative end transition", async () => {
+    const gameId = "game-menu-host";
+    routeParams.gameId = gameId;
+    globalThis.localStorage.setItem(`bbb:admin:${gameId}`, mockSessionId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ applied: true, seq: 4 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /open game menu/i }),
+      ).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
+    fireEvent.click(screen.getAllByRole("menuitem")[1]!);
+    expect(screen.getByText(/end the game for everyone/i)).not.toBeNull();
+    fireEvent.click(
+      screen.getByRole("dialog").querySelector("button:last-child")!,
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/games/${gameId}/end`,
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(pushMock).toHaveBeenCalledWith("/");
+    });
   });
 
   it("R1.5: a non-member (neither Admin nor Player) sees the not-authorized notice and no Regions", async () => {

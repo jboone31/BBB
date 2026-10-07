@@ -183,6 +183,7 @@ export interface BoardScoreEntryView {
 export interface GameBoardView {
   readonly gameId: string;
   readonly lifecycle: GameBoardLifecycle;
+  readonly joinCode: string | null;
   readonly teams: BoardTeamView[];
   readonly players: BoardPlayerView[];
   /** Notices whose `targetTeamId` is the viewing team; one per targeting event (R7.8). */
@@ -215,6 +216,7 @@ export function initialGameBoardView(gameId: string): GameBoardView {
   return {
     gameId,
     lifecycle: "lobby",
+    joinCode: null,
     teams: [],
     players: [],
     targetedNotices: [],
@@ -261,6 +263,7 @@ export function applyGameBoardEvent(
 
   switch (event.eventType) {
     case GAME_BOARD_EVENT_TYPES.gameCreated:
+      return applyGameCreated(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.teamCreated:
       return applyTeamFromPayload(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.playerJoined:
@@ -307,6 +310,14 @@ export function applyGameBoardEvent(
       // aligned with the generic snapshot, but the board domain fields are left
       // untouched.
       return advanced;
+  }
+
+  function applyGameCreated(
+    view: GameBoardView,
+    payload: unknown,
+  ): GameBoardView {
+    const joinCode = readString(payload, "joinCode");
+    return joinCode === undefined ? view : { ...view, joinCode };
   }
 }
 

@@ -140,6 +140,8 @@ type ClaimResponse =
 
 type EndGameResponse =
   { applied: true; seq: number } | { applied: false; error: string };
+type LeaveGameResponse =
+  { applied: true; seq: number } | { applied: false; error: string };
 
 /** Per-game durable local facts key helpers (survive reload, mirror the lobby). */
 const adminFlagKey = (gameId: string): string => `bbb:admin:${gameId}`;
@@ -222,6 +224,11 @@ export default function BoardPage(): React.JSX.Element {
   const [endGameDialogOpen, setEndGameDialogOpen] = useState(false);
   const [endGamePending, setEndGamePending] = useState(false);
   const [endGameError, setEndGameError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [leavePending, setLeavePending] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -632,6 +639,57 @@ export default function BoardPage(): React.JSX.Element {
     }
   }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
 
+  const handleShareJoinCode = useCallback(async (): Promise<void> => {
+    if (view.joinCode === null) {
+      setShareStatus("Join code is not available.");
+      return;
+    }
+    const text = `Join Beltline Bar Brawl with code ${view.joinCode}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "Beltline Bar Brawl", text });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(view.joinCode);
+      } else {
+        throw new Error("clipboard unavailable");
+      }
+      setShareStatus("Join code ready to share.");
+    } catch {
+      setShareStatus(
+        "Sharing was cancelled or unavailable. The join code remains available.",
+      );
+    }
+  }, [view.joinCode]);
+
+  const handleLeaveGame = useCallback(async (): Promise<void> => {
+    if (leavePending || sessionId === null) {
+      return;
+    }
+    setLeaveError(null);
+    setLeavePending(true);
+    try {
+      const response = await fetch(
+        isAdmin ? `/api/games/${gameId}/end` : `/api/games/${gameId}/leave`,
+        {
+          method: "POST",
+          headers: { [SESSION_HEADER]: sessionId },
+        },
+      );
+      const body = (await response.json()) as LeaveGameResponse;
+      if (!body.applied) {
+        setLeaveError("You could not leave the game. Please try again.");
+        return;
+      }
+      setLeaveDialogOpen(false);
+      setMenuOpen(false);
+      router.push("/");
+    } catch {
+      setLeaveError("You could not leave the game. Please try again.");
+    } finally {
+      setLeavePending(false);
+    }
+  }, [gameId, isAdmin, leavePending, router, sessionId]);
+
   // --- Render --------------------------------------------------------------
 
   const containerStyle: React.CSSProperties = {
@@ -653,12 +711,25 @@ export default function BoardPage(): React.JSX.Element {
     background: "#f7f7f7",
   };
 
+  const readOnly = view.lifecycle === "ended";
+
   // Header status line, shared across every access decision.
   const header = (
-    <header
-      style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
-    >
-      <h1 style={{ margin: 0, fontSize: "1.35rem" }}>Beltline Bar Brawl</h1>
+    <header style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.35rem", flex: "1 1 auto" }}>
+          Beltline Bar Brawl
+        </h1>
+        <button
+          type="button"
+          aria-label="Open game menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          style={{ minWidth: "44px", minHeight: "44px", fontSize: "1.25rem" }}
+        >
+          ☰
+        </button>
+      </div>
       <p
         role="status"
         aria-live="polite"
@@ -666,6 +737,108 @@ export default function BoardPage(): React.JSX.Element {
       >
         {`Game board · ${status}`}
       </p>
+      {menuOpen ? (
+        <div
+          role="menu"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            padding: "0.6rem",
+            border: "1px solid #888",
+            borderRadius: "0.5rem",
+            background: "#fff",
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void handleShareJoinCode()}
+            style={{ minHeight: "44px", textAlign: "left" }}
+          >
+            Share Join Code
+          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setLeaveError(null);
+                setLeaveDialogOpen(true);
+              }}
+              style={{ minHeight: "44px", textAlign: "left" }}
+            >
+              Leave Game
+            </button>
+          ) : null}
+          {shareStatus !== null ? (
+            <p role="status" style={{ margin: 0, fontSize: "0.85rem" }}>
+              {shareStatus}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {leaveDialogOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-game-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10,
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            background: "rgba(0, 0, 0, 0.45)",
+          }}
+        >
+          <section
+            style={{
+              width: "100%",
+              maxWidth: "24rem",
+              padding: "1rem",
+              background: "#fff",
+              borderRadius: "0.75rem",
+            }}
+          >
+            <h2 id="leave-game-title">Leave game?</h2>
+            <p>
+              {isAdmin
+                ? "Leaving will end the game for everyone and show the final scores."
+                : "You will leave this game and disappear from your team roster. The game will continue for everyone else."}
+            </p>
+            {leaveError !== null ? <p role="alert">{leaveError}</p> : null}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveDialogOpen(false);
+                  setLeaveError(null);
+                }}
+                disabled={leavePending}
+                style={{ minHeight: "44px" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLeaveGame()}
+                disabled={leavePending}
+                style={{ minHeight: "44px" }}
+              >
+                {leavePending ? "Leaving…" : "Leave Game"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </header>
   );
 
@@ -735,7 +908,6 @@ export default function BoardPage(): React.JSX.Element {
 
   // Both live and ended games render the board. Ended games remain available
   // for final map/score inspection, but gameplay mutations are read-only.
-  const readOnly = view.lifecycle === "ended";
   return (
     <main style={containerStyle}>
       {header}

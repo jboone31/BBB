@@ -238,7 +238,9 @@ export async function POST(
       if (game.lifecycle !== "live") return { ok: false, reason: "not_live" };
 
       const { rows: barRows } = await tx.query(BAR_SQL, [gameId, barId]);
-      let resolvedBarId = String(barRows[0]?.id ?? (barRows.length > 0 ? barId : ""));
+      let resolvedBarId = String(
+        barRows[0]?.id ?? (barRows.length > 0 ? barId : ""),
+      );
       if (resolvedBarId === "") {
         // The map exposes the full hardcoded catalog, while older games only
         // persisted their designated start/finish bars. Materialize a
@@ -250,11 +252,7 @@ export async function POST(
         }
         const { rows: insertedRows } = await tx.query(
           INSERT_CANDIDATE_BAR_SQL,
-          [
-            gameId,
-            candidate.name,
-            `${candidate.lat},${candidate.lng}`,
-          ],
+          [gameId, candidate.name, `${candidate.lat},${candidate.lng}`],
         );
         resolvedBarId = String(insertedRows[0]?.id ?? "");
         if (resolvedBarId === "") {

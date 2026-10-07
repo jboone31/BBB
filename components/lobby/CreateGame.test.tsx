@@ -147,7 +147,9 @@ describe("CreateGame bar pickers support touch-safe option menus", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /show start bar options/i }),
     );
-    expect(screen.getByRole("listbox", { name: /start bar options/i })).not.toBeNull();
+    expect(
+      screen.getByRole("listbox", { name: /start bar options/i }),
+    ).not.toBeNull();
     fireEvent.click(screen.getByRole("option", { name: "Park Tavern" }));
 
     fireEvent.click(

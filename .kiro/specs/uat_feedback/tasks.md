@@ -230,6 +230,20 @@ lifecycle behavior.
 - Add tests for menu ordering, touch interaction, keyboard access, both
   confirmation variants, cancellation, non-host leave, and host leave.
 
+### Task 6 implementation notes
+
+- The active board shell now uses a touch- and keyboard-usable top-right menu
+  with `Share Join Code` above `Leave Game`; the board does not expose a direct
+  home-navigation control.
+- Participant leave uses the new authorized `/api/games/{gameId}/leave` mutation,
+  atomically removes the participant and appends `player_left`. Host leave
+  invokes the existing atomic end-game route and returns the host to home.
+- Leave confirmations distinguish participant departure from host departure,
+  and cancellation or surfaced failures leave the menu and pending state
+  recoverable.
+- Menu ordering, cancellation, and host leave coverage is included in the board
+  tests.
+
 ## 7. Display and share the join code
 
 - Add the current game's join code to the active-game top bar with a mobile-safe

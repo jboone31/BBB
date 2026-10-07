@@ -369,29 +369,31 @@ export default function LobbyRoster({
 
       {/* Teams with colors + players (R9.4) */}
       {showTeams ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-        <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
-          Teams ({teams.length})
-        </h3>
-        {teams.length === 0 ? (
-          <p style={{ margin: 0, fontSize: "0.85rem", color: "#666" }}>
-            No teams yet.
-          </p>
-        ) : (
-          <ul
-            style={{
-              margin: 0,
-              padding: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.5rem",
-            }}
-          >
-            {teams.map((team) => (
-              <TeamCard key={team.id} team={team} players={players} />
-            ))}
-          </ul>
-        )}
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+        >
+          <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
+            Teams ({teams.length})
+          </h3>
+          {teams.length === 0 ? (
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#666" }}>
+              No teams yet.
+            </p>
+          ) : (
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.5rem",
+              }}
+            >
+              {teams.map((team) => (
+                <TeamCard key={team.id} team={team} players={players} />
+              ))}
+            </ul>
+          )}
         </div>
       ) : null}
 

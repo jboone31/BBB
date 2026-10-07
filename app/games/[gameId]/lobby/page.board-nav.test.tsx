@@ -246,7 +246,9 @@ describe("Lobby → Game_Board automatic navigation (Requirement 1.2)", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /join\/view teams/i })).not.toBeNull();
+      expect(
+        screen.getByRole("heading", { name: /join\/view teams/i }),
+      ).not.toBeNull();
     });
     expect(replaceMock).not.toHaveBeenCalled();
   });

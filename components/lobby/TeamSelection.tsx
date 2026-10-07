@@ -191,12 +191,19 @@ export default function TeamSelection({
             />
           </label>
           {shownValidation !== null ? (
-            <p role="alert" style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}>
+            <p
+              role="alert"
+              style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}
+            >
               {shownValidation}
             </p>
           ) : null}
           {error !== null && error !== "" ? (
-            <p role="alert" aria-live="assertive" style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}>
+            <p
+              role="alert"
+              aria-live="assertive"
+              style={{ margin: 0, fontSize: "0.85rem", color: "#b00020" }}
+            >
               {error}
             </p>
           ) : null}
@@ -216,7 +223,11 @@ export default function TeamSelection({
               cursor: submitting || atTeamLimit ? "not-allowed" : "pointer",
             }}
           >
-            {atTeamLimit ? `Team limit reached (${MAX_TEAMS})` : submitting ? "Creating…" : "Create team"}
+            {atTeamLimit
+              ? `Team limit reached (${MAX_TEAMS})`
+              : submitting
+                ? "Creating…"
+                : "Create team"}
           </button>
         </form>
       ) : null}
@@ -275,8 +286,20 @@ export default function TeamSelection({
                   />
                   <span style={{ flex: "1 1 auto", wordBreak: "break-word" }}>
                     <strong>{team.name}</strong>
-                    <span style={{ display: "block", fontSize: "0.8rem", color: "#666" }}>
-                      {team.playerIds.map((playerId) => players.find((player) => player.id === playerId)?.displayName ?? playerId).join(", ") || "No members yet"}
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.8rem",
+                        color: "#666",
+                      }}
+                    >
+                      {team.playerIds
+                        .map(
+                          (playerId) =>
+                            players.find((player) => player.id === playerId)
+                              ?.displayName ?? playerId,
+                        )
+                        .join(", ") || "No members yet"}
                     </span>
                   </span>
                   <span style={{ flex: "0 0 auto", fontSize: "0.8rem" }}>
@@ -294,7 +317,9 @@ export default function TeamSelection({
       )}
 
       {players.some((player) => player.teamId === null) ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+        >
           <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
             Players not on a team (
             {players.filter((player) => player.teamId === null).length})
@@ -310,7 +335,6 @@ export default function TeamSelection({
           </ul>
         </div>
       ) : null}
-
     </section>
   );
 }

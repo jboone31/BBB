@@ -22,13 +22,18 @@
 //   component tests (e.g. components/lobby/LobbyRoster.test.tsx). Plain DOM
 //   assertions (no jest-dom matchers) keep the dependency surface minimal.
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import HeaderNav from "./HeaderNav";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => window.location.pathname,
+}));
+
 afterEach(() => {
   cleanup();
+  window.history.pushState({}, "", "/");
 });
 
 describe("HeaderNav renders the brand row (Requirements 1.2, 1.3, 1.4)", () => {
@@ -39,7 +44,7 @@ describe("HeaderNav renders the brand row (Requirements 1.2, 1.3, 1.4)", () => {
     // served asset lives at `/BBB_logo.png`.
     const logo = screen.getByAltText("Beltline Bar Brawl");
     expect(logo).not.toBeNull();
-    expect(logo.getAttribute("src")).toBe("/BBB_logo.png");
+    expect(logo.getAttribute("src")).toContain("url=%2FBBB_logo.png");
   });
 
   it("displays the BBB tagline text (R1.3)", () => {
@@ -67,5 +72,18 @@ describe("HeaderNav renders the brand row (Requirements 1.2, 1.3, 1.4)", () => {
     expect(
       screen.getByText("Race the Beltline. Claim the bars.").closest("a"),
     ).toBe(brandLink);
+  });
+
+  it("removes the home link while the board menu owns in-game navigation", async () => {
+    window.history.pushState({}, "", "/games/game-123/board");
+
+    render(<HeaderNav />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("link", { name: /beltline bar brawl home/i }),
+      ).toBeNull();
+    });
+    expect(screen.getByLabelText("Beltline Bar Brawl in-game")).not.toBeNull();
   });
 });
