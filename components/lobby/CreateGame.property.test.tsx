@@ -37,6 +37,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
 import { validateDisplayName } from "@/lib/lobby/displayName";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 
 import CreateGame, { type CreateSubmission } from "./CreateGame";
 
@@ -49,9 +50,9 @@ afterEach(() => {
 
 /**
  * The pure oracle for the create-gate: mirrors the component's `validationError`
- * memo (start non-empty, finish non-empty and differs case-insensitively from
- * start, name valid) using the shared `validateDisplayName`. Returns whether a
- * submission should fire.
+ * memo (start and finish must be known candidate bars, non-empty and different,
+ * and the name must be valid) using the shared `validateDisplayName`. Returns
+ * whether a submission should fire.
  */
 function shouldSubmit(
   startBarName: string,
@@ -62,6 +63,12 @@ function shouldSubmit(
   const trimmedFinish = finishBarName.trim();
   if (trimmedStart.length === 0) return false;
   if (trimmedFinish.length === 0) return false;
+  const isCandidate = (value: string): boolean =>
+    CANDIDATE_BARS.some(
+      (bar) => bar.name.toLowerCase() === value.toLowerCase(),
+    );
+  if (!isCandidate(trimmedStart)) return false;
+  if (!isCandidate(trimmedFinish)) return false;
   if (trimmedStart.toLowerCase() === trimmedFinish.toLowerCase()) return false;
   return validateDisplayName(displayName).ok;
 }
@@ -71,6 +78,9 @@ function shouldSubmit(
  * the create-gate: empty, whitespace-only, single-char, exactly-40, over-40,
  * and arbitrary text. Padding some values with surrounding whitespace exercises
  * the trim-before-validate rules for both bar names and the display name.
+ *
+ * Arbitrary bar values intentionally include non-candidate names: the oracle
+ * must verify that the client rejects names outside the available-bar catalog.
  */
 const fieldArb: fc.Arbitrary<string> = fc.oneof(
   fc.constant(""),

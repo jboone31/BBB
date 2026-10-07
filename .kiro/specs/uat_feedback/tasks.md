@@ -18,6 +18,89 @@ lifecycle behavior.
 - Document any missing server-side state transitions or realtime events needed by
   the tasks below.
 
+### Task 1 findings
+
+**Current surfaces and behavior**
+
+- Setup and bar designation are composed by
+  `app/games/[gameId]/lobby/page.tsx` using
+  `components/lobby/CreateGame.tsx`. The two bar controls are text inputs backed
+  by a shared HTML `datalist`, not native `select` elements. The page sends
+  designation requests to `POST /api/games/[gameId]/bars`.
+- The host start control is `components/lobby/StartGame.tsx`. The lobby page
+  sends `POST /api/games/[gameId]/start`; the route authorizes the admin,
+  validates the team/bar gates, updates `games.lifecycle` to `live`, and
+  appends one `game_started` event atomically.
+- Lobby state is folded by `lib/lobby/events.ts`. It already represents teams,
+  players, nullable team membership, join code, and the `game_started` lifecycle
+  transition. `team_changed` updates a player and removes that player from all
+  previous team rosters in the folded view.
+- The lobby page currently renders a manual `Go to game board` link whenever the
+  folded lifecycle is `live`; it does not automatically navigate the host or
+  other connected participants.
+- The board page uses `lib/gameboard/access.ts`. A live board requires a
+  resolved session that is either the game admin or a player. A teamless player
+  is currently redirected to the lobby, where live team selection is allowed.
+  Selecting a team does not currently navigate the player back to the board.
+- The board page renders `components/board/ScoreboardRegion.tsx` with teams,
+  scores, and claimed-bar counts only. It does not pass player membership data.
+- Host end-game functionality already exists at
+  `POST /api/games/[gameId]/end`, using `lib/gameend/transition.ts` to atomically
+  set `ended`, set `end_reason`, and append `game_ended`. There is no active-board
+  host control or confirmation flow wired to this route yet.
+- The root `components/shell/HeaderNav.tsx` wraps the logo/tagline in a link to
+  `/`. The board page has no replacement top-right in-game menu, leave-game
+  action, or leave confirmation flow.
+- Join-code generation and sharing primitives exist under `lib/lobby/` and the
+  lobby roster has sharing coverage, but the board page has no persistent join
+  code in its top bar and no in-game “Share Join Code” menu action.
+
+**Existing server and realtime seams to reuse**
+
+- Server writes consistently use `withTransaction` plus `appendEvent`, so end
+  game and future leave-game mutations should follow that atomic pattern.
+- `POST /api/games/[gameId]/join` creates a teamless player and appends
+  `player_joined`; it permits joining a live game.
+- `POST /api/games/[gameId]/teams/select` updates a player's single `team_id`
+  and appends `team_changed`; it permits selection/switching during a live game.
+- The event log is the shared realtime transport. `game_started` is currently
+  understood by the lobby fold and `game_ended` by the game-end/board flow.
+  There is no player-left event or leave-game route.
+- Durable browser facts are currently `bbb:admin:{gameId}` and
+  `bbb:player:{gameId}`. They are useful for existing-session routing but are not
+  sufficient by themselves to resolve a newly joined live player after reload;
+  routing must also use the authoritative folded membership snapshot.
+
+**Implementation dependencies and gaps**
+
+1. First adapt the lobby/board routing state so `game_started` causes automatic
+   navigation, while a teamless live player is routed to team selection and a
+   selected player is routed to the board.
+2. Reuse the folded player/team data for scoreboard rosters and team-selection
+   resolution; do not add a parallel client-only roster source.
+3. Add a player-leave mutation and event before wiring the leave menu, including
+   the host-leaves-to-end behavior. The explicit host end action can reuse the
+   existing end route/helper.
+4. Add the board shell menu and join-code presentation after the routing and
+   lifecycle state are authoritative, so menu actions cannot operate on stale
+   game identity.
+5. Replace or augment the `datalist` bar inputs with a touch-safe picker as part
+   of the mobile bar-selection task; the current HTML `datalist` behavior is
+   browser-dependent on mobile.
+
+**Relevant existing tests**
+
+- Lobby orchestration/navigation coverage is in
+  `app/games/[gameId]/lobby/page.orchestration.test.tsx` and
+  `app/games/[gameId]/lobby/page.board-nav.test.tsx`.
+- Board access and lifecycle coverage is in
+  `app/games/[gameId]/board/page.test.tsx`.
+- Lobby event folding is covered by
+  `lib/lobby/events.property.test.ts` and related lobby tests.
+- End-game transition and route behavior are covered by
+  `lib/gameend/atomicEnd.property.test.ts`,
+  `app/api/games/[gameId]/end/route.ts`, and existing integration suites.
+
 ## 2. Fix start/finish bar selection on mobile
 
 - Replace or adapt desktop-only dropdown behavior so start-bar and finish-bar
@@ -28,6 +111,19 @@ lifecycle behavior.
   start-game request payload.
 - Add component tests for opening and selecting both controls with mobile-sized
   rendering, plus regression coverage for desktop selection.
+
+### Task 2 implementation notes
+
+- `components/lobby/CreateGame.tsx` now uses explicit application-rendered bar
+  option menus instead of relying on mobile browser `datalist` UI.
+- The menus use touch-sized buttons, bounded scrolling, viewport-safe width,
+  keyboard-focusable native buttons, and retain editable text inputs so the
+  existing candidate-bar validation and submission payload remain unchanged.
+- `components/lobby/CreateGame.test.tsx` covers opening and selecting both the
+  start-bar and finish-bar menus.
+- `components/lobby/CreateGame.property.test.tsx` now includes the candidate-bar
+  catalog rule in its oracle, so generated non-candidate names are correctly
+  expected to be rejected.
 
 ## 3. Implement game-start routing and team-selection flow
 
