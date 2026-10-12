@@ -18,6 +18,9 @@ technical direction. The AWS hosting alternative remains a documented fallback._
     `game_events` append committed atomically in one transaction from server routes).
   - **@supabase/supabase-js** for the browser client (RLS-scoped reads and Realtime
     subscriptions).
+- **Mapping:** **Leaflet** via **react-leaflet** (with
+  `leaflet-defaulticon-compatibility`) renders the live bar map and team claim markers
+  client-side. No paid map API; chosen for the claim-visualization work.
 
 ## Real-Time Propagation (decided)
 
@@ -41,12 +44,18 @@ live-to-ended transition.
   with a rough cost estimate, remains a documented fallback. Deferred; not needed while
   Vercel + Supabase is the active choice.
 
+## Decided (previously open)
+
+- **Map / claim visualization:** resolved — a client-side **Leaflet** map plots candidate
+  bars and renders which teams have claimed which bars (`lib/map/`,
+  `components/board/BarLeafletMap.tsx`). Claiming writes through a score ledger
+  (`lib/claims/`, `lib/scoring/`, migration `0010_claims_and_score_ledger.sql`).
+
 ## Still To Be Designed
 
-- **Bar selection mechanism:** map API vs. a predetermined bar list (with an admin
-  approval flow for player-proposed bars).
-- **Map / claim visualization:** map API, in-house map with hard-coded coordinates, or a
-  simple list view of which teams have claimed which bars.
+- **Bar selection mechanism:** candidate bars now feed the map, but the sourcing model
+  (curated list vs. map/geocoding API) and the admin approval flow for player-proposed
+  bars are still open.
 - **Photo handling:** storage lifecycle and privacy for temporary card-validation uploads
   shown in a public feed (Supabase Storage is the target).
 

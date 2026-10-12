@@ -24,8 +24,9 @@ cards and group-chat coordination.
 2. **Rules finalization** - refine and lock the v1 ruleset and card set. *(complete — see
    `game-rules.md` and `cards.md`)*
 3. **Web application** - design and build the app (Node.js, hosted on Vercel, Supabase backend).
-   *(current phase — core shell, lobby, live board, realtime membership, sharing, and UAT
-   hardening are implemented; cards and final endgame polish remain in progress)*
+   *(current phase — core shell, lobby, live board, realtime membership, sharing, bar
+   claiming with map visualization and point-split scoring, and UAT hardening are
+   implemented; full card effects and final endgame polish remain in progress)*
 
 ## Problems v1 Must Solve
 
