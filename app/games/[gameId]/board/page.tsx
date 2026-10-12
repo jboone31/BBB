@@ -63,7 +63,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import CardPlayWireframe from "@/components/board/CardPlayWireframe";
+import CardPlayPanel from "@/components/board/CardPlayPanel";
 import CardsRegion from "@/components/board/CardsRegion";
 import MapRegion, {
   type ClaimAction,
@@ -82,9 +82,9 @@ import {
   selectClaimedBarCounts,
   selectClaimState,
   selectScoreTotals,
+  type BoardCardView,
   type GameBoardView,
 } from "@/lib/gameboard/events";
-import { type PlaceholderCard } from "@/lib/gameboard/placeholderCards";
 import {
   INITIAL_REGION,
   type Region,
@@ -237,9 +237,10 @@ export default function BoardPage(): React.JSX.Element {
     setActiveRegion((current) => selectRegion(current, target));
   }, []);
 
-  // --- Card-play wireframe state (R6) -------------------------------------
-  const [playingCard, setPlayingCard] = useState<PlaceholderCard | null>(null);
-  // Transient "not delivered" indication for a failed targeting POST (R7.7).
+  // --- Card-play state (Task 8) -------------------------------------------
+  const [playingCard, setPlayingCard] = useState<BoardCardView | null>(null);
+  const [playPending, setPlayPending] = useState(false);
+  // Transient "not delivered" indication for a failed play POST.
   const [playError, setPlayError] = useState<string | null>(null);
   const [pendingClaimBarId, setPendingClaimBarId] = useState<string | null>(
     null,
@@ -553,14 +554,17 @@ export default function BoardPage(): React.JSX.Element {
   }, [viewLoaded, access, needsTeamSelection, gameId, router]);
 
   // --- The one POST: confirm a targeting card play (R7.1/7.7) --------------
+  // --- Play a card (brawl-deck-architecture Task 8) -----------------------
+  // POST the real card_played to /cards/play with the chosen target(s). On
+  // success the card leaves the hand and the target team's clients see the play
+  // via realtime (R3.1/R3.7); on failure an explicit "not delivered" shows and
+  // the hand is unchanged.
   const handleConfirmPlay = useCallback(
-    async (card: PlaceholderCard, targetTeamId?: string): Promise<void> => {
-      if (view.lifecycle === "ended") {
-        return;
-      }
-      // A non-targeting card writes nothing — the wireframe acknowledgement is
-      // purely local (R6.6). Only a targeting card with a chosen target POSTs.
-      if (!card.targetsTeam || targetTeamId === undefined) {
+    async (
+      card: BoardCardView,
+      targets: { targetTeamId?: string },
+    ): Promise<void> => {
+      if (view.lifecycle === "ended" || playPending) {
         return;
       }
       setPlayError(null);
@@ -568,25 +572,32 @@ export default function BoardPage(): React.JSX.Element {
         setPlayError("not_delivered");
         return;
       }
+      setPlayPending(true);
       try {
-        const res = await fetch(`/api/games/${gameId}/wireframe-card-play`, {
+        const res = await fetch(`/api/games/${gameId}/cards/play`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
             [SESSION_HEADER]: sessionId,
           },
-          body: JSON.stringify({ cardId: card.id, targetTeamId }),
+          body: JSON.stringify({
+            cardId: card.cardId,
+            targetTeamId: targets.targetTeamId,
+          }),
         });
         const body = (await res.json()) as WireframeResponse;
         if (!body.applied) {
-          // Any non-applied response is "not delivered" (R7.7).
           setPlayError("not_delivered");
+        } else {
+          setPlayingCard(null);
         }
       } catch {
         setPlayError("not_delivered");
+      } finally {
+        setPlayPending(false);
       }
     },
-    [gameId, sessionId, view.lifecycle],
+    [gameId, playPending, sessionId, view.lifecycle],
   );
 
   // --- Keep / discard a card (brawl-deck-architecture Tasks 5, 6) ----------
@@ -1222,16 +1233,7 @@ export default function BoardPage(): React.JSX.Element {
                 return;
               }
               setPlayError(null);
-              // Bridge the real card into the still-wireframe play flow until the
-              // real play route + targeting replace it (Task 8). The catalog
-              // slug carries targeting mode; a card targets a team unless it is
-              // a self/none/bar card. The wireframe only needs a label + whether
-              // it targets a team.
-              setPlayingCard({
-                id: card.cardId,
-                label: card.slug,
-                targetsTeam: true,
-              });
+              setPlayingCard(card);
             }}
             readOnly={readOnly}
             pendingCardId={cardMutationPending}
@@ -1255,17 +1257,20 @@ export default function BoardPage(): React.JSX.Element {
         </>
       ) : null}
 
-      {/* Card_Play_Wireframe, presented on play (R6.1). The target list excludes
-          the current Team (R6.2); confirm of a targeting card POSTs the one
-          event (R7.1) and surfaces "not delivered" on failure (R7.7). */}
+      {/* Card_Play_Panel, presented on play (R3.1). The target list excludes
+          the caster's own team and grays out ineligible teams (R3.2/R3.3);
+          confirm POSTs the real card_played and surfaces "not delivered" on
+          failure. */}
       {playingCard !== null && !readOnly ? (
         <>
-          <CardPlayWireframe
+          <CardPlayPanel
             card={playingCard}
+            view={view}
             teams={view.teams}
-            ownTeamId={myTeamId ?? ""}
-            onConfirm={(targetTeamId) => {
-              void handleConfirmPlay(playingCard, targetTeamId);
+            castingTeamId={myTeamId ?? ""}
+            pending={playPending}
+            onConfirm={(targets) => {
+              void handleConfirmPlay(playingCard, targets);
             }}
             onCancel={() => {
               setPlayError(null);
