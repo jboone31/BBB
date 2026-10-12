@@ -94,6 +94,8 @@ import {
 import { foldLobbyEvents } from "@/lib/lobby/events";
 import { CANDIDATE_BARS } from "@/lib/map/bars";
 import { WIREFRAME_TEAMS } from "@/lib/map/claims";
+import { CARD_SLUGS, getCardMetadata } from "@/lib/cards/catalog";
+import { isDevCardInjectionEnabled } from "@/lib/config/devFlags";
 
 import type { GameEvent } from "@/lib/events";
 import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
@@ -648,6 +650,38 @@ export default function BoardPage(): React.JSX.Element {
     },
     [cardMutationPending, gameId, sessionId, view.lifecycle],
   );
+
+  // --- Dev-only: inject a card into hand (Task 10; R5.2) -------------------
+  // Only reachable when the committed DEV_CARD_INJECTION flag is on; the server
+  // enforces the flag too (R5.3), so this is a convenience, not the gate.
+  const [injectSlug, setInjectSlug] = useState<string>(CARD_SLUGS[0]);
+  const [injectPending, setInjectPending] = useState(false);
+  const handleInjectCard = useCallback(async (): Promise<void> => {
+    if (sessionId === null || injectPending) {
+      return;
+    }
+    setCardMutationError(null);
+    setInjectPending(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}/cards/inject`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [SESSION_HEADER]: sessionId,
+        },
+        body: JSON.stringify({ slug: injectSlug }),
+      });
+      const body = (await response.json()) as
+        { applied: true; seq?: number } | { applied: false; error: string };
+      if (!body.applied) {
+        setCardMutationError("The card could not be injected (dev).");
+      }
+    } catch {
+      setCardMutationError("The card could not be injected (dev).");
+    } finally {
+      setInjectPending(false);
+    }
+  }, [gameId, injectPending, injectSlug, sessionId]);
 
   const handleClaimMutation = useCallback(
     async (
@@ -1255,6 +1289,75 @@ export default function BoardPage(): React.JSX.Element {
             >
               {cardMutationError}
             </p>
+          ) : null}
+
+          {/* Dev-only card injection (Task 10; R5.2). Rendered only when the
+              committed DEV_CARD_INJECTION flag is on; the server enforces the
+              flag independently (R5.3). */}
+          {isDevCardInjectionEnabled() && !adminNotPlayer && !readOnly ? (
+            <div
+              aria-label="Dev: add card to hand"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.4rem",
+                padding: "0.6rem",
+                border: "1px dashed #9333ea",
+                borderRadius: "0.5rem",
+                background: "#faf5ff",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#6b21a8",
+                }}
+              >
+                DEV: add a card to your hand (ignores hand limit)
+              </p>
+              <div style={{ display: "flex", gap: "0.4rem", width: "100%" }}>
+                <select
+                  aria-label="Card to inject"
+                  value={injectSlug}
+                  onChange={(e) => setInjectSlug(e.target.value)}
+                  style={{
+                    flex: "1 1 auto",
+                    minHeight: "44px",
+                    fontSize: "0.9rem",
+                    borderRadius: "0.4rem",
+                    border: "1px solid #888",
+                    padding: "0 0.5rem",
+                  }}
+                >
+                  {CARD_SLUGS.map((slug) => (
+                    <option key={slug} value={slug}>
+                      {getCardMetadata(slug).name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleInjectCard()}
+                  disabled={injectPending}
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "44px",
+                    padding: "0 0.9rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    borderRadius: "0.4rem",
+                    border: "1px solid #6b21a8",
+                    background: injectPending ? "#c4a3e0" : "#9333ea",
+                    color: "#ffffff",
+                    cursor: injectPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {injectPending ? "Adding…" : "Add card"}
+                </button>
+              </div>
+            </div>
           ) : null}
         </>
       ) : null}

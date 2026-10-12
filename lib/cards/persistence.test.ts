@@ -29,6 +29,7 @@ import {
 import {
   applyDeckTransition,
   engineCardId,
+  injectCardToHand,
   loadDeckState,
   slugFromEngineCardId,
 } from "./persistence";
@@ -469,5 +470,39 @@ describe("deck persistence: round-trips (R4.1, R4.2)", () => {
       barId: BAR_B,
     });
     expect(other.ok).toBe(true);
+  });
+});
+
+describe("deck persistence: dev inject (Task 10; R5.2)", () => {
+  it("forces a slug into hand and bypasses the hand-size limit", async () => {
+    const db = new FakeDb();
+    const inject = await injectCardToHand(db.runner, ctx(), "go-piss-girl");
+    expect(inject.ok).toBe(true);
+    if (!inject.ok) throw new Error("expected ok");
+
+    const reloaded = await loadDeckState(db.runner, ctx());
+    expect(reloaded.cards.find((c) => c.slug === "go-piss-girl")?.state).toBe(
+      "hand",
+    );
+    expect(db.events.some((e) => e.eventType === "card_kept")).toBe(true);
+
+    // Inject two MORE distinct cards — three in hand, over the normal max of 2.
+    await injectCardToHand(db.runner, ctx(), "moneybags");
+    await injectCardToHand(db.runner, ctx(), "wired");
+    const full = await loadDeckState(db.runner, ctx());
+    expect(full.cards.filter((c) => c.state === "hand")).toHaveLength(3);
+  });
+
+  it("rejects a slug that is not in the catalog", async () => {
+    const db = new FakeDb();
+    const result = await injectCardToHand(
+      db.runner,
+      ctx(),
+      "not-a-real-card" as never,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected rejection");
+    expect(result.reason).toBe("unknown_card");
+    expect(db.events).toHaveLength(0);
   });
 });

@@ -563,3 +563,66 @@ export async function applyDeckTransition(
   });
   return { ok: true, seq, state: result.state, cardIds: result.cardIds };
 }
+
+/** Result of {@link injectCardToHand}. */
+export type InjectCardResult =
+  | { readonly ok: true; readonly seq: number; readonly cardId: string }
+  | { readonly ok: false; readonly reason: "unknown_card" };
+
+/**
+ * Dev-only: force a specific card slug into a team's hand, IGNORING the hand
+ * size limit (brawl-deck-architecture Task 10; R5.2). This deliberately bypasses
+ * the pure engine's keep/draw flow — it is a testing bypass, not real gameplay —
+ * but it still goes through the same durable row mapping and appends a canonical
+ * `card_kept` event so the board projection folds it exactly like a real keep
+ * (R4.2). Authorization (the `DEV_CARD_INJECTION` flag) is the ROUTE's
+ * responsibility; this helper performs the mutation unconditionally once called.
+ *
+ * The card is moved to `hand` from whatever state it is in (deck/pending/hand);
+ * an unknown slug (not in the catalog, so not in the seeded deck) is rejected.
+ *
+ * @returns the appended event's `seq` and the engine card id, or a rejection.
+ */
+export async function injectCardToHand(
+  tx: QueryRunner,
+  ctx: DeckContext,
+  slug: CardSlug,
+): Promise<InjectCardResult> {
+  if (!CARD_SLUGS.includes(slug)) {
+    return { ok: false, reason: "unknown_card" };
+  }
+
+  const { state: before, seeded } = await loadDeckStateWithOrigin(tx, ctx);
+  const cardId = engineCardId(ctx.teamId, slug);
+  const existing = before.cards.find((card) => card.id === cardId);
+
+  // Force the target card to `hand`; everything else is unchanged. If the card
+  // is somehow absent (should not happen for a seeded deck), synthesize it at
+  // the end so the inject still succeeds.
+  const after: DeckState = {
+    ...before,
+    cards:
+      existing === undefined
+        ? [
+            ...before.cards,
+            {
+              id: cardId,
+              slug,
+              state: "hand",
+              position: before.cards.length,
+            },
+          ]
+        : before.cards.map((card) =>
+            card.id === cardId ? { ...card, state: "hand" } : card,
+          ),
+  };
+
+  const seq = await persistDeckTransition(tx, {
+    ctx,
+    kind: "keep",
+    before,
+    after,
+    seeded,
+  });
+  return { ok: true, seq, cardId };
+}
