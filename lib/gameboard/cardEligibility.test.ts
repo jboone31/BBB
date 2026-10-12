@@ -12,7 +12,10 @@ import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@/lib/events";
 import { foldGameBoardEvents, initialGameBoardView } from "./events";
 import {
+  isBarTargetEligible,
   isTeamTargetEligible,
+  selectBarTargetEligibility,
+  selectBarsTargetedByCard,
   selectTeamTargetEligibility,
   selectTeamsTargetedByCard,
 } from "./cardEligibility";
@@ -37,6 +40,7 @@ function cardPlayed(
   slug: string,
   castingTeamId: string,
   targetTeamId: string | null,
+  targetBarId: string | null = null,
 ): GameEvent {
   return {
     id: `e-${seq}`,
@@ -50,6 +54,7 @@ function cardPlayed(
       castingTeamId,
       slug,
       targetTeamId,
+      targetBarId,
       cards: [
         {
           cardId: `${castingTeamId}:${slug}`,
@@ -149,5 +154,53 @@ describe("selectTeamTargetEligibility (R3.2, R3.3)", () => {
         "team-a",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("bar targeting selectors (R3.4, R3.5)", () => {
+  const BARS = ["bar-1", "bar-2", "bar-3"];
+
+  it("collects bars already targeted by the same card", () => {
+    const view = foldGameBoardEvents(GAME, [
+      cardPlayed(1, "happy-hour", "team-a", null, "bar-1"),
+      // A different card targeting bar-2 must not count for happy-hour.
+      cardPlayed(2, "crop-dusting", "team-a", null, "bar-2"),
+    ]);
+    expect([...selectBarsTargetedByCard(view, "happy-hour")]).toEqual([
+      "bar-1",
+    ]);
+  });
+
+  it("rejects the finish bar and an already-same-card-targeted bar", () => {
+    const view = foldGameBoardEvents(GAME, [
+      cardPlayed(1, "happy-hour", "team-a", null, "bar-1"),
+    ]);
+    // Finish bar is ineligible.
+    expect(isBarTargetEligible(view, "happy-hour", "bar-3", "bar-3")).toBe(
+      false,
+    );
+    // Already targeted by happy-hour.
+    expect(isBarTargetEligible(view, "happy-hour", "bar-1", null)).toBe(false);
+    // Fresh bar is eligible.
+    expect(isBarTargetEligible(view, "happy-hour", "bar-2", null)).toBe(true);
+    // A different card may still target bar-1.
+    expect(isBarTargetEligible(view, "crop-dusting", "bar-1", null)).toBe(true);
+  });
+
+  it("marks finish_bar and already_targeted_same_card reasons per bar", () => {
+    const view = foldGameBoardEvents(GAME, [
+      cardPlayed(1, "happy-hour", "team-a", null, "bar-1"),
+    ]);
+    const rows = selectBarTargetEligibility(view, "happy-hour", BARS, "bar-3");
+    const byId = new Map(rows.map((r) => [r.barId, r]));
+    expect(byId.get("bar-1")).toMatchObject({
+      eligible: false,
+      reason: "already_targeted_same_card",
+    });
+    expect(byId.get("bar-2")).toMatchObject({ eligible: true, reason: null });
+    expect(byId.get("bar-3")).toMatchObject({
+      eligible: false,
+      reason: "finish_bar",
+    });
   });
 });

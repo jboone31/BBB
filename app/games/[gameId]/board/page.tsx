@@ -92,6 +92,7 @@ import {
 } from "@/lib/gameboard/region";
 
 import { foldLobbyEvents } from "@/lib/lobby/events";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 import { WIREFRAME_TEAMS } from "@/lib/map/claims";
 
 import type { GameEvent } from "@/lib/events";
@@ -562,7 +563,7 @@ export default function BoardPage(): React.JSX.Element {
   const handleConfirmPlay = useCallback(
     async (
       card: BoardCardView,
-      targets: { targetTeamId?: string },
+      targets: { targetTeamId?: string; targetBarId?: string },
     ): Promise<void> => {
       if (view.lifecycle === "ended" || playPending) {
         return;
@@ -583,6 +584,7 @@ export default function BoardPage(): React.JSX.Element {
           body: JSON.stringify({
             cardId: card.cardId,
             targetTeamId: targets.targetTeamId,
+            targetBarId: targets.targetBarId,
           }),
         });
         const body = (await res.json()) as WireframeResponse;
@@ -1268,6 +1270,9 @@ export default function BoardPage(): React.JSX.Element {
             view={view}
             teams={view.teams}
             castingTeamId={myTeamId ?? ""}
+            bars={CANDIDATE_BARS}
+            claims={claimState}
+            finishBarId={null}
             pending={playPending}
             onConfirm={(targets) => {
               void handleConfirmPlay(playingCard, targets);

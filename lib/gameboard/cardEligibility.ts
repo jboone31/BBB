@@ -92,3 +92,84 @@ export function selectTeamTargetEligibility(
     return { teamId: team.id, eligible: reason === null, reason };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Bar targeting (R3.4, R3.5)
+// ---------------------------------------------------------------------------
+
+/** Why a bar is ineligible as a target for a given card. */
+export type BarIneligibilityReason =
+  "finish_bar" | "already_targeted_same_card";
+
+/** A bar's targeting eligibility for a specific card. */
+export interface BarTargetEligibility {
+  readonly barId: string;
+  readonly eligible: boolean;
+  readonly reason: BarIneligibilityReason | null;
+}
+
+/**
+ * The set of bar ids already targeted by a prior play of `slug` (R3.5). A bar in
+ * this set may not be targeted by another card of the same name.
+ */
+export function selectBarsTargetedByCard(
+  view: GameBoardView,
+  slug: CardSlug,
+): ReadonlySet<string> {
+  const targeted = new Set<string>();
+  for (const play of view.cardPlays) {
+    if (play.slug === slug && play.targetBarId !== null) {
+      targeted.add(play.targetBarId);
+    }
+  }
+  return targeted;
+}
+
+/**
+ * Whether `barId` may be targeted by `slug` (R3.4/R3.5). Ineligible if it is the
+ * finish bar or has already been targeted by a card of the same name.
+ *
+ * `finishBarId` is supplied by the caller because the (candidate-slug) finish
+ * bar identity is not carried by the folded view; pass `null` when unknown.
+ * Per-card geographic rules (e.g. Cancel Culture's 0.25-mile radius) are a later
+ * per-card effort and are not enforced here.
+ */
+export function isBarTargetEligible(
+  view: GameBoardView,
+  slug: CardSlug,
+  barId: string,
+  finishBarId: string | null,
+): boolean {
+  if (finishBarId !== null && barId === finishBarId) {
+    return false;
+  }
+  return !selectBarsTargetedByCard(view, slug).has(barId);
+}
+
+/**
+ * Compute every bar's targeting eligibility for `slug` (R3.4/R3.5), for the
+ * given bar ids. The caller (map UI or route) uses this to gray out / disable
+ * ineligible bars.
+ *
+ * @param view the folded board view.
+ * @param slug the card being played.
+ * @param barIds the candidate bar ids to evaluate.
+ * @param finishBarId the finish bar id to exclude, or null when unknown.
+ */
+export function selectBarTargetEligibility(
+  view: GameBoardView,
+  slug: CardSlug,
+  barIds: readonly string[],
+  finishBarId: string | null,
+): BarTargetEligibility[] {
+  const alreadyTargeted = selectBarsTargetedByCard(view, slug);
+  return barIds.map((barId) => {
+    let reason: BarIneligibilityReason | null = null;
+    if (finishBarId !== null && barId === finishBarId) {
+      reason = "finish_bar";
+    } else if (alreadyTargeted.has(barId)) {
+      reason = "already_targeted_same_card";
+    }
+    return { barId, eligible: reason === null, reason };
+  });
+}

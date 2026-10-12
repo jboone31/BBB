@@ -134,9 +134,30 @@ beforeEach(() => {
   mockPlayCalls.length = 0;
 });
 
-// go-piss-girl is a team-targeting card; power-hour targets no one.
+// go-piss-girl is a team-targeting card; power-hour targets no one;
+// happy-hour targets a bar; voted-off-the-island targets a team AND a bar.
 const TEAM_CARD = "team-a:go-piss-girl";
 const NONE_CARD = "team-a:power-hour";
+const BAR_CARD = "team-a:happy-hour";
+const TEAM_AND_BAR_CARD = "team-a:voted-off-the-island";
+
+function cardPlayedBarRow(
+  seq: number,
+  slug: string,
+  castingTeamId: string,
+  targetBarId: string,
+): Record<string, unknown> {
+  return {
+    id: `e-${seq}`,
+    game_id: "game-1",
+    seq,
+    event_type: "card_played",
+    actor_kind: "team",
+    actor_team_id: castingTeamId,
+    payload: { castingTeamId, slug, targetBarId, teamId: castingTeamId },
+    created_at: new Date(seq).toISOString(),
+  };
+}
 
 describe("POST /api/games/[gameId]/cards/play (R3.1, R3.2, R3.3)", () => {
   it("plays a team-targeting card and records the target in the event extra", async () => {
@@ -245,5 +266,67 @@ describe("POST /api/games/[gameId]/cards/play (R3.1, R3.2, R3.3)", () => {
       applied: false,
       error: "card_not_in_hand",
     });
+  });
+
+  // --- Bar targeting (Task 9; R3.4, R3.5) ---------------------------------
+
+  it("plays a bar-targeting card and records the target bar", async () => {
+    const response = await POST(
+      request({ cardId: BAR_CARD, targetBarId: "bar-1" }),
+      params(),
+    );
+    expect(response.status).toBe(200);
+    expect(mockPlayCalls[0].eventExtra).toMatchObject({
+      slug: "happy-hour",
+      targetBarId: "bar-1",
+    });
+  });
+
+  it("rejects a bar-targeting card with no bar (400)", async () => {
+    const response = await POST(request({ cardId: BAR_CARD }), params());
+    expect(response.status).toBe(400);
+    expect(mockPlayCalls).toHaveLength(0);
+  });
+
+  it("rejects a bar already targeted by the same card (409) — R3.5", async () => {
+    mockEventRows = [cardPlayedBarRow(1, "happy-hour", "team-a", "bar-1")];
+    const response = await POST(
+      request({ cardId: BAR_CARD, targetBarId: "bar-1" }),
+      params(),
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      applied: false,
+      error: "target_ineligible",
+    });
+    expect(mockPlayCalls).toHaveLength(0);
+  });
+
+  // --- Team-and-bar (Task 9; R3.6) ----------------------------------------
+
+  it("plays a team_and_bar card carrying both targets", async () => {
+    const response = await POST(
+      request({
+        cardId: TEAM_AND_BAR_CARD,
+        targetTeamId: "team-b",
+        targetBarId: "bar-1",
+      }),
+      params(),
+    );
+    expect(response.status).toBe(200);
+    expect(mockPlayCalls[0].eventExtra).toMatchObject({
+      slug: "voted-off-the-island",
+      targetTeamId: "team-b",
+      targetBarId: "bar-1",
+    });
+  });
+
+  it("rejects a team_and_bar card missing the bar (400)", async () => {
+    const response = await POST(
+      request({ cardId: TEAM_AND_BAR_CARD, targetTeamId: "team-b" }),
+      params(),
+    );
+    expect(response.status).toBe(400);
+    expect(mockPlayCalls).toHaveLength(0);
   });
 });

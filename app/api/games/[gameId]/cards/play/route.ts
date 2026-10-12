@@ -31,7 +31,10 @@ import {
 import { playCard } from "@/lib/cards/deck";
 import { getCardMetadata, type CardSlug } from "@/lib/cards/catalog";
 import { foldGameBoardEvents } from "@/lib/gameboard/events";
-import { isTeamTargetEligible } from "@/lib/gameboard/cardEligibility";
+import {
+  isBarTargetEligible,
+  isTeamTargetEligible,
+} from "@/lib/gameboard/cardEligibility";
 
 import {
   applied,
@@ -124,16 +127,26 @@ export async function POST(
       }
       const castingTeamId = actor.teamId;
 
-      // Validate a team target: belongs to the game, is not the caster, and is
-      // not already targeted by a card of the same name (R3.2/R3.3). The same
-      // eligibility the UI uses to gray out teams, enforced on the server.
       const targetsTeam =
         targetMode === "team" || targetMode === "team_and_bar";
+      const targetsBar = targetMode === "bar" || targetMode === "team_and_bar";
+
+      // Fold the committed event log once, inside this transaction, to evaluate
+      // the same-name-once eligibility rules against prior plays (R3.3/R3.5).
+      let view: ReturnType<typeof foldGameBoardEvents> | null = null;
+      if (targetsTeam || targetsBar) {
+        const { rows: eventRows } = await tx.query(EVENTS_SQL, [gameId]);
+        view = foldGameBoardEvents(
+          gameId,
+          eventRows.map((row) => rowToGameEvent(row)),
+        );
+      }
+
+      // Validate a team target: belongs to the game, is not the caster, and is
+      // not already targeted by a card of the same name (R3.2/R3.3) — the same
+      // eligibility the UI grays out, enforced on the server.
       if (targetsTeam) {
-        if (targetTeamId === undefined) {
-          return { ok: false, reason: "invalid_card" };
-        }
-        if (targetTeamId === castingTeamId) {
+        if (targetTeamId === undefined || targetTeamId === castingTeamId) {
           return { ok: false, reason: "invalid_card" };
         }
         const { rows: teamRows } = await tx.query(TEAM_IN_GAME_SQL, [
@@ -143,18 +156,30 @@ export async function POST(
         if (teamRows.length === 0) {
           return { ok: false, reason: "not_found" };
         }
-        // Fold the current event log to evaluate the same-name-once rule
-        // against committed plays, inside this transaction.
-        const { rows: eventRows } = await tx.query(EVENTS_SQL, [gameId]);
-        const events = eventRows.map((row) => rowToGameEvent(row));
-        const view = foldGameBoardEvents(gameId, events);
         if (
+          view !== null &&
           !isTeamTargetEligible(
             view,
             slug as CardSlug,
             castingTeamId,
             targetTeamId,
           )
+        ) {
+          return { ok: false, reason: "target_ineligible" };
+        }
+      }
+
+      // Validate a bar target: present, and not already targeted by a card of
+      // the same name (R3.4/R3.5). The finish-bar exclusion is enforced in the
+      // UI from the candidate-slug map; per-card geographic rules are a later
+      // per-card effort.
+      if (targetsBar) {
+        if (targetBarId === undefined) {
+          return { ok: false, reason: "invalid_card" };
+        }
+        if (
+          view !== null &&
+          !isBarTargetEligible(view, slug as CardSlug, targetBarId, null)
         ) {
           return { ok: false, reason: "target_ineligible" };
         }
