@@ -7,7 +7,7 @@
  *
  * This is the one client surface that composes the presentational board
  * components ({@link RegionNav}, {@link MapRegion}, {@link ScoreboardRegion},
- * {@link CardsRegion}, {@link CardPlayWireframe}, {@link TargetedNotification})
+ * {@link CardsRegion}, {@link CardPlayPanel}, {@link TargetedNotification})
  * with the foundation's realtime client, the feature's pure Game_Board reducer,
  * and the access/region helpers. It mirrors the lobby page's structure exactly —
  * async Supabase-auth Session → subscribe + snapshot fold + ordered apply +
@@ -34,13 +34,15 @@
  *      and, once exhausted, surfaces a terminal "reload required" banner; a
  *      {@link ResumeController} bound to visibility/focus catches up the missed
  *      tail on resume/relaunch.
- *   5. **Region + card-play + notification state (R2/R6/R7).** Active-Region
- *      state via {@link selectRegion} (initial `bars`, R2.3); opening/confirming/
- *      cancelling the {@link CardPlayWireframe} (R6); and the list of
- *      {@link TargetedNotification}s derived from `view.targetedNotices` filtered
- *      to the current Team (R7.3/R7.8), each dismissable (R7.5).
- *   6. **The one POST.** `POST /api/games/{gameId}/wireframe-card-play` on
- *      confirm of a targeting card, surfacing "not delivered" on failure (R7.7).
+ *   5. **Region + card-play + notification state.** Active-Region state via
+ *      {@link selectRegion} (initial `bars`); the draw-choice / hand / play flow
+ *      through the {@link CardsRegion} + {@link CardPlayPanel} against the real
+ *      card routes (draw-on-claim, keep, discard, play with team/bar targeting
+ *      and eligibility graying); and the list of {@link TargetedNotification}s
+ *      derived from `view.targetedNotices` filtered to the current Team, each
+ *      dismissable.
+ *   6. **Card mutations.** POSTs to `/cards/{keep,discard,play,inject}` and the
+ *      claim route, surfacing explicit errors on failure.
  *
  * Role & team derivation. Two durable per-game facts (kept in the same storage
  * as the session so they survive reload) resolve the Session's role: whether it
@@ -129,8 +131,8 @@ type ConnectionStatus =
   | "disabled"
   | "error";
 
-/** The structured response the wireframe-card-play route returns. */
-type WireframeResponse =
+/** The structured response the card-play route returns. */
+type PlayResponse =
   | { applied: true; seq?: number | null; [k: string]: unknown }
   | { applied: false; error: string };
 
@@ -589,7 +591,7 @@ export default function BoardPage(): React.JSX.Element {
             targetBarId: targets.targetBarId,
           }),
         });
-        const body = (await res.json()) as WireframeResponse;
+        const body = (await res.json()) as PlayResponse;
         if (!body.applied) {
           setPlayError("not_delivered");
         } else {
