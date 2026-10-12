@@ -18,6 +18,8 @@ import {
   type ScoreAdjustment,
 } from "@/lib/scoring";
 import { CANDIDATE_BARS } from "@/lib/map/bars";
+import { applyDeckTransition } from "@/lib/cards/persistence";
+import { drawForBar } from "@/lib/cards/deck";
 
 import {
   assertMember,
@@ -201,6 +203,33 @@ async function appendScoreAdjustments(
   return lastSeq;
 }
 
+/**
+ * Draw the top two cards for a team's first claim of a non-finish bar, inside
+ * the claim transaction (R1.1, R1.6). The pure deck engine owns the rules: it
+ * rejects a duplicate-bar draw (R1.4), a hand that is already full, an
+ * unresolved pending draw, and an exhausted deck, and it keeps both cards during
+ * Power Hour. A rejection here is expected and benign — it means "this claim
+ * draws nothing" — so it is swallowed and the claim still commits.
+ *
+ * @returns the appended `cards_drawn` event seq, or 0 when no draw happened.
+ */
+async function drawOnClaim(
+  tx: QueryRunner,
+  args: {
+    readonly gameId: string;
+    readonly teamId: string;
+    readonly barId: string;
+  },
+): Promise<number> {
+  const result = await applyDeckTransition(tx, {
+    ctx: { gameId: args.gameId, teamId: args.teamId },
+    kind: "draw",
+    transition: (state) => drawForBar(state, args.barId),
+    barId: args.barId,
+  });
+  return result.ok ? result.seq : 0;
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ gameId: string }> },
@@ -376,6 +405,7 @@ export async function POST(
       );
 
       if (barKind(game, resolvedBarId) === "finish") {
+        // The finish bar ends the game immediately and must NOT draw (R1.3).
         const { rows: endedRows } = await tx.query(END_FINISH_GAME_SQL, [
           gameId,
         ]);
@@ -395,7 +425,18 @@ export async function POST(
         return { ok: true, seq: endedEvent.seq, claimId };
       }
 
-      return { ok: true, seq: scoreSeq || claimEvent.seq, claimId };
+      // Every non-finish claim (start + scoring) draws the top two cards into a
+      // pending choice, within this same transaction so claim + score + draw
+      // commit atomically (R1.1, R1.6). The engine itself enforces once-per-bar
+      // (R1.4) and deck exhaustion / single-card (R1.5): a rejected draw simply
+      // means "no draw" and must not fail or roll back the claim.
+      const drawSeq = await drawOnClaim(tx, {
+        gameId,
+        teamId: resolvedTeamId,
+        barId: resolvedBarId,
+      });
+
+      return { ok: true, seq: drawSeq || scoreSeq || claimEvent.seq, claimId };
     });
 
     if (!outcome.ok) return notApplied(outcome.reason);

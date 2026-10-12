@@ -436,5 +436,74 @@ describe.skipIf(!DB_CONFIGURED)(
         state.eventTypes.filter((type) => type === "claim_recorded"),
       ).toHaveLength(1);
     }, 30000);
+
+    // -----------------------------------------------------------------------
+    // Draw on claim (Task 4; R1.1, R1.3, R1.4, R1.6)
+    // -----------------------------------------------------------------------
+
+    it("writes claim + score + cards_drawn atomically on a scoring claim, and no re-draw on a revisit (R1.1, R1.4, R1.6)", async () => {
+      const fixture = await createFixture();
+
+      const claimed = await postClaim(fixture, fixture.sessionA, {
+        action: "claim",
+        barId: fixture.scoringBarId,
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      });
+      expect(claimed.status, JSON.stringify(claimed.body)).toBe(200);
+
+      let state = await readBarState(fixture, fixture.scoringBarId);
+      // The claim, its score, and the draw all committed together.
+      expect(state.eventTypes).toEqual(
+        expect.arrayContaining([
+          "claim_recorded",
+          "score_awarded",
+          "cards_drawn",
+        ]),
+      );
+      expect(
+        state.eventTypes.filter((type) => type === "cards_drawn"),
+      ).toHaveLength(1);
+
+      // Revisit: unclaim then reclaim the SAME bar. The engine's once-per-bar
+      // rule means no second draw (R1.4).
+      await postClaim(fixture, fixture.sessionA, {
+        action: "unclaim",
+        barId: fixture.scoringBarId,
+      });
+      const reclaimed = await postClaim(fixture, fixture.sessionA, {
+        action: "claim",
+        barId: fixture.scoringBarId,
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      });
+      expect(reclaimed.status, JSON.stringify(reclaimed.body)).toBe(200);
+
+      state = await readBarState(fixture, fixture.scoringBarId);
+      expect(
+        state.eventTypes.filter((type) => type === "cards_drawn"),
+        "re-encountering an already-drawn bar must not draw again",
+      ).toHaveLength(1);
+    }, 30000);
+
+    it("ends the game with no draw when the finish bar is claimed (R1.3)", async () => {
+      const fixture = await createFixture();
+
+      const finish = await postClaim(fixture, fixture.sessionA, {
+        action: "claim",
+        barId: fixture.finishBarId,
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      });
+      expect(finish.status, JSON.stringify(finish.body)).toBe(200);
+      expect(await readLifecycle(fixture.gameId)).toBe("ended");
+
+      const state = await readBarState(fixture, fixture.finishBarId);
+      expect(state.eventTypes).toContain("game_ended");
+      expect(
+        state.eventTypes.filter((type) => type === "cards_drawn"),
+        "the finish bar must not trigger a draw",
+      ).toHaveLength(0);
+    }, 30000);
   },
 );
