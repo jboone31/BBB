@@ -34,7 +34,13 @@
  * every interactive control is at least 44×44 CSS pixels.
  */
 
-import { getCardMetadata, type CardSlug } from "@/lib/cards/catalog";
+import { useState } from "react";
+
+import {
+  getCardMetadata,
+  getCardText,
+  type CardSlug,
+} from "@/lib/cards/catalog";
 import type { BoardCardView } from "@/lib/gameboard/events";
 
 /** Minimum touch-target size for interactive controls (R6 cross-cutting). */
@@ -76,6 +82,19 @@ function cardName(slug: string): string {
   }
 }
 
+/** The player-facing description + requirement text for a card slug, if cataloged. */
+function cardText(slug: string): {
+  description: string;
+  castingRequirement: string | null;
+  targetRequirement: string | null;
+} | null {
+  try {
+    return getCardText(slug as CardSlug);
+  } catch {
+    return null;
+  }
+}
+
 export default function CardsRegion({
   cards,
   adminNotPlayer,
@@ -88,6 +107,10 @@ export default function CardsRegion({
   const pending = cards.filter((card) => card.state === "pending");
   const hand = cards.filter((card) => card.state === "hand");
   const handFull = hand.length >= MAX_HAND_SIZE;
+
+  // The held card whose detail panel is open (R2.2). Toggled by selecting a
+  // card's name; at most one is expanded at a time.
+  const [inspectedCardId, setInspectedCardId] = useState<string | null>(null);
 
   return (
     <section
@@ -261,13 +284,15 @@ export default function CardsRegion({
                 {hand.map((card) => {
                   const name = cardName(card.slug);
                   const busy = pendingCardId === card.cardId;
+                  const expanded = inspectedCardId === card.cardId;
+                  const detailId = `card-detail-${card.cardId}`;
+                  const text = expanded ? cardText(card.slug) : null;
                   return (
                     <li
                       key={card.cardId}
                       style={{
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
+                        flexDirection: "column",
                         gap: "0.5rem",
                         padding: "0.6rem 0.75rem",
                         borderRadius: "0.5rem",
@@ -276,42 +301,143 @@ export default function CardsRegion({
                         width: "100%",
                       }}
                     >
-                      <span
-                        style={{
-                          fontSize: "1rem",
-                          fontWeight: 500,
-                          color: "#1a1a1a",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {name}
-                      </span>
-                      <span
+                      <div
                         style={{
                           display: "flex",
-                          gap: "0.4rem",
-                          flex: "0 0 auto",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          width: "100%",
                         }}
                       >
+                        {/* The card name is the inspect toggle (R2.2): selecting
+                            it expands/collapses the card's detail panel. */}
                         <button
                           type="button"
-                          aria-label={`Play ${name}`}
-                          disabled={readOnly || busy}
-                          onClick={() => onPlayCard(card)}
-                          style={playButtonStyle(readOnly || busy)}
+                          aria-expanded={expanded}
+                          aria-controls={detailId}
+                          aria-label={`${name} details`}
+                          onClick={() =>
+                            setInspectedCardId((current) =>
+                              current === card.cardId ? null : card.cardId,
+                            )
+                          }
+                          style={{
+                            flex: "1 1 auto",
+                            minHeight: TOUCH_TARGET,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.4rem",
+                            padding: "0.3rem 0.4rem",
+                            fontSize: "1rem",
+                            fontWeight: 500,
+                            textAlign: "left",
+                            color: "#1a1a1a",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "0.4rem",
+                            cursor: "pointer",
+                            overflowWrap: "anywhere",
+                          }}
                         >
-                          Play
+                          <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                          {name}
                         </button>
-                        <button
-                          type="button"
-                          aria-label={`Discard ${name}`}
-                          disabled={readOnly || busy}
-                          onClick={() => onDiscardCard(card)}
-                          style={discardButtonStyle(readOnly || busy)}
+                        <span
+                          style={{
+                            display: "flex",
+                            gap: "0.4rem",
+                            flex: "0 0 auto",
+                          }}
                         >
-                          Discard
-                        </button>
-                      </span>
+                          <button
+                            type="button"
+                            aria-label={`Play ${name}`}
+                            disabled={readOnly || busy}
+                            onClick={() => onPlayCard(card)}
+                            style={playButtonStyle(readOnly || busy)}
+                          >
+                            Play
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Discard ${name}`}
+                            disabled={readOnly || busy}
+                            onClick={() => onDiscardCard(card)}
+                            style={discardButtonStyle(readOnly || busy)}
+                          >
+                            Discard
+                          </button>
+                        </span>
+                      </div>
+
+                      {/* Card detail panel: real catalog effect + playing
+                          requirement text (R2.2). */}
+                      {expanded ? (
+                        <div
+                          id={detailId}
+                          role="group"
+                          aria-label={`${name} details`}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.4rem",
+                            padding: "0.5rem 0.6rem",
+                            borderRadius: "0.4rem",
+                            background: "#f5f7ff",
+                            border: "1px solid #ccd4ee",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.9rem",
+                              color: "#1a1a1a",
+                            }}
+                          >
+                            {text?.description ??
+                              "No description is available for this card."}
+                          </p>
+                          {text?.castingRequirement != null ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "0.85rem",
+                                color: "#444",
+                              }}
+                            >
+                              <strong>To play:</strong>{" "}
+                              {text.castingRequirement}
+                            </p>
+                          ) : null}
+                          {text?.targetRequirement != null ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "0.85rem",
+                                color: "#444",
+                              }}
+                            >
+                              <strong>Target must:</strong>{" "}
+                              {text.targetRequirement}
+                            </p>
+                          ) : null}
+                          {text != null &&
+                          text.castingRequirement == null &&
+                          text.targetRequirement == null ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "0.85rem",
+                                color: "#444",
+                                fontStyle: "italic",
+                              }}
+                            >
+                              No requirements — it applies on its own.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}

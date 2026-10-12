@@ -22,7 +22,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getCardMetadata } from "@/lib/cards/catalog";
+import { getCardMetadata, getCardText } from "@/lib/cards/catalog";
 import type { BoardCardView } from "@/lib/gameboard/events";
 
 import CardsRegion from "./CardsRegion";
@@ -117,6 +117,69 @@ describe("CardsRegion — held hand (R2.1, R2.3)", () => {
   it("shows an empty-hand hint when the team holds no cards", () => {
     renderRegion({ cards: [] });
     expect(screen.getByText(/no cards in hand/i)).toBeTruthy();
+  });
+});
+
+describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
+  it("selecting a held card reveals its name, description, and target requirement", () => {
+    // voted-off-the-island is team_and_bar: it carries a target requirement.
+    renderRegion({ cards: [card("voted-off-the-island", "hand")] });
+    const name = getCardMetadata("voted-off-the-island").name;
+    const text = getCardText("voted-off-the-island");
+
+    // The detail is collapsed by default.
+    expect(screen.queryByText(text.description)).toBeNull();
+
+    // Selecting the card name expands its detail panel.
+    const toggle = screen.getByRole("button", {
+      name: new RegExp(`${name} details`, "i"),
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+
+    const detail = screen.getByRole("group", {
+      name: new RegExp(`${name} details`, "i"),
+    });
+    expect(detail.textContent).toContain(text.description);
+    // The target-team challenge is shown under "Target must:".
+    expect(text.targetRequirement).not.toBeNull();
+    expect(detail.textContent).toMatch(/Target must:/i);
+  });
+
+  it("shows the casting requirement under 'To play:' for a card that needs a casting input", () => {
+    // art-school-dropout has a casting input, so it carries a casting requirement.
+    renderRegion({ cards: [card("art-school-dropout", "hand")] });
+    const name = getCardMetadata("art-school-dropout").name;
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`${name} details`, "i") }),
+    );
+    const detail = screen.getByRole("group", {
+      name: new RegExp(`${name} details`, "i"),
+    });
+    expect(detail.textContent).toMatch(/To play:/i);
+  });
+
+  it("shows an 'applies on its own' note for a card with no requirements", () => {
+    renderRegion({ cards: [card("insurance", "hand")] });
+    const name = getCardMetadata("insurance").name;
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`${name} details`, "i") }),
+    );
+    expect(screen.getByText(/applies on its own/i)).toBeTruthy();
+  });
+
+  it("collapses the detail when the card is selected again", () => {
+    renderRegion({ cards: [card("wired", "hand")] });
+    const name = getCardMetadata("wired").name;
+    const toggle = screen.getByRole("button", {
+      name: new RegExp(`${name} details`, "i"),
+    });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(getCardText("wired").description)).toBeNull();
   });
 });
 
