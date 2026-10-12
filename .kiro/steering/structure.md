@@ -65,6 +65,7 @@ property-tested in isolation.
 
 ```
 lib/
+  config/     # committed, PR-controlled dev flags (no env vars)
   env/        # startup env loading + validation (fail fast on missing config)
   scoring/    # bar point-split scoring + score ledger
   gameend/    # game-end / winner determination
