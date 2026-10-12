@@ -76,7 +76,11 @@ export type LobbyErrorReason =
   | "no_team"
   | "claim_ineligible"
   | "claim_duplicate"
-  | "claim_not_active";
+  | "claim_not_active"
+  | "invalid_card"
+  | "card_not_pending"
+  | "card_not_in_hand"
+  | "no_pending_draw";
 
 /** Success shape: the mutation was applied and produced one event at `seq` (Req 6.4). */
 export interface AppliedResponse {
@@ -129,6 +133,10 @@ export const ERROR_STATUS: Readonly<Record<LobbyErrorReason, number>> = {
   claim_ineligible: 409,
   claim_duplicate: 409,
   claim_not_active: 409,
+  invalid_card: 400,
+  card_not_pending: 409,
+  card_not_in_hand: 409,
+  no_pending_draw: 409,
 };
 
 /**
