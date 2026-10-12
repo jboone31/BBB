@@ -471,6 +471,55 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
 
     it("Cards region play controls + the Card_Play_Wireframe dialog controls", async () => {
       setViewportWidth(390);
+      // The hand is now real (folded from the event log), so put player-1 on
+      // team-a and give team-a a held card so a Play control exists to measure.
+      snapshotEvents = [
+        ...liveSnapshot(GAME_ID),
+        {
+          id: `evt-${GAME_ID}-4`,
+          gameId: GAME_ID,
+          seq: 4,
+          eventType: "player_joined",
+          actorKind: "team",
+          actorTeamId: null,
+          payload: { playerId: "player-1", displayName: "Me" },
+          createdAt: "2024-01-01T00:00:03.000Z",
+        },
+        {
+          id: `evt-${GAME_ID}-5`,
+          gameId: GAME_ID,
+          seq: 5,
+          eventType: "team_changed",
+          actorKind: "team",
+          actorTeamId: "team-a",
+          payload: {
+            playerId: "player-1",
+            fromTeamId: null,
+            toTeamId: "team-a",
+          },
+          createdAt: "2024-01-01T00:00:04.000Z",
+        },
+        {
+          id: `evt-${GAME_ID}-6`,
+          gameId: GAME_ID,
+          seq: 6,
+          eventType: "card_kept",
+          actorKind: "team",
+          actorTeamId: "team-a",
+          payload: {
+            teamId: "team-a",
+            cards: [
+              {
+                cardId: "team-a:go-piss-girl",
+                teamId: "team-a",
+                slug: "go-piss-girl",
+                state: "hand",
+              },
+            ],
+          },
+          createdAt: "2024-01-01T00:00:05.000Z",
+        },
+      ];
       const { container } = await renderLiveBoard();
 
       // Switch to the Cards region and confirm its play controls meet the target.

@@ -84,10 +84,7 @@ import {
   selectScoreTotals,
   type GameBoardView,
 } from "@/lib/gameboard/events";
-import {
-  placeholderHand,
-  type PlaceholderCard,
-} from "@/lib/gameboard/placeholderCards";
+import { type PlaceholderCard } from "@/lib/gameboard/placeholderCards";
 import {
   INITIAL_REGION,
   type Region,
@@ -508,10 +505,22 @@ export default function BoardPage(): React.JSX.Element {
     [view.targetedNotices, myTeamId],
   );
 
-  // The current player's placeholder hand (R5.2). Deterministic per player id.
-  const hand = useMemo<PlaceholderCard[]>(
-    () => (myPlayerId === null ? [] : placeholderHand(myPlayerId)),
-    [myPlayerId],
+  // The current team's real cards from the folded projection (R2.1). The
+  // Cards_Region selects its pending/hand subsets. A player with no resolved
+  // team (or the admin-not-player) has none.
+  const myCards = useMemo(
+    () =>
+      myTeamId === null
+        ? []
+        : view.cards.filter((card) => card.teamId === myTeamId),
+    [view.cards, myTeamId],
+  );
+  // The card id awaiting a keep/discard server response (disables that card).
+  const [cardMutationPending, setCardMutationPending] = useState<string | null>(
+    null,
+  );
+  const [cardMutationError, setCardMutationError] = useState<string | null>(
+    null,
   );
 
   // Teams shown on the Map_Region so any team's claim can be colored. Prefer the
@@ -578,6 +587,53 @@ export default function BoardPage(): React.JSX.Element {
       }
     },
     [gameId, sessionId, view.lifecycle],
+  );
+
+  // --- Keep / discard a card (brawl-deck-architecture Tasks 5, 6) ----------
+  // Resolve a pending draw (keep) or free a slot (discard) by POSTing to the
+  // real card routes. Realtime folds the resulting card_kept / card_discarded
+  // event back into view.cards, so the projection updates without local hand
+  // state. A failed update surfaces an explicit error and never looks applied.
+  const handleCardMutation = useCallback(
+    async (action: "keep" | "discard", cardId: string): Promise<void> => {
+      if (
+        sessionId === null ||
+        cardMutationPending !== null ||
+        view.lifecycle === "ended"
+      ) {
+        return;
+      }
+      setCardMutationError(null);
+      setCardMutationPending(cardId);
+      try {
+        const response = await fetch(`/api/games/${gameId}/cards/${action}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [SESSION_HEADER]: sessionId,
+          },
+          body: JSON.stringify({ cardId }),
+        });
+        const body = (await response.json()) as
+          { applied: true; seq?: number } | { applied: false; error: string };
+        if (!body.applied) {
+          setCardMutationError(
+            action === "keep"
+              ? "The card could not be kept. Please try again."
+              : "The card could not be discarded. Please try again.",
+          );
+        }
+      } catch {
+        setCardMutationError(
+          action === "keep"
+            ? "The card could not be kept. Please try again."
+            : "The card could not be discarded. Please try again.",
+        );
+      } finally {
+        setCardMutationPending(null);
+      }
+    },
+    [cardMutationPending, gameId, sessionId, view.lifecycle],
   );
 
   const handleClaimMutation = useCallback(
@@ -1151,18 +1207,52 @@ export default function BoardPage(): React.JSX.Element {
         />
       ) : null}
       {activeRegion === "cards" ? (
-        <CardsRegion
-          hand={hand}
-          adminNotPlayer={adminNotPlayer}
-          onPlayCard={(card) => {
-            if (readOnly) {
-              return;
-            }
-            setPlayError(null);
-            setPlayingCard(card);
-          }}
-          readOnly={readOnly}
-        />
+        <>
+          <CardsRegion
+            cards={myCards}
+            adminNotPlayer={adminNotPlayer}
+            onKeepCard={(card) => {
+              void handleCardMutation("keep", card.cardId);
+            }}
+            onDiscardCard={(card) => {
+              void handleCardMutation("discard", card.cardId);
+            }}
+            onPlayCard={(card) => {
+              if (readOnly) {
+                return;
+              }
+              setPlayError(null);
+              // Bridge the real card into the still-wireframe play flow until the
+              // real play route + targeting replace it (Task 8). The catalog
+              // slug carries targeting mode; a card targets a team unless it is
+              // a self/none/bar card. The wireframe only needs a label + whether
+              // it targets a team.
+              setPlayingCard({
+                id: card.cardId,
+                label: card.slug,
+                targetsTeam: true,
+              });
+            }}
+            readOnly={readOnly}
+            pendingCardId={cardMutationPending}
+          />
+          {cardMutationError !== null ? (
+            <p
+              role="alert"
+              style={{
+                margin: 0,
+                padding: "0.6rem 0.75rem",
+                border: "1px solid #b00020",
+                borderRadius: "0.5rem",
+                fontSize: "0.85rem",
+                color: "#b00020",
+                background: "#fff5f5",
+              }}
+            >
+              {cardMutationError}
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       {/* Card_Play_Wireframe, presented on play (R6.1). The target list excludes
