@@ -7,7 +7,7 @@
  *
  * This is the one client surface that composes the presentational board
  * components ({@link RegionNav}, {@link MapRegion}, {@link ScoreboardRegion},
- * {@link CardsRegion}, {@link CardPlayWireframe}, {@link TargetedNotification})
+ * {@link CardsRegion}, {@link CardPlayPanel}, {@link TargetedNotification})
  * with the foundation's realtime client, the feature's pure Game_Board reducer,
  * and the access/region helpers. It mirrors the lobby page's structure exactly —
  * async Supabase-auth Session → subscribe + snapshot fold + ordered apply +
@@ -34,13 +34,15 @@
  *      and, once exhausted, surfaces a terminal "reload required" banner; a
  *      {@link ResumeController} bound to visibility/focus catches up the missed
  *      tail on resume/relaunch.
- *   5. **Region + card-play + notification state (R2/R6/R7).** Active-Region
- *      state via {@link selectRegion} (initial `bars`, R2.3); opening/confirming/
- *      cancelling the {@link CardPlayWireframe} (R6); and the list of
- *      {@link TargetedNotification}s derived from `view.targetedNotices` filtered
- *      to the current Team (R7.3/R7.8), each dismissable (R7.5).
- *   6. **The one POST.** `POST /api/games/{gameId}/wireframe-card-play` on
- *      confirm of a targeting card, surfacing "not delivered" on failure (R7.7).
+ *   5. **Region + card-play + notification state.** Active-Region state via
+ *      {@link selectRegion} (initial `bars`); the draw-choice / hand / play flow
+ *      through the {@link CardsRegion} + {@link CardPlayPanel} against the real
+ *      card routes (draw-on-claim, keep, discard, play with team/bar targeting
+ *      and eligibility graying); and the list of {@link TargetedNotification}s
+ *      derived from `view.targetedNotices` filtered to the current Team, each
+ *      dismissable.
+ *   6. **Card mutations.** POSTs to `/cards/{keep,discard,play,inject}` and the
+ *      claim route, surfacing explicit errors on failure.
  *
  * Role & team derivation. Two durable per-game facts (kept in the same storage
  * as the session so they survive reload) resolve the Session's role: whether it
@@ -63,7 +65,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import CardPlayWireframe from "@/components/board/CardPlayWireframe";
+import CardPlayPanel from "@/components/board/CardPlayPanel";
 import CardsRegion from "@/components/board/CardsRegion";
 import MapRegion, {
   type ClaimAction,
@@ -82,12 +84,9 @@ import {
   selectClaimedBarCounts,
   selectClaimState,
   selectScoreTotals,
+  type BoardCardView,
   type GameBoardView,
 } from "@/lib/gameboard/events";
-import {
-  placeholderHand,
-  type PlaceholderCard,
-} from "@/lib/gameboard/placeholderCards";
 import {
   INITIAL_REGION,
   type Region,
@@ -95,7 +94,10 @@ import {
 } from "@/lib/gameboard/region";
 
 import { foldLobbyEvents } from "@/lib/lobby/events";
+import { CANDIDATE_BARS } from "@/lib/map/bars";
 import { WIREFRAME_TEAMS } from "@/lib/map/claims";
+import { CARD_SLUGS, getCardMetadata } from "@/lib/cards/catalog";
+import { isDevCardInjectionEnabled } from "@/lib/config/devFlags";
 
 import type { GameEvent } from "@/lib/events";
 import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
@@ -129,8 +131,8 @@ type ConnectionStatus =
   | "disabled"
   | "error";
 
-/** The structured response the wireframe-card-play route returns. */
-type WireframeResponse =
+/** The structured response the card-play route returns. */
+type PlayResponse =
   | { applied: true; seq?: number | null; [k: string]: unknown }
   | { applied: false; error: string };
 
@@ -240,9 +242,10 @@ export default function BoardPage(): React.JSX.Element {
     setActiveRegion((current) => selectRegion(current, target));
   }, []);
 
-  // --- Card-play wireframe state (R6) -------------------------------------
-  const [playingCard, setPlayingCard] = useState<PlaceholderCard | null>(null);
-  // Transient "not delivered" indication for a failed targeting POST (R7.7).
+  // --- Card-play state (Task 8) -------------------------------------------
+  const [playingCard, setPlayingCard] = useState<BoardCardView | null>(null);
+  const [playPending, setPlayPending] = useState(false);
+  // Transient "not delivered" indication for a failed play POST.
   const [playError, setPlayError] = useState<string | null>(null);
   const [pendingClaimBarId, setPendingClaimBarId] = useState<string | null>(
     null,
@@ -508,10 +511,22 @@ export default function BoardPage(): React.JSX.Element {
     [view.targetedNotices, myTeamId],
   );
 
-  // The current player's placeholder hand (R5.2). Deterministic per player id.
-  const hand = useMemo<PlaceholderCard[]>(
-    () => (myPlayerId === null ? [] : placeholderHand(myPlayerId)),
-    [myPlayerId],
+  // The current team's real cards from the folded projection (R2.1). The
+  // Cards_Region selects its pending/hand subsets. A player with no resolved
+  // team (or the admin-not-player) has none.
+  const myCards = useMemo(
+    () =>
+      myTeamId === null
+        ? []
+        : view.cards.filter((card) => card.teamId === myTeamId),
+    [view.cards, myTeamId],
+  );
+  // The card id awaiting a keep/discard server response (disables that card).
+  const [cardMutationPending, setCardMutationPending] = useState<string | null>(
+    null,
+  );
+  const [cardMutationError, setCardMutationError] = useState<string | null>(
+    null,
   );
 
   // Teams shown on the Map_Region so any team's claim can be colored. Prefer the
@@ -544,14 +559,17 @@ export default function BoardPage(): React.JSX.Element {
   }, [viewLoaded, access, needsTeamSelection, gameId, router]);
 
   // --- The one POST: confirm a targeting card play (R7.1/7.7) --------------
+  // --- Play a card (brawl-deck-architecture Task 8) -----------------------
+  // POST the real card_played to /cards/play with the chosen target(s). On
+  // success the card leaves the hand and the target team's clients see the play
+  // via realtime (R3.1/R3.7); on failure an explicit "not delivered" shows and
+  // the hand is unchanged.
   const handleConfirmPlay = useCallback(
-    async (card: PlaceholderCard, targetTeamId?: string): Promise<void> => {
-      if (view.lifecycle === "ended") {
-        return;
-      }
-      // A non-targeting card writes nothing — the wireframe acknowledgement is
-      // purely local (R6.6). Only a targeting card with a chosen target POSTs.
-      if (!card.targetsTeam || targetTeamId === undefined) {
+    async (
+      card: BoardCardView,
+      targets: { targetTeamId?: string; targetBarId?: string },
+    ): Promise<void> => {
+      if (view.lifecycle === "ended" || playPending) {
         return;
       }
       setPlayError(null);
@@ -559,26 +577,113 @@ export default function BoardPage(): React.JSX.Element {
         setPlayError("not_delivered");
         return;
       }
+      setPlayPending(true);
       try {
-        const res = await fetch(`/api/games/${gameId}/wireframe-card-play`, {
+        const res = await fetch(`/api/games/${gameId}/cards/play`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
             [SESSION_HEADER]: sessionId,
           },
-          body: JSON.stringify({ cardId: card.id, targetTeamId }),
+          body: JSON.stringify({
+            cardId: card.cardId,
+            targetTeamId: targets.targetTeamId,
+            targetBarId: targets.targetBarId,
+          }),
         });
-        const body = (await res.json()) as WireframeResponse;
+        const body = (await res.json()) as PlayResponse;
         if (!body.applied) {
-          // Any non-applied response is "not delivered" (R7.7).
           setPlayError("not_delivered");
+        } else {
+          setPlayingCard(null);
         }
       } catch {
         setPlayError("not_delivered");
+      } finally {
+        setPlayPending(false);
       }
     },
-    [gameId, sessionId, view.lifecycle],
+    [gameId, playPending, sessionId, view.lifecycle],
   );
+
+  // --- Keep / discard a card (brawl-deck-architecture Tasks 5, 6) ----------
+  // Resolve a pending draw (keep) or free a slot (discard) by POSTing to the
+  // real card routes. Realtime folds the resulting card_kept / card_discarded
+  // event back into view.cards, so the projection updates without local hand
+  // state. A failed update surfaces an explicit error and never looks applied.
+  const handleCardMutation = useCallback(
+    async (action: "keep" | "discard", cardId: string): Promise<void> => {
+      if (
+        sessionId === null ||
+        cardMutationPending !== null ||
+        view.lifecycle === "ended"
+      ) {
+        return;
+      }
+      setCardMutationError(null);
+      setCardMutationPending(cardId);
+      try {
+        const response = await fetch(`/api/games/${gameId}/cards/${action}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [SESSION_HEADER]: sessionId,
+          },
+          body: JSON.stringify({ cardId }),
+        });
+        const body = (await response.json()) as
+          { applied: true; seq?: number } | { applied: false; error: string };
+        if (!body.applied) {
+          setCardMutationError(
+            action === "keep"
+              ? "The card could not be kept. Please try again."
+              : "The card could not be discarded. Please try again.",
+          );
+        }
+      } catch {
+        setCardMutationError(
+          action === "keep"
+            ? "The card could not be kept. Please try again."
+            : "The card could not be discarded. Please try again.",
+        );
+      } finally {
+        setCardMutationPending(null);
+      }
+    },
+    [cardMutationPending, gameId, sessionId, view.lifecycle],
+  );
+
+  // --- Dev-only: inject a card into hand (Task 10; R5.2) -------------------
+  // Only reachable when the committed DEV_CARD_INJECTION flag is on; the server
+  // enforces the flag too (R5.3), so this is a convenience, not the gate.
+  const [injectSlug, setInjectSlug] = useState<string>(CARD_SLUGS[0]);
+  const [injectPending, setInjectPending] = useState(false);
+  const handleInjectCard = useCallback(async (): Promise<void> => {
+    if (sessionId === null || injectPending) {
+      return;
+    }
+    setCardMutationError(null);
+    setInjectPending(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}/cards/inject`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [SESSION_HEADER]: sessionId,
+        },
+        body: JSON.stringify({ slug: injectSlug }),
+      });
+      const body = (await response.json()) as
+        { applied: true; seq?: number } | { applied: false; error: string };
+      if (!body.applied) {
+        setCardMutationError("The card could not be injected (dev).");
+      }
+    } catch {
+      setCardMutationError("The card could not be injected (dev).");
+    } finally {
+      setInjectPending(false);
+    }
+  }, [gameId, injectPending, injectSlug, sessionId]);
 
   const handleClaimMutation = useCallback(
     async (
@@ -1151,31 +1256,131 @@ export default function BoardPage(): React.JSX.Element {
         />
       ) : null}
       {activeRegion === "cards" ? (
-        <CardsRegion
-          hand={hand}
-          adminNotPlayer={adminNotPlayer}
-          onPlayCard={(card) => {
-            if (readOnly) {
-              return;
-            }
-            setPlayError(null);
-            setPlayingCard(card);
-          }}
-          readOnly={readOnly}
-        />
+        <>
+          <CardsRegion
+            cards={myCards}
+            adminNotPlayer={adminNotPlayer}
+            onKeepCard={(card) => {
+              void handleCardMutation("keep", card.cardId);
+            }}
+            onDiscardCard={(card) => {
+              void handleCardMutation("discard", card.cardId);
+            }}
+            onPlayCard={(card) => {
+              if (readOnly) {
+                return;
+              }
+              setPlayError(null);
+              setPlayingCard(card);
+            }}
+            readOnly={readOnly}
+            pendingCardId={cardMutationPending}
+          />
+          {cardMutationError !== null ? (
+            <p
+              role="alert"
+              style={{
+                margin: 0,
+                padding: "0.6rem 0.75rem",
+                border: "1px solid #b00020",
+                borderRadius: "0.5rem",
+                fontSize: "0.85rem",
+                color: "#b00020",
+                background: "#fff5f5",
+              }}
+            >
+              {cardMutationError}
+            </p>
+          ) : null}
+
+          {/* Dev-only card injection (Task 10; R5.2). Rendered only when the
+              committed DEV_CARD_INJECTION flag is on; the server enforces the
+              flag independently (R5.3). */}
+          {isDevCardInjectionEnabled() && !adminNotPlayer && !readOnly ? (
+            <div
+              aria-label="Dev: add card to hand"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.4rem",
+                padding: "0.6rem",
+                border: "1px dashed #9333ea",
+                borderRadius: "0.5rem",
+                background: "#faf5ff",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#6b21a8",
+                }}
+              >
+                DEV: add a card to your hand (ignores hand limit)
+              </p>
+              <div style={{ display: "flex", gap: "0.4rem", width: "100%" }}>
+                <select
+                  aria-label="Card to inject"
+                  value={injectSlug}
+                  onChange={(e) => setInjectSlug(e.target.value)}
+                  style={{
+                    flex: "1 1 auto",
+                    minHeight: "44px",
+                    fontSize: "0.9rem",
+                    borderRadius: "0.4rem",
+                    border: "1px solid #888",
+                    padding: "0 0.5rem",
+                  }}
+                >
+                  {CARD_SLUGS.map((slug) => (
+                    <option key={slug} value={slug}>
+                      {getCardMetadata(slug).name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleInjectCard()}
+                  disabled={injectPending}
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "44px",
+                    padding: "0 0.9rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    borderRadius: "0.4rem",
+                    border: "1px solid #6b21a8",
+                    background: injectPending ? "#c4a3e0" : "#9333ea",
+                    color: "#ffffff",
+                    cursor: injectPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {injectPending ? "Adding…" : "Add card"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
-      {/* Card_Play_Wireframe, presented on play (R6.1). The target list excludes
-          the current Team (R6.2); confirm of a targeting card POSTs the one
-          event (R7.1) and surfaces "not delivered" on failure (R7.7). */}
+      {/* Card_Play_Panel, presented on play (R3.1). The target list excludes
+          the caster's own team and grays out ineligible teams (R3.2/R3.3);
+          confirm POSTs the real card_played and surfaces "not delivered" on
+          failure. */}
       {playingCard !== null && !readOnly ? (
         <>
-          <CardPlayWireframe
+          <CardPlayPanel
             card={playingCard}
+            view={view}
             teams={view.teams}
-            ownTeamId={myTeamId ?? ""}
-            onConfirm={(targetTeamId) => {
-              void handleConfirmPlay(playingCard, targetTeamId);
+            castingTeamId={myTeamId ?? ""}
+            bars={CANDIDATE_BARS}
+            claims={claimState}
+            finishBarId={null}
+            pending={playPending}
+            onConfirm={(targets) => {
+              void handleConfirmPlay(playingCard, targets);
             }}
             onCancel={() => {
               setPlayError(null);

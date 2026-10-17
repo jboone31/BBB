@@ -121,6 +121,23 @@ export interface BoardCardView {
   readonly state: BoardCardState;
 }
 
+/**
+ * One recorded `card_played` targeting fact (brawl-deck-architecture Task 8).
+ *
+ * Folded from each `card_played` event so eligibility selectors can enforce
+ * "no team targeted by a card of the same name more than once" (R3.3) and show
+ * ineligible targets grayed out (R3.2). `targetTeamId` / `targetBarId` are null
+ * for a play that did not target that dimension (e.g. a self/none card).
+ */
+export interface BoardCardPlayView {
+  /** The event `seq` that recorded the play — its stable identity for de-dup. */
+  readonly seq: number;
+  readonly slug: string;
+  readonly castingTeamId: string;
+  readonly targetTeamId: string | null;
+  readonly targetBarId: string | null;
+}
+
 export interface BoardChallengeView {
   readonly challengeId: string;
   readonly sourcePlayId: string;
@@ -189,6 +206,8 @@ export interface GameBoardView {
   /** Notices whose `targetTeamId` is the viewing team; one per targeting event (R7.8). */
   readonly targetedNotices: TargetedNotice[];
   readonly cards: BoardCardView[];
+  /** Recorded card-play targeting facts, in `seq` order (R3.3 eligibility). */
+  readonly cardPlays: BoardCardPlayView[];
   readonly activeChallenges: BoardChallengeView[];
   readonly activeEffects: BoardEffectView[];
   readonly activeRestrictions: BoardEffectView[];
@@ -221,6 +240,7 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     players: [],
     targetedNotices: [],
     cards: [],
+    cardPlays: [],
     activeChallenges: [],
     activeEffects: [],
     activeRestrictions: [],
@@ -280,8 +300,11 @@ export function applyGameBoardEvent(
     case GAME_BOARD_EVENT_TYPES.cardsDrawn:
     case GAME_BOARD_EVENT_TYPES.cardKept:
     case GAME_BOARD_EVENT_TYPES.cardDiscarded:
-    case GAME_BOARD_EVENT_TYPES.cardPlayed:
       return applyCardInventoryEvent(advanced, event);
+    case GAME_BOARD_EVENT_TYPES.cardPlayed:
+      // A play updates the card inventory AND records a targeting fact so
+      // eligibility selectors can enforce the same-name-once rule (R3.3).
+      return applyCardPlayed(applyCardInventoryEvent(advanced, event), event);
     case GAME_BOARD_EVENT_TYPES.challengeIssued:
       return applyChallengeIssued(advanced, event.payload);
     case GAME_BOARD_EVENT_TYPES.challengeConfirmed:
@@ -565,6 +588,39 @@ function applyCardInventoryEvent(
     cards.every((card, index) => card === view.cards[index])
     ? view
     : { ...view, cards };
+}
+
+/**
+ * Fold a `card_played` event's targeting fact into {@link GameBoardView.cardPlays}
+ * (R3.3). The slug is read from the play payload (`slug`) or, failing that, from
+ * the first card record in `cards`. A play missing a slug records nothing (the
+ * inventory fold still applies). De-duped by event `seq`.
+ */
+function applyCardPlayed(view: GameBoardView, event: GameEvent): GameBoardView {
+  const payload = readRecord(event.payload);
+  const slug =
+    readString(event.payload, "slug") ??
+    (readRecords(event.payload, "cards")[0]?.slug as string | undefined);
+  if (payload === undefined || typeof slug !== "string") {
+    return view;
+  }
+  if (view.cardPlays.some((play) => play.seq === event.seq)) {
+    return view;
+  }
+  const castingTeamId =
+    readString(event.payload, "castingTeamId") ??
+    readString(event.payload, "teamId");
+  if (castingTeamId === undefined) {
+    return view;
+  }
+  const play: BoardCardPlayView = {
+    seq: event.seq,
+    slug,
+    castingTeamId,
+    targetTeamId: readString(event.payload, "targetTeamId") ?? null,
+    targetBarId: readString(event.payload, "targetBarId") ?? null,
+  };
+  return { ...view, cardPlays: [...view.cardPlays, play] };
 }
 
 function applyChallengeIssued(

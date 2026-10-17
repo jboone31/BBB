@@ -72,6 +72,43 @@ vi.mock("@/lib/db/server", () => ({
   },
 }));
 
+// Draw-on-claim: the route delegates to the deck persistence helper, which has
+// its own exhaustive hermetic + live coverage (lib/cards/persistence*.test.ts).
+// Here we mock it so the route tests assert ONLY the route's responsibility —
+// that a non-finish claim triggers exactly one draw and the finish bar does not
+// — without re-exercising the deck engine or needing card_* rows in fakeTx.
+let mockDrawResult: {
+  ok: boolean;
+  seq?: number;
+  reason?: string;
+} = { ok: true, seq: 0 };
+const mockDrawCalls: Array<{ gameId: string; teamId: string; barId?: string }> =
+  [];
+
+vi.mock("@/lib/cards/persistence", () => ({
+  applyDeckTransition: vi.fn(
+    async (
+      _tx: QueryRunner,
+      args: {
+        ctx: { gameId: string; teamId: string };
+        barId?: string;
+      },
+    ) => {
+      mockDrawCalls.push({
+        gameId: args.ctx.gameId,
+        teamId: args.ctx.teamId,
+        barId: args.barId,
+      });
+      if (mockDrawResult.ok && mockDrawResult.seq) {
+        mockSeq = mockDrawResult.seq;
+      }
+      return mockDrawResult.ok
+        ? { ok: true, seq: mockDrawResult.seq ?? 0, state: {} }
+        : { ok: false, reason: mockDrawResult.reason ?? "rejected", state: {} };
+    },
+  ),
+}));
+
 vi.mock("@/lib/events", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/events")>("@/lib/events");
@@ -136,6 +173,8 @@ beforeEach(() => {
   mockCommitted = false;
   mockSeq = 0;
   mockAppendCalls.length = 0;
+  mockDrawResult = { ok: true, seq: 0 };
+  mockDrawCalls.length = 0;
 });
 
 describe("POST /api/games/[gameId]/claims", () => {
@@ -304,5 +343,122 @@ describe("POST /api/games/[gameId]/claims", () => {
     expect(response.status).toBe(500);
     expect(mockCommitted).toBe(false);
     expect(mockAppendCalls).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Draw on claim (Task 4; R1.1, R1.3, R1.4, R1.6)
+  // -------------------------------------------------------------------------
+
+  it("triggers a draw for the claimed scoring bar in the same transaction (R1.1, R1.6)", async () => {
+    mockDrawResult = { ok: true, seq: 3 };
+
+    const response = await POST(
+      request({
+        action: "claim",
+        barId: "bar-a",
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    // Exactly one draw, for the team + bar that was claimed.
+    expect(mockDrawCalls).toHaveLength(1);
+    expect(mockDrawCalls[0]).toEqual({
+      gameId: "game-1",
+      teamId: "team-a",
+      barId: "bar-a",
+    });
+    // The draw committed alongside the claim and its score (same transaction).
+    expect(mockCommitted).toBe(true);
+    expect(mockAppendCalls.map((call) => call.type)).toEqual([
+      "claim_recorded",
+      "score_awarded",
+    ]);
+    // The response surfaces the draw's seq as the latest committed event.
+    await expect(response.json()).resolves.toEqual({
+      applied: true,
+      seq: 3,
+      result: { claimId: "claim-new" },
+    });
+  });
+
+  it("also draws on the start bar (0 points but still a draw)", async () => {
+    const response = await POST(
+      request({
+        action: "claim",
+        barId: "start-bar",
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockDrawCalls).toHaveLength(1);
+    expect(mockDrawCalls[0].barId).toBe("start-bar");
+  });
+
+  it("does NOT draw when claiming the finish bar (R1.3)", async () => {
+    const response = await POST(
+      request({
+        action: "claim",
+        barId: "finish-bar",
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockDrawCalls).toHaveLength(0);
+    expect(mockAppendCalls.map((call) => call.type)).toEqual([
+      "claim_recorded",
+      "score_awarded",
+      "game_ended",
+    ]);
+  });
+
+  it("does NOT draw when unclaiming", async () => {
+    mockActiveClaims = [{ id: "claim-a", team_id: "team-a" }];
+
+    const response = await POST(
+      request({ action: "unclaim", barId: "bar-a" }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockDrawCalls).toHaveLength(0);
+  });
+
+  it("still commits the claim when the draw is rejected (already-drawn bar, exhausted deck) (R1.4, R1.5)", async () => {
+    // A repeat encounter of an already-drawn bar: the engine rejects the draw.
+    mockDrawResult = { ok: false, reason: "duplicate_bar_draw" };
+
+    const response = await POST(
+      request({
+        action: "claim",
+        barId: "bar-a",
+        allMembersPresent: true,
+        finishedDrinkCount: 1,
+      }),
+      params(),
+    );
+
+    // The claim and its score still commit; the rejected draw is benign.
+    expect(response.status).toBe(200);
+    expect(mockCommitted).toBe(true);
+    expect(mockDrawCalls).toHaveLength(1);
+    expect(mockAppendCalls.map((call) => call.type)).toEqual([
+      "claim_recorded",
+      "score_awarded",
+    ]);
+    // With no draw seq, the response falls back to the score event's seq.
+    await expect(response.json()).resolves.toEqual({
+      applied: true,
+      seq: 2,
+      result: { claimId: "claim-new" },
+    });
   });
 });

@@ -49,7 +49,14 @@ UI pages and server routes live together under the App Router. Tests are co-loca
 
 ### `components/` — React components
 
-Shared client components (e.g. `PropagationDemo.tsx`).
+Shared client components, grouped by surface:
+
+```
+components/
+  board/    # live-board regions, Leaflet map, card-play + notification UI
+  lobby/    # game creation, team selection, roster
+  shell/    # app chrome (header navigation)
+```
 
 ### `lib/` — framework-free shared logic
 
@@ -58,18 +65,20 @@ property-tested in isolation.
 
 ```
 lib/
+  config/     # committed, PR-controlled dev flags (no env vars)
   env/        # startup env loading + validation (fail fast on missing config)
-  scoring/    # bar point-split scoring
+  scoring/    # bar point-split scoring + score ledger
   gameend/    # game-end / winner determination
- gameboard/  # live board projection, access decisions, and event folding
- lobby/      # lobby projection, join-code, and share-link helpers
- events/     # append-only game_events log helpers
- realtime/   # Supabase Realtime subscription helpers
- db/         # transactional server writes (postgres.js) + client access
- games/      # game domain operations
- claims/     # bar-claim domain operations
- map/        # candidate bars, map claims, and marker projection helpers
- session/    # browser/session identity bridge
+  gameboard/  # live board projection, access decisions, and event folding
+  lobby/      # lobby projection, join-code, and share-link helpers
+  events/     # append-only game_events log helpers
+  realtime/   # Supabase Realtime subscription helpers
+  db/         # transactional server writes (postgres.js) + client access
+  games/      # game domain operations
+  claims/     # bar-claim domain operations + eligibility rules
+  cards/      # Brawl Deck catalog + per-team deck logic
+  map/        # candidate bars, map claims, and marker projection helpers
+  session/    # browser/session identity bridge
 ```
 
 ### `supabase/` — database + backend config
