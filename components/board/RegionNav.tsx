@@ -49,11 +49,19 @@ export interface RegionNavProps {
    * upstream (R2.7), so this component reports the activation unconditionally.
    */
   readonly onSelect: (region: Region) => void;
+  /**
+   * When `true`, the Player must resolve a pending draw before leaving the Cards
+   * region: every non-Cards control is disabled so navigation is pinned to Cards
+   * (UAT forced draw-resolution workflow). The Cards control stays operable (it
+   * is the active one). Defaults to `false` — all controls operable (R2.5).
+   */
+  readonly lockToCards?: boolean;
 }
 
 export default function RegionNav({
   active,
   onSelect,
+  lockToCards = false,
 }: RegionNavProps): React.JSX.Element {
   return (
     <nav
@@ -68,6 +76,9 @@ export default function RegionNav({
     >
       {REGIONS.map(({ region, label }) => {
         const isActive = region === active;
+        // While locked to Cards, every non-Cards control is disabled so the
+        // Player cannot navigate away from an unresolved draw.
+        const disabled = lockToCards && region !== "cards";
         return (
           <button
             key={region}
@@ -75,6 +86,8 @@ export default function RegionNav({
             // Expose the active control to assistive technology (R2.4). Only the
             // active control carries aria-current; the others omit it.
             aria-current={isActive ? "page" : undefined}
+            disabled={disabled}
+            title={disabled ? "Resolve your drawn cards first" : undefined}
             onClick={() => onSelect(region)}
             style={{
               // Share the row width equally so all three fit a narrow viewport
@@ -94,10 +107,14 @@ export default function RegionNav({
               // ones (R2.4): a heavier border, filled background, and inverted
               // text, mirroring the "current" affordance used elsewhere.
               border: isActive ? "2px solid #1a1a1a" : "1px solid #888",
-              background: isActive ? "#1a1a1a" : "#ffffff",
-              color: isActive ? "#ffffff" : "#1a1a1a",
-              // All three controls stay operable at all times (R2.5).
-              cursor: "pointer",
+              background: isActive
+                ? "#1a1a1a"
+                : disabled
+                  ? "#f0f0f0"
+                  : "#ffffff",
+              color: isActive ? "#ffffff" : disabled ? "#9a9a9a" : "#1a1a1a",
+              // Controls are operable unless locked away from an unresolved draw.
+              cursor: disabled ? "not-allowed" : "pointer",
             }}
           >
             {label}

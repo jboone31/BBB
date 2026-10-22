@@ -521,6 +521,14 @@ export default function BoardPage(): React.JSX.Element {
         : view.cards.filter((card) => card.teamId === myTeamId),
     [view.cards, myTeamId],
   );
+  // Whether the current team has an unresolved pending draw (cards drawn but not
+  // yet kept/discarded/forfeited). While true, the board forces the Cards region
+  // and blocks other actions so the choice cannot be missed (UAT: the draw
+  // choice must not be easy to skip).
+  const hasPendingDraw = useMemo(
+    () => myCards.some((card) => card.state === "pending"),
+    [myCards],
+  );
   // The card id awaiting a keep/discard server response (disables that card).
   const [cardMutationPending, setCardMutationPending] = useState<string | null>(
     null,
@@ -652,6 +660,45 @@ export default function BoardPage(): React.JSX.Element {
     },
     [cardMutationPending, gameId, sessionId, view.lifecycle],
   );
+
+  // --- Forfeit a pending draw (UAT hand-full flow; R2.4) -------------------
+  // Discard both drawn cards without keeping either by POSTing to the forfeit
+  // route. Realtime folds the resulting card_discarded event back into
+  // view.cards, clearing the pending draw. Shares the card-mutation pending/error
+  // state so it is serialized with keep/discard.
+  const handleForfeitDraw = useCallback(async (): Promise<void> => {
+    if (
+      sessionId === null ||
+      cardMutationPending !== null ||
+      view.lifecycle === "ended"
+    ) {
+      return;
+    }
+    setCardMutationError(null);
+    setCardMutationPending("forfeit");
+    try {
+      const response = await fetch(`/api/games/${gameId}/cards/forfeit`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [SESSION_HEADER]: sessionId,
+        },
+      });
+      const body = (await response.json()) as
+        { applied: true; seq?: number } | { applied: false; error: string };
+      if (!body.applied) {
+        setCardMutationError(
+          "The draw could not be forfeited. Please try again.",
+        );
+      }
+    } catch {
+      setCardMutationError(
+        "The draw could not be forfeited. Please try again.",
+      );
+    } finally {
+      setCardMutationPending(null);
+    }
+  }, [cardMutationPending, gameId, sessionId, view.lifecycle]);
 
   // --- Dev-only: inject a card into hand (Task 10; R5.2) -------------------
   // Only reachable when the committed DEV_CARD_INJECTION flag is on; the server
@@ -787,6 +834,15 @@ export default function BoardPage(): React.JSX.Element {
   }, [endGamePending, gameId, isAdmin, sessionId, view.lifecycle]);
 
   const readOnly = view.lifecycle === "ended";
+
+  // Forced draw-resolution workflow (UAT): while a live game has an unresolved
+  // pending draw, the board is pinned to the Cards region until the player
+  // resolves the draw. This is derived (not stored) so there is no setState in
+  // an effect: `effectiveRegion` overrides the user's selection while locked,
+  // and the region nav disables the other controls (below). Combined with the
+  // claim guard, this makes the "keep one of two" choice impossible to miss.
+  const drawLocked = hasPendingDraw && !readOnly;
+  const effectiveRegion: Region = drawLocked ? "cards" : activeRegion;
 
   const handleLeaveGame = useCallback(async (): Promise<void> => {
     if (leavePending || sessionId === null) {
@@ -1231,12 +1287,37 @@ export default function BoardPage(): React.JSX.Element {
         />
       ))}
 
-      {/* Region navigation: three controls, active one distinguished, all always
-          operable (R2.1/2.4/2.5). */}
-      <RegionNav active={activeRegion} onSelect={handleSelectRegion} />
+      {/* Region navigation: three controls, active one distinguished. While a
+          draw is unresolved the nav is locked to the Cards region (UAT forced
+          draw-resolution workflow). */}
+      <RegionNav
+        active={effectiveRegion}
+        onSelect={handleSelectRegion}
+        lockToCards={drawLocked}
+      />
 
-      {/* The active Region (exactly one displayed, R2.6). */}
-      {activeRegion === "map" ? (
+      {drawLocked ? (
+        <p
+          role="status"
+          aria-live="polite"
+          style={{
+            margin: 0,
+            padding: "0.6rem 0.75rem",
+            border: "1px solid #1a1a1a",
+            borderRadius: "0.5rem",
+            fontSize: "0.85rem",
+            background: "#fffbea",
+            color: "#1a1a1a",
+          }}
+        >
+          You drew cards. Keep one (or resolve the draw) below before doing
+          anything else.
+        </p>
+      ) : null}
+
+      {/* The active Region (exactly one displayed, R2.6). While a draw is
+          unresolved this is pinned to the Cards region (effectiveRegion). */}
+      {effectiveRegion === "map" ? (
         <MapRegion
           teams={mapTeams}
           claims={claimState}
@@ -1244,10 +1325,10 @@ export default function BoardPage(): React.JSX.Element {
           onMutate={handleClaimMutation}
           pendingBarId={pendingClaimBarId}
           mutationError={claimMutationError}
-          readOnly={readOnly}
+          readOnly={readOnly || drawLocked}
         />
       ) : null}
-      {activeRegion === "scoreboard" ? (
+      {effectiveRegion === "scoreboard" ? (
         <ScoreboardRegion
           teams={view.teams}
           players={view.players}
@@ -1255,7 +1336,7 @@ export default function BoardPage(): React.JSX.Element {
           claimedBarCounts={claimedBarCounts}
         />
       ) : null}
-      {activeRegion === "cards" ? (
+      {effectiveRegion === "cards" ? (
         <>
           <CardsRegion
             cards={myCards}
@@ -1265,6 +1346,9 @@ export default function BoardPage(): React.JSX.Element {
             }}
             onDiscardCard={(card) => {
               void handleCardMutation("discard", card.cardId);
+            }}
+            onForfeitDraw={() => {
+              void handleForfeitDraw();
             }}
             onPlayCard={(card) => {
               if (readOnly) {

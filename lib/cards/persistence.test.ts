@@ -136,6 +136,11 @@ class FakeDb {
         .sort((a, b) => a.drawn_at - b.drawn_at)
         .map((d) => ({ bar_id: d.bar_id }));
     }
+    if (sql.includes("deck_seed") && sql.includes("from games")) {
+      // The fake game carries no stored deck seed, so the persistence layer
+      // falls back to deriving the per-team shuffle seed from the game id.
+      return [{ deck_seed: null }];
+    }
     if (sql.includes("from team_decks")) {
       const [gameId, teamId] = params as [string, string];
       const row = this.decks.get(`${gameId}:${teamId}`);
@@ -279,7 +284,9 @@ describe("deck persistence: load (R4.1)", () => {
   it("seeds a fresh deck on first touch via the engine", async () => {
     const db = new FakeDb();
     const loaded = await loadDeckState(db.runner, ctx());
-    const seeded = seedDeck(TEAM);
+    // First touch shuffles with the per-game, per-team seed (no stored
+    // deck_seed -> the game id is the global seed).
+    const seeded = seedDeck(TEAM, { shuffleSeed: `${GAME}:${TEAM}` });
     expect(loaded).toEqual(seeded);
     // Nothing was written just by loading.
     expect(db.instances.size).toBe(0);

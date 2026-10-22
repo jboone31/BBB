@@ -81,6 +81,7 @@ export type LobbyErrorReason =
   | "card_not_pending"
   | "card_not_in_hand"
   | "no_pending_draw"
+  | "hand_full"
   | "target_ineligible";
 
 /** Success shape: the mutation was applied and produced one event at `seq` (Req 6.4). */
@@ -138,6 +139,7 @@ export const ERROR_STATUS: Readonly<Record<LobbyErrorReason, number>> = {
   card_not_pending: 409,
   card_not_in_hand: 409,
   no_pending_draw: 409,
+  hand_full: 409,
   target_ineligible: 409,
 };
 

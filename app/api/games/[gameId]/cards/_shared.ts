@@ -84,13 +84,16 @@ export function deckRejectionReason(
       return "card_not_pending";
     case "card_not_in_hand":
       return "card_not_in_hand";
+    case "hand_full":
+      // keep: the hand is full, so the pending card cannot be kept until a held
+      // card is played/discarded or the draw is forfeited (R2.4).
+      return "hand_full";
     case "unknown_card":
       return "invalid_card";
-    // Draw-time rejections should not reach keep/discard/play, but map them to a
-    // safe conflict reason rather than leaking an engine token.
+    // Remaining draw-time rejections should not reach keep/discard/play, but map
+    // them to a safe conflict reason rather than leaking an engine token.
     case "finish_bar":
     case "duplicate_bar_draw":
-    case "hand_full":
     case "deck_exhausted":
     default:
       return "invalid_card";

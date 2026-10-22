@@ -9,8 +9,11 @@
 //     with a Keep control, and keeping reports exactly that card (keeping one
 //     discards the other — enforced server-side);
 //   - the held hand renders with Play + Discard controls;
-//   - a full hand while a draw is pending prompts the player to play/discard
-//     first and disables the Keep controls (R2.4);
+//   - a pending draw shows each drawn card's effect text so the keep choice is
+//     informed (R2.2 at selection time);
+//   - a full hand while a draw is pending HIDES the drawn cards and prompts the
+//     player to play/discard a held card or forfeit the draw before the cards
+//     are revealed (R2.4);
 //   - admin-not-player sees no hand.
 
 import {
@@ -41,6 +44,7 @@ function renderRegion(
   const onKeepCard = vi.fn();
   const onDiscardCard = vi.fn();
   const onPlayCard = vi.fn();
+  const onForfeitDraw = vi.fn();
   render(
     <CardsRegion
       cards={[]}
@@ -48,10 +52,11 @@ function renderRegion(
       onKeepCard={onKeepCard}
       onDiscardCard={onDiscardCard}
       onPlayCard={onPlayCard}
+      onForfeitDraw={onForfeitDraw}
       {...overrides}
     />,
   );
-  return { onKeepCard, onDiscardCard, onPlayCard };
+  return { onKeepCard, onDiscardCard, onPlayCard, onForfeitDraw };
 }
 
 describe("CardsRegion — pending draw choice (R1.1, R1.2)", () => {
@@ -87,6 +92,19 @@ describe("CardsRegion — pending draw choice (R1.1, R1.2)", () => {
     );
     expect(onKeepCard).toHaveBeenCalledTimes(1);
     expect(onKeepCard.mock.calls[0][0].cardId).toBe(`${TEAM}:go-piss-girl`);
+  });
+
+  it("shows each drawn card's effect text at selection time (R2.2)", () => {
+    renderRegion({
+      cards: [card("go-piss-girl", "pending"), card("moneybags", "pending")],
+    });
+    const group = screen.getByRole("group", { name: /choose a card to keep/i });
+    // The choice panel shows the real description for each drawn card, so the
+    // player knows what each does before keeping one.
+    expect(group.textContent).toContain(
+      getCardText("go-piss-girl").description,
+    );
+    expect(group.textContent).toContain(getCardText("moneybags").description);
   });
 });
 
@@ -184,24 +202,69 @@ describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
 });
 
 describe("CardsRegion — hand full while a draw is pending (R2.4)", () => {
-  it("prompts to play/discard first and disables the Keep controls", () => {
+  it("hides the drawn cards and prompts to make room or forfeit", () => {
     renderRegion({
       cards: [
         card("wired", "hand"),
         card("moneybags", "hand"),
         card("go-piss-girl", "pending"),
+        card("spin-cycle", "pending"),
       ],
     });
 
-    // Explicit hand-full prompt.
+    // Explicit hand-full prompt before the cards are shown.
     expect(screen.getByRole("alert").textContent).toMatch(/hand is full/i);
 
-    // The Keep control is present but disabled until a slot is freed.
+    // The drawn cards are NOT revealed yet: no "choose a card to keep" panel and
+    // no Keep controls while the hand is full.
+    expect(
+      screen.queryByRole("group", { name: /choose a card to keep/i }),
+    ).toBeNull();
     const pendingName = getCardMetadata("go-piss-girl").name;
-    const keep = screen.getByRole("button", {
-      name: new RegExp(`keep ${pendingName}`, "i"),
+    expect(
+      screen.queryByRole("button", {
+        name: new RegExp(`keep ${pendingName}`, "i"),
+      }),
+    ).toBeNull();
+
+    // A Forfeit control is offered so the player can drop the draw.
+    expect(
+      screen.getByRole("button", { name: /forfeit this draw/i }),
+    ).toBeTruthy();
+  });
+
+  it("forfeiting the draw reports the intent", () => {
+    const { onForfeitDraw } = renderRegion({
+      cards: [
+        card("wired", "hand"),
+        card("moneybags", "hand"),
+        card("go-piss-girl", "pending"),
+        card("spin-cycle", "pending"),
+      ],
     });
-    expect((keep as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /forfeit this draw/i }));
+    expect(onForfeitDraw).toHaveBeenCalledTimes(1);
+  });
+
+  it("reveals the drawn cards once a hand slot is free", () => {
+    // One held card + two pending: the hand has room, so the cards are revealed
+    // with Keep controls (no hand-full prompt).
+    renderRegion({
+      cards: [
+        card("wired", "hand"),
+        card("go-piss-girl", "pending"),
+        card("spin-cycle", "pending"),
+      ],
+    });
+    expect(
+      screen.getByRole("group", { name: /choose a card to keep/i }),
+    ).toBeTruthy();
+    const pendingName = getCardMetadata("go-piss-girl").name;
+    expect(
+      screen.getByRole("button", {
+        name: new RegExp(`keep ${pendingName}`, "i"),
+      }),
+    ).toBeTruthy();
   });
 });
 

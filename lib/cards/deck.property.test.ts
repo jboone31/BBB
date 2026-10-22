@@ -17,6 +17,39 @@ describe("card deck invariants", () => {
     );
   });
 
+  it("a seeded shuffle keeps the full roster but reorders it per seed", () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1, maxLength: 20 }),
+        fc.string({ minLength: 1, maxLength: 24 }),
+        (teamId, shuffleSeed) => {
+          const shuffled = seedDeck(teamId, { shuffleSeed });
+          // Still exactly one instance per slug, with contiguous positions.
+          expect(new Set(shuffled.cards.map((card) => card.slug)).size).toBe(
+            CARD_SLUGS.length,
+          );
+          expect(shuffled.cards.map((card) => card.position)).toEqual(
+            shuffled.cards.map((_card, index) => index),
+          );
+          // Same seed + team reproduces the same order (reload stability).
+          const again = seedDeck(teamId, { shuffleSeed });
+          expect(again.cards.map((card) => card.slug)).toEqual(
+            shuffled.cards.map((card) => card.slug),
+          );
+        },
+      ),
+    );
+  });
+
+  it("different teams in the same game draw different orders", () => {
+    const gameSeed = "game-xyz";
+    const teamA = seedDeck("team-a", { shuffleSeed: `${gameSeed}:team-a` });
+    const teamB = seedDeck("team-b", { shuffleSeed: `${gameSeed}:team-b` });
+    expect(teamA.cards.map((card) => card.slug)).not.toEqual(
+      teamB.cards.map((card) => card.slug),
+    );
+  });
+
   it("never creates more than two cards in hand across repeated draws", () => {
     fc.assert(
       fc.property(

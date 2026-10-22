@@ -67,6 +67,12 @@ export interface CardsRegionProps {
   readonly onDiscardCard: (card: BoardCardView) => void;
   /** Play a specific held card (targeting flow is owned by the page). */
   readonly onPlayCard: (card: BoardCardView) => void;
+  /**
+   * Forfeit the entire pending draw (R2.4 hand-full flow): discard both drawn
+   * cards without keeping either. Offered when the hand is full so the player
+   * can drop the draw instead of freeing a slot.
+   */
+  readonly onForfeitDraw: () => void;
   /** Disable all card actions (e.g. after the game ends). */
   readonly readOnly?: boolean;
   /** The card id currently awaiting a server response, if any (disables it). */
@@ -101,15 +107,22 @@ export default function CardsRegion({
   onKeepCard,
   onDiscardCard,
   onPlayCard,
+  onForfeitDraw,
   readOnly = false,
   pendingCardId = null,
 }: CardsRegionProps): React.JSX.Element {
   const pending = cards.filter((card) => card.state === "pending");
   const hand = cards.filter((card) => card.state === "hand");
   const handFull = hand.length >= MAX_HAND_SIZE;
+  // A draw is awaiting a choice whenever cards are pending.
+  const hasPendingDraw = pending.length > 0;
+  // While the hand is full, a pending draw's cards stay HIDDEN until the player
+  // frees a slot or forfeits (R2.4): the prompt to play/discard/forfeit comes
+  // BEFORE the two newly drawn cards are revealed.
+  const revealPending = hasPendingDraw && !handFull;
 
-  // The held card whose detail panel is open (R2.2). Toggled by selecting a
-  // card's name; at most one is expanded at a time.
+  // The card whose detail panel is open (R2.2) — a held card or a revealed
+  // pending card. Toggled by selecting a card's name; at most one at a time.
   const [inspectedCardId, setInspectedCardId] = useState<string | null>(null);
 
   return (
@@ -140,8 +153,57 @@ export default function CardsRegion({
         </p>
       ) : (
         <>
-          {/* Pending draw choice (R1.1, R1.2). */}
-          {pending.length > 0 ? (
+          {/* Hand-full gate (R2.4): when a draw is pending but the hand is
+              full, the two drawn cards are NOT yet revealed. The player must
+              first make room by playing/discarding a held card below, or
+              forfeit the draw outright. The reveal + keep UI appears only once a
+              slot is free. */}
+          {hasPendingDraw && !revealPending ? (
+            <div
+              role="group"
+              aria-label="Make room before seeing your drawn cards"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.5rem",
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid #7a1a1a",
+                borderRadius: "0.5rem",
+                background: "#fff0f0",
+              }}
+            >
+              <p
+                role="alert"
+                style={{
+                  margin: 0,
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  color: "#7a1a1a",
+                }}
+              >
+                You drew {pending.length} cards, but your hand is full.
+              </p>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#555" }}>
+                Play or discard a held card below to make room and see your new
+                cards, or forfeit this draw to discard both without looking.
+              </p>
+              <button
+                type="button"
+                aria-label="Forfeit this draw"
+                disabled={readOnly || pendingCardId !== null}
+                onClick={onForfeitDraw}
+                style={forfeitButtonStyle(readOnly || pendingCardId !== null)}
+              >
+                Forfeit draw
+              </button>
+            </div>
+          ) : null}
+
+          {/* Pending draw choice, revealed once the hand has room (R1.1, R1.2,
+              R2.2): each drawn card shows its name AND its effect/requirement
+              text so the player knows what they are choosing before keeping. */}
+          {revealPending ? (
             <div
               role="group"
               aria-label="Choose a card to keep"
@@ -164,27 +226,6 @@ export default function CardsRegion({
                 .
               </p>
 
-              {handFull ? (
-                // Hand-full while a draw is pending (R2.4): the kept card cannot
-                // enter the hand until a slot is freed. Prompt explicitly and
-                // require a play/discard of a held card first.
-                <p
-                  role="alert"
-                  style={{
-                    margin: 0,
-                    padding: "0.6rem 0.75rem",
-                    fontSize: "0.9rem",
-                    color: "#7a1a1a",
-                    border: "1px solid #7a1a1a",
-                    borderRadius: "0.5rem",
-                    background: "#fff0f0",
-                  }}
-                >
-                  Your hand is full. Play or discard a held card below before
-                  keeping a new one.
-                </p>
-              ) : null}
-
               <ul
                 aria-label="Drawn cards"
                 style={{
@@ -200,13 +241,13 @@ export default function CardsRegion({
                 {pending.map((card) => {
                   const name = cardName(card.slug);
                   const busy = pendingCardId === card.cardId;
+                  const text = cardText(card.slug);
                   return (
                     <li
                       key={card.cardId}
                       style={{
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
+                        flexDirection: "column",
                         gap: "0.5rem",
                         padding: "0.6rem 0.75rem",
                         borderRadius: "0.5rem",
@@ -215,25 +256,79 @@ export default function CardsRegion({
                         width: "100%",
                       }}
                     >
-                      <span
+                      <div
                         style={{
-                          fontSize: "1rem",
-                          fontWeight: 500,
-                          color: "#1a1a1a",
-                          overflowWrap: "anywhere",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          width: "100%",
                         }}
                       >
-                        {name}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Keep ${name}`}
-                        disabled={readOnly || handFull || busy}
-                        onClick={() => onKeepCard(card)}
-                        style={keepButtonStyle(readOnly || handFull || busy)}
+                        <span
+                          style={{
+                            fontSize: "1rem",
+                            fontWeight: 600,
+                            color: "#1a1a1a",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {name}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Keep ${name}`}
+                          disabled={readOnly || busy}
+                          onClick={() => onKeepCard(card)}
+                          style={keepButtonStyle(readOnly || busy)}
+                        >
+                          Keep
+                        </button>
+                      </div>
+
+                      {/* Card effect + requirement text shown inline at choice
+                          time (R2.2) so the keep decision is informed. */}
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.3rem",
+                        }}
                       >
-                        Keep
-                      </button>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.85rem",
+                            color: "#333",
+                          }}
+                        >
+                          {text?.description ??
+                            "No description is available for this card."}
+                        </p>
+                        {text?.castingRequirement != null ? (
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.8rem",
+                              color: "#555",
+                            }}
+                          >
+                            <strong>To play:</strong> {text.castingRequirement}
+                          </p>
+                        ) : null}
+                        {text?.targetRequirement != null ? (
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.8rem",
+                              color: "#555",
+                            }}
+                          >
+                            <strong>Target must:</strong>{" "}
+                            {text.targetRequirement}
+                          </p>
+                        ) : null}
+                      </div>
                     </li>
                   );
                 })}
@@ -501,6 +596,24 @@ function discardButtonStyle(disabled: boolean): React.CSSProperties {
     border: "1px solid #888",
     background: disabled ? "#f0f0f0" : "#ffffff",
     color: "#1a1a1a",
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+function forfeitButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    alignSelf: "flex-start",
+    minHeight: TOUCH_TARGET,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.6rem 0.9rem",
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    borderRadius: "0.5rem",
+    border: "1px solid #7a1a1a",
+    background: disabled ? "#e5b5b5" : "#7a1a1a",
+    color: "#ffffff",
     cursor: disabled ? "not-allowed" : "pointer",
   };
 }

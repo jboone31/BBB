@@ -32,6 +32,8 @@
  *
  * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 6.1.
  */
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { withTransaction } from "@/lib/db/server";
@@ -69,7 +71,8 @@ where game_id = $1
 const GO_LIVE_SQL = `
 update games
 set lifecycle = 'live',
-    live_started_at = now()
+    live_started_at = now(),
+    deck_seed = coalesce(deck_seed, $2)
 where id = $1
 returning live_started_at
 `;
@@ -149,7 +152,14 @@ export async function POST(
 
       // 5. All gates passed: go live + stamp UTC time (Req 5.1, 5.2), then
       //    append exactly one game_started event in the same tx (Req 5.8, 6.1).
-      const { rows: liveRows } = await tx.query(GO_LIVE_SQL, [gameId]);
+      // A fresh per-game global deck seed makes every game shuffle differently;
+      // the per-team streams are derived from it (`lib/cards/rng.ts`). `coalesce`
+      // preserves any seed already set, so re-entry never reshuffles live decks.
+      const deckSeed = randomUUID();
+      const { rows: liveRows } = await tx.query(GO_LIVE_SQL, [
+        gameId,
+        deckSeed,
+      ]);
       const liveStartedAt = liveRows[0]?.live_started_at;
       const liveStartedAtIso =
         liveStartedAt instanceof Date

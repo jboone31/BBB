@@ -78,6 +78,12 @@ from team_decks
 where game_id = $1 and team_id = $2
 `;
 
+const GAME_DECK_SEED_SQL = `
+select deck_seed
+from games
+where id = $1
+`;
+
 const INSTANCES_SQL = `
 select ci.id,
        ci.definition_id,
@@ -229,8 +235,16 @@ export async function loadDeckStateWithOrigin(
   ]);
 
   // First touch: no instances persisted yet -> the engine defines the seed.
+  // Each team's draw order is a deterministic shuffle keyed by the per-game
+  // global seed and the team id, so every team shuffles differently and every
+  // game shuffles differently, while a reload re-derives the SAME order (the
+  // shuffle is pure in `(globalSeed, teamId)`). The global seed is read from
+  // `games.deck_seed` when present and falls back to the immutable game id, so
+  // games created before the seed column was populated still shuffle.
   if (instanceRows.length === 0) {
-    return { state: seedDeck(teamId), seeded: true };
+    const globalSeed = await loadDeckSeed(tx, gameId);
+    const shuffleSeed = `${globalSeed}:${teamId}`;
+    return { state: seedDeck(teamId, { shuffleSeed }), seeded: true };
   }
 
   const instances = instanceRows.map(readInstanceRow);
@@ -444,6 +458,26 @@ function instanceRowId(gameId: string, teamId: string, slug: CardSlug): string {
   // not used here because the id must be reproducible across transitions; the
   // engine card id is itself unique per team+slug, so we hash it into a UUID.
   return deterministicUuid(`${gameId}:${teamId}:${slug}`);
+}
+
+/**
+ * The per-game global deck seed used to derive each team's shuffle stream. Reads
+ * `games.deck_seed` and falls back to the immutable game id when it is null
+ * (e.g. a game created before the column was populated, or a non-Postgres test
+ * double). The fallback is itself per-game-unique, so decks still shuffle; the
+ * stored seed simply makes the global seed explicit and auditable.
+ */
+async function loadDeckSeed(tx: QueryRunner, gameId: string): Promise<string> {
+  try {
+    const { rows } = await tx.query(GAME_DECK_SEED_SQL, [gameId]);
+    const stored = rows[0]?.deck_seed;
+    if (typeof stored === "string" && stored.trim().length > 0) {
+      return stored;
+    }
+  } catch {
+    // A test double or a schema without the column: fall back to the game id.
+  }
+  return gameId;
 }
 
 async function loadDefinitionIds(
