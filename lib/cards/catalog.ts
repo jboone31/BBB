@@ -264,7 +264,10 @@ const CARD_CATALOG: readonly CardMetadata[] = [
     ...TEAM_CHALLENGE,
     targetMode: "team_and_bar",
     castingInput: "bar",
-    resolution: "manual_confirmation",
+    // The un-claim is applied immediately; the target has nothing to complete,
+    // so it must not be gated from claiming bars.
+    resolution: "none",
+    completionRequired: false,
     affectedDomains: ["challenges", "claims", "notifications"],
   },
 ] as const;
