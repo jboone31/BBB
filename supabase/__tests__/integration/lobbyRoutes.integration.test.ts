@@ -480,7 +480,10 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
       expect(sel2.status).toBe(200);
       expect(await readPlayerTeam(playerId)).toBe(teamBravo);
       expect(await eventCount(game.gameId, "team_changed")).toBe(2);
-    });
+      // Multiple sequential remote round-trips; give it the same generous
+      // per-test timeout as the other DB-backed suites rather than the 5s
+      // default, which it runs close to.
+    }, 30000);
 
     // -----------------------------------------------------------------------
     // START
@@ -583,6 +586,10 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
 
       // The teamless player is excluded, not deleted, and stays teamless (R5.9).
       expect(await readPlayerTeam(teamlessPlayerId)).toBeNull();
-    });
+      // This is the heaviest test in the file: it chains ~13 sequential remote
+      // round-trips (bars + three joins + two team creates + two selects + reads
+      // + start) before the assertions, so it needs the same generous per-test
+      // timeout the other DB-backed suites use rather than the 5s default.
+    }, 30000);
   },
 );

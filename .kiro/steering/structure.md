@@ -100,7 +100,7 @@ Current scripts and how to run them:
 
 ```
 scripts/
-  apply-migrations.mjs      # apply all supabase/migrations/*.sql in order (run once, fresh DB)
+  apply-migrations.mjs      # apply un-applied supabase/migrations/*.sql in order; tracks a schema_migrations ledger so it is re-runnable (--baseline=N adopts an existing DB, --dry-run previews)
   check-db.mjs              # connectivity check: connect + `select 1`, prints host only
   enable-realtime.mjs       # enable Supabase Realtime on game_events
   probe-member-session.mjs  # RLS / member-session probe
