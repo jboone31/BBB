@@ -32,8 +32,18 @@ export interface CandidateBar {
   readonly lng: number;
 }
 
-/** Derive a stable, URL/DOM-safe id from a bar name. */
-function slug(name: string): string {
+/**
+ * Derive a stable, URL/DOM-safe id from a bar name.
+ *
+ * This is the canonical candidate-bar key: it lowercases, drops apostrophes
+ * entirely, and collapses every other run of non-alphanumeric characters to a
+ * single hyphen. `resolveGameBar` (and the live-game map) key bars by this
+ * value, so it is exported as the single source of truth for candidate slugs.
+ * Note it differs from the claim route's legacy SQL regex, which keeps
+ * apostrophes as a hyphen (e.g. `mccray-s-tavern` vs `mccrays-tavern`); the
+ * resolver matches on this TypeScript form.
+ */
+export function slug(name: string): string {
   return name
     .toLowerCase()
     .replace(/['’]/g, "")

@@ -69,7 +69,8 @@ interface StoreSnapshot {
  *
  * It exposes a {@link QueryRunner} that understands exactly the statements the
  * code under test issues:
- *   - `endGame` → the game-lock SELECT and the lifecycle UPDATE, and
+ *   - `endGame` → the game-lock SELECT, the lifecycle UPDATE, and the
+ *     `update card_effects` live-effect cancellation (a no-op here), and
  *   - `appendEvent` → the lock+next-seq+insert CTE.
  * The event insert can be injected to fail (simulating a constraint violation /
  * lost connection on the event write), which is the failure mode Property 6
@@ -153,6 +154,13 @@ class FakeStore {
       this.state.lifecycle = "ended";
       this.state.endReason = endReason;
       return { rows: [{ id: this.gameId }] };
+    }
+
+    // endGame step 3b: cancel live effects as game_ended. This FakeStore holds
+    // no effect rows, so the update matches nothing — model it as a no-op that
+    // reports zero rows, keeping the end transition hermetic (Req 20.6).
+    if (text.startsWith("update card_effects")) {
+      return { rows: [] };
     }
 
     // appendEvent: the lock + next-seq + insert CTE.

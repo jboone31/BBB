@@ -1,72 +1,43 @@
 /**
- * Keep-card route tests (brawl-deck-architecture Task 5; R1.2, R2.4).
+ * Keep-card route tests, reworked onto the Card_Behavior_Mutation pipeline
+ * (card-behavior Task 7.4).
  *
- * The route delegates the deck transition to the persistence helper (which has
- * its own hermetic + live coverage), so these tests mock that helper and assert
- * the route's own responsibilities: session + membership + live + team
- * authorization, that exactly one `keep` transition is applied for the
- * requester's team and card, and that engine rejections map to the right
- * structured 4xx.
+ * The route runs the real pipeline (`loadCardMutationContext`: authorize +
+ * lock, server `now`, lazy settle, `loadBehaviorState`; then the pure `keepCard`
+ * transition, `settleInventoryChange`, and `persistDeckTransition` with the
+ * embedded inventory follow-up). These tests drive that pipeline against the
+ * shared {@link FakeMutationDb} harness and assert:
+ *
+ *   - a keep resolves the pending draw and appends exactly one mutation event;
+ *     with a due-transition fixture the lazy settle appends its transition event
+ *     first, ahead of the mutation (R19.9, R19.10);
+ *   - Power Hour's `keep_all` mode moves only the chosen card into the hand and
+ *     leaves the rest pending (R17.2);
+ *   - engine rejections (no pending draw, card not pending, hand full) map to
+ *     the right structured 4xx and write no mutation event;
+ *   - an injected append failure rolls back: no mutation event, `unavailable`.
+ *
+ * Hermetic: the fake {@link QueryRunner} needs no live Postgres (R24.2).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QueryRunner } from "@/lib/events";
 
-let mockMember = true;
-let mockLifecycle: "lobby" | "live" | "ended" = "live";
-let mockGameExists = true;
-let mockTeamId: string | null = "team-a";
+import { FakeMutationDb, IDS, type FakeDbOptions } from "../_mutationTestDb";
 
-const fakeTx: QueryRunner = {
-  async query(sql: string) {
-    const text = sql.toLowerCase();
-    if (text.includes("from locked") || text.includes("from games g")) {
-      return { rows: mockMember ? [{ ok: 1 }] : [] };
-    }
-    if (text.includes("select lifecycle")) {
-      return { rows: mockGameExists ? [{ lifecycle: mockLifecycle }] : [] };
-    }
-    if (text.includes("from players")) {
-      return { rows: [{ team_id: mockTeamId }] };
-    }
-    return { rows: [] };
-  },
-};
+let db: FakeMutationDb;
 
 vi.mock("@/lib/db/server", () => ({
   withTransaction: async <T>(fn: (tx: QueryRunner) => Promise<T>): Promise<T> =>
-    fn(fakeTx),
-}));
-
-let mockResult: { ok: boolean; seq?: number; reason?: string } = {
-  ok: true,
-  seq: 5,
-};
-const mockCalls: Array<{
-  kind: string;
-  teamId: string;
-  transitionReason?: string;
-}> = [];
-
-vi.mock("@/lib/cards/persistence", () => ({
-  applyDeckTransition: vi.fn(
-    async (
-      _tx: QueryRunner,
-      args: {
-        ctx: { gameId: string; teamId: string };
-        kind: string;
-        transition: (s: unknown) => { ok: boolean; reason?: string };
-      },
-    ) => {
-      mockCalls.push({ kind: args.kind, teamId: args.ctx.teamId });
-      return mockResult.ok
-        ? { ok: true, seq: mockResult.seq ?? 0, state: {} }
-        : { ok: false, reason: mockResult.reason ?? "rejected", state: {} };
-    },
-  ),
+    fn(db.runner),
 }));
 
 import { POST } from "./route";
+
+function freshDb(options: FakeDbOptions = {}): FakeMutationDb {
+  db = new FakeMutationDb(options);
+  return db;
+}
 
 function request(
   body: unknown,
@@ -76,7 +47,7 @@ function request(
     "content-type": "application/json",
   };
   if (sessionId !== null) headers["x-bbb-session-id"] = sessionId;
-  return new Request("http://test/api/games/game-1/cards/keep", {
+  return new Request(`http://test/api/games/${IDS.gameId}/cards/keep`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -84,29 +55,133 @@ function request(
 }
 
 function params(): { params: Promise<{ gameId: string }> } {
-  return { params: Promise.resolve({ gameId: "game-1" }) };
+  return { params: Promise.resolve({ gameId: IDS.gameId }) };
+}
+
+/** Two pending cards drawn against a bar, the normal `choose_one` draw shape. */
+function pendingPair() {
+  return [
+    {
+      slug: "moneybags",
+      deckState: "pending" as const,
+      drawPosition: 0,
+      pendingBarId: IDS.startBar,
+    },
+    {
+      slug: "wired",
+      deckState: "pending" as const,
+      drawPosition: 1,
+      pendingBarId: IDS.startBar,
+    },
+  ];
 }
 
 beforeEach(() => {
-  mockMember = true;
-  mockLifecycle = "live";
-  mockGameExists = true;
-  mockTeamId = "team-a";
-  mockResult = { ok: true, seq: 5 };
-  mockCalls.length = 0;
+  freshDb();
 });
 
-describe("POST /api/games/[gameId]/cards/keep", () => {
-  it("applies one keep transition for the requester's team and returns the seq", async () => {
+describe("POST /api/games/[gameId]/cards/keep — pipeline", () => {
+  it("keeps one of a pending pair and appends exactly one mutation event", async () => {
+    freshDb({ instances: pendingPair() });
+
     const response = await POST(
-      request({ cardId: "team-a:go-piss-girl" }),
+      request({ cardId: `${IDS.teamA}:moneybags` }),
       params(),
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ applied: true, seq: 5 });
-    expect(mockCalls).toEqual([{ kind: "keep", teamId: "team-a" }]);
+    const body = await response.json();
+    expect(body.applied).toBe(true);
+
+    expect(db.mutationEvents).toHaveLength(1);
+    expect(db.mutationEvents[0].eventType).toBe("card_kept");
+    // The chosen card moves to hand, the other is discarded — two row diffs.
+    const byState = new Map(
+      db.instanceUpserts.map((u) => [u.slug, u.deckState]),
+    );
+    expect(byState.get("moneybags")).toBe("hand");
+    expect(byState.get("wired")).toBe("discarded");
   });
+
+  it("appends the lazy-settle transition events before the mutation event", async () => {
+    freshDb({ instances: pendingPair(), dueTransitions: 2 });
+
+    const response = await POST(
+      request({ cardId: `${IDS.teamA}:moneybags` }),
+      params(),
+    );
+    expect(response.status).toBe(200);
+
+    expect(db.transitionEvents).toHaveLength(2);
+    expect(db.mutationEvents).toHaveLength(1);
+    const maxTransitionSeq = Math.max(...db.transitionEvents.map((e) => e.seq));
+    expect(maxTransitionSeq).toBeLessThan(db.mutationEvents[0].seq);
+    // The settle ran before loadBehaviorState.
+    const settleIdx = db.sqlCalls.findIndex((s) =>
+      s.includes("bbb_settle_card_effects"),
+    );
+    const loadIdx = db.sqlCalls.findIndex((s) => s.includes("from teams t"));
+    expect(settleIdx).toBeLessThan(loadIdx);
+  });
+
+  it("keeps only the chosen card under Power Hour keep_all, leaving the rest pending", async () => {
+    // Three pending cards in keep_all mode: keeping one moves only it to hand,
+    // discards nothing, and leaves the other two pending (R17.2).
+    freshDb({
+      instances: [
+        {
+          slug: "moneybags",
+          deckState: "pending",
+          drawPosition: 0,
+          pendingBarId: IDS.startBar,
+        },
+        {
+          slug: "wired",
+          deckState: "pending",
+          drawPosition: 1,
+          pendingBarId: IDS.startBar,
+        },
+        {
+          slug: "dirty-bird",
+          deckState: "pending",
+          drawPosition: 2,
+          pendingBarId: IDS.startBar,
+        },
+      ],
+      pendingMode: "keep_all",
+    });
+
+    const response = await POST(
+      request({ cardId: `${IDS.teamA}:moneybags` }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    // Only moneybags changed (to hand); nothing was discarded.
+    expect(db.instanceUpserts).toEqual([
+      { slug: "moneybags", deckState: "hand" },
+    ]);
+    // The draw stays open: the persisted pending mode is still keep_all.
+    expect(db.teamDeckUpserts.at(-1)?.pendingMode).toBe("keep_all");
+  });
+
+  it("rolls back and returns unavailable when the mutation append fails", async () => {
+    freshDb({ instances: pendingPair(), failMutationAppend: true });
+
+    const response = await POST(
+      request({ cardId: `${IDS.teamA}:moneybags` }),
+      params(),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      applied: false,
+      error: "unavailable",
+    });
+    expect(db.mutationEvents).toHaveLength(0);
+  });
+
+  // --- Authorization + rejection mapping ----------------------------------
 
   it("rejects a missing session with 401 and applies nothing", async () => {
     const response = await POST(request({ cardId: "x" }, null), params());
@@ -115,40 +190,40 @@ describe("POST /api/games/[gameId]/cards/keep", () => {
       applied: false,
       error: "missing_session",
     });
-    expect(mockCalls).toHaveLength(0);
+    expect(db.mutationEvents).toHaveLength(0);
   });
 
   it("rejects a non-member with 403 and applies nothing", async () => {
-    mockMember = false;
+    freshDb({ member: false });
     const response = await POST(request({ cardId: "x" }), params());
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
       applied: false,
       error: "not_member",
     });
-    expect(mockCalls).toHaveLength(0);
+    expect(db.mutationEvents).toHaveLength(0);
   });
 
   it("rejects when the game is not live with 409", async () => {
-    mockLifecycle = "lobby";
+    freshDb({ lifecycle: "lobby" });
     const response = await POST(request({ cardId: "x" }), params());
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       applied: false,
       error: "not_live",
     });
-    expect(mockCalls).toHaveLength(0);
+    expect(db.mutationEvents).toHaveLength(0);
   });
 
   it("rejects a teamless requester with 403", async () => {
-    mockTeamId = null;
+    freshDb({ teamId: null });
     const response = await POST(request({ cardId: "x" }), params());
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
       applied: false,
       error: "no_team",
     });
-    expect(mockCalls).toHaveLength(0);
+    expect(db.mutationEvents).toHaveLength(0);
   });
 
   it("rejects a blank card id with 400", async () => {
@@ -158,13 +233,15 @@ describe("POST /api/games/[gameId]/cards/keep", () => {
       applied: false,
       error: "invalid_card",
     });
-    expect(mockCalls).toHaveLength(0);
   });
 
   it("maps the engine's no-pending-draw rejection to 409 no_pending_draw", async () => {
-    mockResult = { ok: false, reason: "pending_draw" };
+    // A card in hand, no pending draw -> keepCard rejects with `pending_draw`.
+    freshDb({
+      instances: [{ slug: "moneybags", deckState: "hand", drawPosition: 0 }],
+    });
     const response = await POST(
-      request({ cardId: "team-a:go-piss-girl" }),
+      request({ cardId: `${IDS.teamA}:moneybags` }),
       params(),
     );
     expect(response.status).toBe(409);
@@ -172,12 +249,14 @@ describe("POST /api/games/[gameId]/cards/keep", () => {
       applied: false,
       error: "no_pending_draw",
     });
+    expect(db.mutationEvents).toHaveLength(0);
   });
 
   it("maps the engine's card_not_pending rejection to 409", async () => {
-    mockResult = { ok: false, reason: "card_not_pending" };
+    // Name a card that is not the pending one.
+    freshDb({ instances: pendingPair() });
     const response = await POST(
-      request({ cardId: "team-a:go-piss-girl" }),
+      request({ cardId: `${IDS.teamA}:go-piss-girl` }),
       params(),
     );
     expect(response.status).toBe(409);
@@ -185,5 +264,32 @@ describe("POST /api/games/[gameId]/cards/keep", () => {
       applied: false,
       error: "card_not_pending",
     });
+    expect(db.mutationEvents).toHaveLength(0);
+  });
+
+  it("maps the engine's hand_full rejection to 409", async () => {
+    // Hand already holds two cards, plus a pending draw: keeping overflows.
+    freshDb({
+      instances: [
+        { slug: "insurance", deckState: "hand", drawPosition: 0 },
+        { slug: "power-hour", deckState: "hand", drawPosition: 1 },
+        {
+          slug: "moneybags",
+          deckState: "pending",
+          drawPosition: 2,
+          pendingBarId: IDS.startBar,
+        },
+      ],
+    });
+    const response = await POST(
+      request({ cardId: `${IDS.teamA}:moneybags` }),
+      params(),
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      applied: false,
+      error: "hand_full",
+    });
+    expect(db.mutationEvents).toHaveLength(0);
   });
 });

@@ -57,7 +57,14 @@ export const SESSION_HEADER = "x-bbb-session-id";
 export type LobbyErrorReason =
   | "missing_session"
   | "not_admin"
+  | "not_authorized"
   | "not_member"
+  | "invalid_input"
+  | "conflict"
+  | "blocked"
+  | "expired"
+  | "already_resolved"
+  | "unavailable"
   | "invalid_code"
   | "not_found"
   | "invalid_display_name"
@@ -84,17 +91,31 @@ export type LobbyErrorReason =
   | "hand_full"
   | "target_ineligible";
 
-/** Success shape: the mutation was applied and produced one event at `seq` (Req 6.4). */
+/**
+ * Success shape: the mutation was applied and produced one event at `seq`
+ * (Req 6.4). The optional `result` carries route-specific payload (the
+ * MutationResponse envelope `{ applied: true, seq, result? }`, Req 19.8) — e.g.
+ * the Settle_Nudge route returns `{ appended, serverNow }`.
+ */
 export interface AppliedResponse {
   readonly applied: true;
-  /** The appended event's per-game sequence number. */
+  /** The appended event's per-game sequence number (the last event appended). */
   readonly seq: number;
+  /** Optional route-specific success payload. */
+  readonly result?: unknown;
 }
 
-/** Structured "not applied" failure shape (Req 6.5): a reason, no write performed. */
+/**
+ * Structured "not applied" failure shape (Req 6.5, 19.8): a Stable_Error reason,
+ * an optional `details` object (e.g. `{ blocks }` for `blocked`, or
+ * `{ reason: "no_legal_next_bar", rules }` for a Legal_Next_Bar rejection), and
+ * no write performed. Matches the MutationResponse envelope
+ * `{ applied: false, error, details? }`.
+ */
 export interface NotAppliedResponse {
   readonly applied: false;
   readonly error: LobbyErrorReason;
+  readonly details?: unknown;
 }
 
 /** The JSON body every lobby route returns: applied-with-seq or not-applied-with-reason. */
@@ -110,12 +131,25 @@ export type LobbyResponseBody = AppliedResponse | NotAppliedResponse;
  *   - `404` a referenced game or bar does not exist.
  *   - `409` the game's current state conflicts with the request (lobby closed,
  *     team-count bounds, bars not yet designated).
- *   - `503` unique Join_Code generation was exhausted (Req 1.5).
+ *   - `503` unique Join_Code generation was exhausted (Req 1.5), or an uncaught
+ *     error / failed write rolled the mutation back (`unavailable`, Req 19.5).
+ *
+ * The card-behavior spec adds the Stable_Error vocabulary (Req 19.8):
+ * `not_authorized` (403), `invalid_input` (400), `conflict` / `blocked` /
+ * `expired` / `already_resolved` (409), and `unavailable` (503), alongside the
+ * existing `missing_session`, `not_member`, and `not_found`.
  */
 export const ERROR_STATUS: Readonly<Record<LobbyErrorReason, number>> = {
   missing_session: 401,
   not_admin: 403,
+  not_authorized: 403,
   not_member: 403,
+  invalid_input: 400,
+  conflict: 409,
+  blocked: 409,
+  expired: 409,
+  already_resolved: 409,
+  unavailable: 503,
   invalid_code: 400,
   not_found: 404,
   invalid_display_name: 400,
@@ -146,12 +180,23 @@ export const ERROR_STATUS: Readonly<Record<LobbyErrorReason, number>> = {
 /**
  * Build the success `NextResponse` for an applied lobby mutation (Req 6.4).
  *
- * @param seq the appended event's per-game sequence number.
- * @param status the HTTP status to use; defaults to 200. Routes that create a
- *   resource (e.g. the create-game route) pass 201.
+ * @param seq the appended event's per-game sequence number (the last event
+ *   appended by the mutation).
+ * @param options optional settings:
+ *   - `status` the HTTP status to use; defaults to 200. Routes that create a
+ *     resource (e.g. the create-game route) pass 201.
+ *   - `result` a route-specific success payload included as `result` in the
+ *     envelope (Req 19.8); omitted from the body when undefined.
  */
-export function applied(seq: number, status = 200): NextResponse {
-  const body: AppliedResponse = { applied: true, seq };
+export function applied(
+  seq: number,
+  options: { status?: number; result?: unknown } = {},
+): NextResponse {
+  const { status = 200, result } = options;
+  const body: AppliedResponse =
+    result === undefined
+      ? { applied: true, seq }
+      : { applied: true, seq, result };
   return NextResponse.json(body, { status });
 }
 
@@ -162,9 +207,19 @@ export function applied(seq: number, status = 200): NextResponse {
  * decides the code.
  *
  * @param reason the rejection reason to report to the client.
+ * @param details optional structured context for the rejection (Req 19.8), e.g.
+ *   `{ blocks }` for a `blocked` claim or
+ *   `{ reason: "no_legal_next_bar", rules }` for a Legal_Next_Bar rejection.
+ *   Omitted from the body when undefined.
  */
-export function notApplied(reason: LobbyErrorReason): NextResponse {
-  const body: NotAppliedResponse = { applied: false, error: reason };
+export function notApplied(
+  reason: LobbyErrorReason,
+  details?: unknown,
+): NextResponse {
+  const body: NotAppliedResponse =
+    details === undefined
+      ? { applied: false, error: reason }
+      : { applied: false, error: reason, details };
   return NextResponse.json(body, { status: ERROR_STATUS[reason] });
 }
 

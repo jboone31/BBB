@@ -38,11 +38,11 @@ you do."
 `{Caster}` and `{Target}` are team names, `{CARD}` is the card name in caps, `{Bar}` is a bar
 name. Per-card entries below only list toasts that differ from these.
 
-| Card targets | Target toast headline | Others' toast headline | Caster toast |
-| --- | --- | --- | --- |
-| A team | {Caster} has played {CARD} on you! | {Caster} played {CARD} on {Target}! | You played {CARD} on {Target}. |
-| A bar | (no target team) | {Caster} played {CARD} on {Bar}! | You played {CARD} on {Bar}. |
-| Your own team / no target | (no target team) | {Caster} played {CARD}! | You played {CARD}. |
+| Card targets              | Target toast headline              | Others' toast headline              | Caster toast                   |
+| ------------------------- | ---------------------------------- | ----------------------------------- | ------------------------------ |
+| A team                    | {Caster} has played {CARD} on you! | {Caster} played {CARD} on {Target}! | You played {CARD} on {Target}. |
+| A bar                     | (no target team)                   | {Caster} played {CARD} on {Bar}!    | You played {CARD} on {Bar}.    |
+| Your own team / no target | (no target team)                   | {Caster} played {CARD}!             | You played {CARD}.             |
 
 - Team-challenge target toasts show a **Mark complete** action when the card needs
   confirmation. Claim restrictions (Pioneer, Scenic Route) are plain notices, since the app

@@ -99,12 +99,10 @@ describe("CardsRegion — pending draw choice (R1.1, R1.2)", () => {
       cards: [card("go-piss-girl", "pending"), card("moneybags", "pending")],
     });
     const group = screen.getByRole("group", { name: /choose a card to keep/i });
-    // The choice panel shows the real description for each drawn card, so the
+    // The choice panel shows the real effect for each drawn card, so the
     // player knows what each does before keeping one.
-    expect(group.textContent).toContain(
-      getCardText("go-piss-girl").description,
-    );
-    expect(group.textContent).toContain(getCardText("moneybags").description);
+    expect(group.textContent).toContain(getCardText("go-piss-girl").effect);
+    expect(group.textContent).toContain(getCardText("moneybags").effect);
   });
 });
 
@@ -139,14 +137,14 @@ describe("CardsRegion — held hand (R2.1, R2.3)", () => {
 });
 
 describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
-  it("selecting a held card reveals its name, description, and target requirement", () => {
-    // voted-off-the-island is team_and_bar: it carries a target requirement.
+  it("selecting a held card reveals its effect and target note", () => {
+    // voted-off-the-island is team_and_bar: its inspection shows a target note.
     renderRegion({ cards: [card("voted-off-the-island", "hand")] });
     const name = getCardMetadata("voted-off-the-island").name;
     const text = getCardText("voted-off-the-island");
 
     // The detail is collapsed by default.
-    expect(screen.queryByText(text.description)).toBeNull();
+    expect(screen.queryByText(text.effect)).toBeNull();
 
     // Selecting the card name expands its detail panel.
     const toggle = screen.getByRole("button", {
@@ -159,14 +157,14 @@ describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
     const detail = screen.getByRole("group", {
       name: new RegExp(`${name} details`, "i"),
     });
-    expect(detail.textContent).toContain(text.description);
-    // The target-team challenge is shown under "Target must:".
-    expect(text.targetRequirement).not.toBeNull();
-    expect(detail.textContent).toMatch(/Target must:/i);
+    expect(detail.textContent).toContain(text.effect);
+    // The target note is shown under "Target:".
+    expect(detail.textContent).toMatch(/Target:/i);
+    expect(detail.textContent).toContain(text.targetNote);
   });
 
-  it("shows the casting requirement under 'To play:' for a card that needs a casting input", () => {
-    // art-school-dropout has a casting input, so it carries a casting requirement.
+  it("shows the casting requirement under 'Requires:' for a card that needs a casting input", () => {
+    // art-school-dropout has a casting input, so it carries a Requires line.
     renderRegion({ cards: [card("art-school-dropout", "hand")] });
     const name = getCardMetadata("art-school-dropout").name;
     fireEvent.click(
@@ -175,16 +173,26 @@ describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
     const detail = screen.getByRole("group", {
       name: new RegExp(`${name} details`, "i"),
     });
-    expect(detail.textContent).toMatch(/To play:/i);
+    expect(detail.textContent).toMatch(/Requires:/i);
+    expect(detail.textContent).toContain(
+      getCardText("art-school-dropout").requires,
+    );
   });
 
-  it("shows an 'applies on its own' note for a card with no requirements", () => {
+  it("omits the Requires line for a card with no casting requirement", () => {
+    // insurance has no casting input, so its inspection shows no Requires line,
+    // only the effect and target note.
     renderRegion({ cards: [card("insurance", "hand")] });
     const name = getCardMetadata("insurance").name;
     fireEvent.click(
       screen.getByRole("button", { name: new RegExp(`${name} details`, "i") }),
     );
-    expect(screen.getByText(/applies on its own/i)).toBeTruthy();
+    const detail = screen.getByRole("group", {
+      name: new RegExp(`${name} details`, "i"),
+    });
+    expect(detail.textContent).not.toMatch(/Requires:/i);
+    expect(detail.textContent).toContain(getCardText("insurance").effect);
+    expect(detail.textContent).toMatch(/Target:/i);
   });
 
   it("collapses the detail when the card is selected again", () => {
@@ -197,7 +205,7 @@ describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText(getCardText("wired").description)).toBeNull();
+    expect(screen.queryByText(getCardText("wired").effect)).toBeNull();
   });
 });
 
@@ -263,6 +271,63 @@ describe("CardsRegion — hand full while a draw is pending (R2.4)", () => {
     expect(
       screen.getByRole("button", {
         name: new RegExp(`keep ${pendingName}`, "i"),
+      }),
+    ).toBeTruthy();
+  });
+});
+
+describe("CardsRegion — Use It or Lose It + Fairest (R8.2, R9.3, R9.11)", () => {
+  it("shows a 'Can't play, discard' control per held card during an open UIOLI", () => {
+    const { onDiscardCard } = renderRegion({
+      cards: [card("wired", "hand")],
+      hasOpenUioli: true,
+    });
+    const hand = screen.getByRole("list", { name: /your hand/i });
+    const name = getCardMetadata("wired").name;
+    const button = within(hand).getByRole("button", {
+      name: new RegExp(`can't play ${name}, discard`, "i"),
+    });
+    fireEvent.click(button);
+    // The discard intent carries the "cannot_play" reason (R8.2).
+    expect(onDiscardCard).toHaveBeenCalledTimes(1);
+    expect(onDiscardCard.mock.calls[0][0].cardId).toBe(`${TEAM}:wired`);
+    expect(onDiscardCard.mock.calls[0][1]).toBe("cannot_play");
+  });
+
+  it("hides the 'Can't play, discard' control while a Fairest prompt is pending (R9.3)", () => {
+    renderRegion({
+      cards: [card("wired", "hand")],
+      hasOpenUioli: true,
+      fairestPromptPending: true,
+    });
+    expect(
+      screen.queryByRole("button", { name: /can't play .*discard/i }),
+    ).toBeNull();
+  });
+
+  it("does not show the 'Can't play, discard' control without an open UIOLI", () => {
+    renderRegion({ cards: [card("wired", "hand")] });
+    expect(
+      screen.queryByRole("button", { name: /can't play .*discard/i }),
+    ).toBeNull();
+  });
+
+  it("renders a held Fairest card with no Play button and the challenge-prompt note (R9.11)", () => {
+    renderRegion({ cards: [card("fairest-of-them-all", "hand")] });
+    const name = getCardMetadata("fairest-of-them-all").name;
+    const hand = screen.getByRole("list", { name: /your hand/i });
+    expect(
+      within(hand).queryByRole("button", {
+        name: new RegExp(`play ${name}`, "i"),
+      }),
+    ).toBeNull();
+    expect(
+      within(hand).getByText(/played from a challenge prompt/i),
+    ).toBeTruthy();
+    // Discard remains available for Fairest.
+    expect(
+      within(hand).getByRole("button", {
+        name: new RegExp(`discard ${name}`, "i"),
       }),
     ).toBeTruthy();
   });

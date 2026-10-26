@@ -56,12 +56,20 @@ function eventAt(seq: number, gameId: string = GAME_ID): GameEvent {
  * set (seqs 1..M) for `GAME_ID`, ascending. Any other game yields no events.
  */
 function fakeSnapshotSource(persisted: readonly GameEvent[]): SnapshotSource {
+  const ascending = (gameId: string): GameEvent[] =>
+    persisted
+      .filter((e) => e.gameId === gameId)
+      .map((e) => ({ ...e }))
+      .sort((a, b) => a.seq - b.seq);
   return {
     async fetchEventsAscending(gameId: string): Promise<GameEvent[]> {
-      return persisted
-        .filter((e) => e.gameId === gameId)
-        .map((e) => ({ ...e }))
-        .sort((a, b) => a.seq - b.seq);
+      return ascending(gameId);
+    },
+    async fetchEventsAfter(
+      gameId: string,
+      afterSeq: number,
+    ): Promise<GameEvent[]> {
+      return ascending(gameId).filter((e) => e.seq > afterSeq);
     },
   };
 }

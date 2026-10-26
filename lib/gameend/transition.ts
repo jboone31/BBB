@@ -27,9 +27,15 @@
  * (`withTransaction`) or a scheduled job alike. It reuses the pure guard
  * {@link canEndGame} and the {@link appendEvent} backbone.
  *
- * Requirements: 5.1, 5.3, 5.4, 5.5.
+ * When a game ends, every live timed/persistent card effect is cancelled as
+ * `game_ended` in the same transaction (via {@link endGameEffects}), so no
+ * window outlives the game. That cancellation is a row update, not an event, so
+ * the end transition still writes exactly one `game_ended` event (Req 20.6).
+ *
+ * Requirements: 5.1, 5.3, 5.4, 5.5, 20.6.
  */
 import { appendEvent, type QueryRunner } from "@/lib/events";
+import { endGameEffects } from "@/lib/cards/behaviorStore";
 
 import { canEndGame, type EndReason, type GameLifecycle } from "./index";
 
@@ -125,11 +131,14 @@ returning id
  *   2. Guard with {@link canEndGame}: if the game is missing or not `live`,
  *      return a structured rejected result **without writing anything**, so the
  *      lifecycle and any recorded `end_reason` stay unchanged (Req 5.4/5.5).
- *   3. If `live`, `UPDATE games SET lifecycle='ended', end_reason=$endReason` and
- *      append **exactly one** `game_ended` event (actor `admin` for `admin_ended`,
- *      `system` for `auto_timeout`) in the same transaction (Req 5.3). The
- *      `and lifecycle = 'live'` UPDATE predicate is a redundant in-SQL guard; if
- *      it unexpectedly matched no row we throw so the transaction rolls back.
+ *   3. If `live`, `UPDATE games SET lifecycle='ended', end_reason=$endReason`,
+ *      then cancel every live effect as `game_ended` via {@link endGameEffects}
+ *      (a row update, not an event, so the transition keeps exactly one event),
+ *      and append **exactly one** `game_ended` event (actor `admin` for
+ *      `admin_ended`, `system` for `auto_timeout`) in the same transaction
+ *      (Req 5.3, 20.6). The `and lifecycle = 'live'` UPDATE predicate is a
+ *      redundant in-SQL guard; if it unexpectedly matched no row we throw so the
+ *      transaction rolls back.
  *   4. Return the created event's `seq`.
  *
  * The caller owns commit/rollback (e.g. `withTransaction`): on any throw here —
@@ -173,7 +182,12 @@ export async function endGame(
     );
   }
 
-  // 3b. EXACTLY ONE event, same transaction (Req 5.3). If this throws, the
+  // 3b. Cancel every live timed/persistent effect as `game_ended` before the
+  //     event append, in this same transaction (Req 20.6). This is a row update,
+  //     not an event, so the end transition stays at exactly one mutation event.
+  await endGameEffects(tx, gameId);
+
+  // 3c. EXACTLY ONE event, same transaction (Req 5.3). If this throws, the
   //     lifecycle write above rolls back with it (Req 4.3/4.4).
   const event = await appendEvent(tx, {
     gameId,

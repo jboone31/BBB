@@ -30,7 +30,9 @@ import {
   applyDeckTransition,
   engineCardId,
   injectCardToHand,
+  instanceRowId,
   loadDeckState,
+  persistDeckTransition,
   slugFromEngineCardId,
 } from "./persistence";
 
@@ -58,6 +60,7 @@ interface DeckRow {
   team_id: string;
   next_draw_position: number;
   draw_override_until: string | null;
+  pending_mode: string;
 }
 
 interface DrawRow {
@@ -144,20 +147,30 @@ class FakeDb {
     if (sql.includes("from team_decks")) {
       const [gameId, teamId] = params as [string, string];
       const row = this.decks.get(`${gameId}:${teamId}`);
-      return row ? [{ draw_override_until: row.draw_override_until }] : [];
+      return row
+        ? [
+            {
+              next_draw_position: row.next_draw_position,
+              draw_override_until: row.draw_override_until,
+              pending_mode: row.pending_mode,
+            },
+          ]
+        : [];
     }
     if (sql.includes("insert into team_decks")) {
-      const [gameId, teamId, nextPos, override] = params as [
+      const [gameId, teamId, nextPos, override, pendingMode] = params as [
         string,
         string,
         number,
         string | null,
+        string,
       ];
       this.decks.set(`${gameId}:${teamId}`, {
         game_id: gameId,
         team_id: teamId,
         next_draw_position: nextPos,
         draw_override_until: override,
+        pending_mode: pendingMode,
       });
       return [];
     }
@@ -511,5 +524,119 @@ describe("deck persistence: dev inject (Task 10; R5.2)", () => {
     if (result.ok) throw new Error("expected rejection");
     expect(result.reason).toBe("unknown_card");
     expect(db.events).toHaveLength(0);
+  });
+});
+
+describe("deck persistence: instanceRowId (card_plays reference)", () => {
+  it("is a valid, deterministic UUID per (game, team, slug)", () => {
+    const first = instanceRowId(GAME, TEAM, "go-piss-girl");
+    const again = instanceRowId(GAME, TEAM, "go-piss-girl");
+    // Deterministic: the same triple always derives the same id, so a play can
+    // reference the same row the upsert wrote without a round-trip read.
+    expect(again).toBe(first);
+    expect(first).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    // Distinct slugs derive distinct rows.
+    expect(instanceRowId(GAME, TEAM, "moneybags")).not.toBe(first);
+  });
+});
+
+describe("deck persistence: pending_mode (R17.2)", () => {
+  it("persists and reloads keep_all from a Power Hour draw-override draw", async () => {
+    const db = new FakeDb();
+    // Seed a hand near the limit so a draw-override draw reveals as pending
+    // keep_all rather than going straight to the hand.
+    await injectCardToHand(db.runner, ctx(), "go-piss-girl");
+    await injectCardToHand(db.runner, ctx(), "moneybags");
+
+    const draw = await applyDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "draw",
+      transition: (state) => drawForBar(state, BAR_A, { drawOverride: true }),
+      barId: BAR_A,
+    });
+    expect(draw.ok).toBe(true);
+    if (!draw.ok) throw new Error("draw failed");
+    expect(draw.state.pendingMode).toBe("keep_all");
+
+    // The persisted team_decks row carries the mode...
+    expect(db.decks.get(`${GAME}:${TEAM}`)?.pending_mode).toBe("keep_all");
+    // ...and a fresh load re-derives it, so keep resolves with the keep-all rule.
+    const reloaded = await loadDeckState(db.runner, ctx());
+    expect(reloaded.pendingMode).toBe("keep_all");
+  });
+
+  it("an ordinary draw persists and reloads choose_one", async () => {
+    const db = new FakeDb();
+    await applyDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "draw",
+      transition: (state) => drawForBar(state, BAR_A),
+      barId: BAR_A,
+    });
+    expect(db.decks.get(`${GAME}:${TEAM}`)?.pending_mode).toBe("choose_one");
+    const reloaded = await loadDeckState(db.runner, ctx());
+    expect(reloaded.pendingMode).toBe("choose_one");
+  });
+});
+
+describe("deck persistence: inventory follow-up merge (R8.3, R8.5, R9.12)", () => {
+  it("rides UIOLI completions and voided offers on the single inventory event", async () => {
+    const db = new FakeDb();
+    const draw = await applyDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "draw",
+      transition: (state) => drawForBar(state, BAR_A),
+      barId: BAR_A,
+    });
+    if (!draw.ok) throw new Error("draw failed");
+    const keptId = draw.cardIds?.[0] as string;
+    await applyDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "keep",
+      transition: (state) => keepCard(state, keptId),
+    });
+
+    const before = await loadDeckState(db.runner, ctx());
+    const seqBefore = db.events.length;
+    await persistDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "discard",
+      before,
+      after: discardCard(before, keptId).state,
+      inventoryFollowUp: {
+        completeChallenges: ["chal-1", "chal-2"],
+        voidOffers: ["offer-1"],
+      },
+    });
+
+    // Exactly one new event carries BOTH follow-up riders, not a parallel event.
+    expect(db.events).toHaveLength(seqBefore + 1);
+    const event = db.events[db.events.length - 1];
+    expect(event.eventType).toBe("card_discarded");
+    const payload = event.payload as {
+      completeChallenges: string[];
+      voidOffers: string[];
+    };
+    expect(payload.completeChallenges).toEqual(["chal-1", "chal-2"]);
+    expect(payload.voidOffers).toEqual(["offer-1"]);
+  });
+
+  it("omits empty follow-up lists so an ordinary event payload is unchanged", async () => {
+    const db = new FakeDb();
+    await applyDeckTransition(db.runner, {
+      ctx: ctx(),
+      kind: "draw",
+      transition: (state) => drawForBar(state, BAR_A),
+      barId: BAR_A,
+      inventoryFollowUp: { completeChallenges: [], voidOffers: [] },
+    });
+
+    const drawn = db.events.find((e) => e.eventType === "cards_drawn");
+    expect(drawn).toBeDefined();
+    const payload = drawn?.payload as Record<string, unknown>;
+    expect(payload).not.toHaveProperty("completeChallenges");
+    expect(payload).not.toHaveProperty("voidOffers");
   });
 });

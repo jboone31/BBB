@@ -102,7 +102,10 @@ function makeFilteringTransport(): {
 
 /** An empty snapshot source (no persisted events) for the subscribed game. */
 function emptySnapshotSource(): SnapshotSource {
-  return { fetchEventsAscending: async () => [] };
+  return {
+    fetchEventsAscending: async () => [],
+    fetchEventsAfter: async () => [],
+  };
 }
 
 describe("Per-game isolation — delivery (Property 14, Req 6.3)", () => {

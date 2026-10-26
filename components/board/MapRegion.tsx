@@ -23,6 +23,7 @@
 import dynamic from "next/dynamic";
 import type { BoardTeamView } from "@/lib/gameboard/events";
 import type { ClaimState } from "@/lib/map/claims";
+import type { ClaimBlock } from "@/lib/claims/blocks";
 
 export type ClaimAction = "claim" | "unclaim";
 
@@ -84,6 +85,26 @@ export interface MapRegionProps {
   } | null;
   /** Disable claiming after the game ends. */
   readonly readOnly?: boolean;
+  /**
+   * Card-behavior claim-block pre-check, keyed by bar id (`barKey`). When a
+   * bar's entry is non-empty, the popup shows {@link CLAIM_BLOCKED_HEADLINE}
+   * and the blocking cards with each timed block's end Clock_Time
+   * (Requirements 3.10, 4.5). Computed by the board page from
+   * `selectClaimBlocksForBar` (task 10.6); the component never folds events.
+   *
+   * Bar identity: candidate-bar `barKey` equals `CandidateBar.id`, so this map
+   * is keyed by the same bar id the {@link claims} prop and the map markers
+   * use.
+   */
+  readonly claimBlocksByBar?: Readonly<Record<string, readonly ClaimBlock[]>>;
+  /**
+   * Bar ids (`barKey`) where the own team may take a Happy Hour Bonus_Claim
+   * (`selectBonusClaimable`, Requirement 13.4). These bars get a "Claim bonus"
+   * control in their popup.
+   */
+  readonly bonusClaimableBarIds?: readonly string[];
+  /** Post a bonus claim (`action: "bonus"`) for the given bar. */
+  readonly onBonusClaim?: (barId: string) => void | Promise<void>;
 }
 
 export default function MapRegion({
@@ -94,6 +115,9 @@ export default function MapRegion({
   pendingBarId = null,
   mutationError = null,
   readOnly = false,
+  claimBlocksByBar,
+  bonusClaimableBarIds,
+  onBonusClaim,
 }: MapRegionProps): React.JSX.Element {
   const ownTeam = teams.find((t) => t.id === ownTeamId);
 
@@ -138,6 +162,9 @@ export default function MapRegion({
           pendingBarId={pendingBarId}
           mutationError={mutationError}
           readOnly={readOnly}
+          claimBlocksByBar={claimBlocksByBar}
+          bonusClaimableBarIds={bonusClaimableBarIds}
+          onBonusClaim={onBonusClaim}
         />
       </div>
     </section>

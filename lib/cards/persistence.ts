@@ -23,15 +23,17 @@
  * case. The engine stays the single source of truth for *what* changes; this
  * module only maps that change onto rows and records it (R4.1).
  *
- * Power Hour seam (R4.3): the engine reads/writes `powerHourUntil` and
- * `team_decks.draw_override_until` already exists for it, so a future effect can
- * set the override without any schema change. {@link loadDeckState} hydrates it
- * and {@link persistDeckTransition} writes it back.
+ * Power Hour (R17.2): the engine no longer tracks a deck-level
+ * `powerHourUntil`. A draw takes a `drawOverride` flag (the claim route derives
+ * it from the active effect windows), and the resulting pending draw records a
+ * `pendingMode` of `"keep_all"` vs `"choose_one"`. `team_decks.draw_override_until`
+ * is now unused but left in place; `team_decks.pending_mode` persists the mode.
  */
 
 import { appendEvent, type QueryRunner } from "@/lib/events";
 import { GAME_BOARD_EVENT_TYPES } from "@/lib/gameboard/events";
 
+import type { InventoryFollowUp } from "./behaviorState";
 import { CARD_SLUGS, type CardSlug } from "./catalog";
 import {
   seedDeck,
@@ -73,7 +75,7 @@ from card_definitions
 `;
 
 const TEAM_DECK_SQL = `
-select next_draw_position, draw_override_until, seeded_at
+select next_draw_position, draw_override_until, pending_mode, seeded_at
 from team_decks
 where game_id = $1 and team_id = $2
 `;
@@ -106,11 +108,12 @@ order by drawn_at, id
 `;
 
 const UPSERT_TEAM_DECK_SQL = `
-insert into team_decks (game_id, team_id, next_draw_position, draw_override_until)
-values ($1, $2, $3, $4)
+insert into team_decks (game_id, team_id, next_draw_position, draw_override_until, pending_mode)
+values ($1, $2, $3, $4, $5)
 on conflict (game_id, team_id) do update
   set next_draw_position = excluded.next_draw_position,
-      draw_override_until = excluded.draw_override_until
+      draw_override_until = excluded.draw_override_until,
+      pending_mode = excluded.pending_mode
 `;
 
 const UPSERT_INSTANCE_SQL = `
@@ -265,9 +268,8 @@ export async function loadDeckStateWithOrigin(
   const drawnBarIds = drawRows.map((row) => String(row.bar_id));
 
   const { rows: deckRows } = await tx.query(TEAM_DECK_SQL, [gameId, teamId]);
-  const overrideRaw = deckRows[0]?.draw_override_until;
-  const powerHourUntil =
-    overrideRaw == null ? null : new Date(String(overrideRaw)).getTime();
+  const pendingModeRaw = deckRows[0]?.pending_mode;
+  const pendingMode = pendingModeRaw === "keep_all" ? "keep_all" : "choose_one";
 
   return {
     state: {
@@ -275,9 +277,7 @@ export async function loadDeckStateWithOrigin(
       cards,
       drawnBarIds,
       pendingBarId,
-      powerHourUntil: Number.isNaN(powerHourUntil ?? NaN)
-        ? null
-        : powerHourUntil,
+      pendingMode,
     },
     seeded: false,
   };
@@ -305,7 +305,7 @@ function readInstanceRow(row: Record<string, unknown>): InstanceRow {
 // ---------------------------------------------------------------------------
 
 /** A board-projection card record, matching `applyCardInventoryEvent`'s shape. */
-interface CardEventRecord {
+export interface CardEventRecord {
   readonly cardId: string;
   readonly teamId: string;
   readonly slug: string;
@@ -337,25 +337,45 @@ export interface PersistDeckTransitionArgs {
   readonly barId?: string;
   /** Extra payload fields to merge into the appended event (e.g. targets). */
   readonly eventExtra?: DeckEventExtra;
+  /**
+   * Follow-up state changes that settle alongside this deck transition (design
+   * sections 7 and 15): Use It or Lose It challenges that complete because the
+   * team's hand and pending draw emptied, and Fairest offers voided because the
+   * team no longer holds Fairest of Them All. They ride on this single inventory
+   * event so they commit with the hand change rather than in a parallel event
+   * (R8.3, R8.5, R9.12). Omitted (or empty) when the transition settles nothing.
+   */
+  readonly inventoryFollowUp?: InventoryFollowUp;
 }
 
 /**
- * Persist the row diff between `before` and `after` and append the canonical
- * event for the transition, inside the caller's transaction (R4.1, R4.2).
+ * Persist the row diff between `before` and `after` WITHOUT appending any event,
+ * returning the changed cards in the board-projection shape, inside the caller's
+ * transaction.
  *
- * Only the cards whose engine state actually changed are upserted, plus the
- * `team_decks` deck-level fields (`next_draw_position`, `draw_override_until`)
- * and, for a draw, the `card_draws` record. The appended event carries the
- * changed cards in the board-projection shape so `applyCardInventoryEvent` folds
- * them without a parallel client source (R4.2).
+ * This is the row-only half of {@link persistDeckTransition}: it upserts the
+ * changed `card_instances` (the whole roster on a seeded first touch), writes the
+ * `team_decks` deck-level fields, and records a draw's `card_draws` row, but
+ * leaves the event append to the caller. It exists so a mutation that owns its
+ * own canonical event — a Fairest decision embedding the moved Fairest card in a
+ * single `fairest_decided` event rather than a separate `card_played` — can carry
+ * the inventory diff in that one event (design.md "Fairest decision route").
  *
- * @returns the appended event's `seq`.
+ * @returns the changed cards (board-projection records), to embed in the caller's
+ *   own event as its `cards` section.
  */
-export async function persistDeckTransition(
+export async function persistDeckRows(
   tx: QueryRunner,
-  args: PersistDeckTransitionArgs,
-): Promise<number> {
-  const { ctx, kind, before, after, barId, eventExtra, seeded } = args;
+  args: {
+    readonly ctx: DeckContext;
+    readonly kind: DeckTransitionKind;
+    readonly before: DeckState;
+    readonly after: DeckState;
+    readonly barId?: string;
+    readonly seeded?: boolean;
+  },
+): Promise<readonly CardEventRecord[]> {
+  const { ctx, kind, before, after, barId, seeded } = args;
   const { gameId, teamId } = ctx;
 
   const definitionIdBySlug = await loadDefinitionIds(tx);
@@ -368,7 +388,7 @@ export async function persistDeckTransition(
 
   // On a seeded first touch the untouched `deck` cards have never been
   // persisted, so materialize the whole roster; otherwise only write the diff.
-  // The appended event always carries just the changed cards (R4.2).
+  // The returned records always carry just the changed cards (R4.2).
   const toUpsert = seeded === true ? after.cards : changed;
 
   for (const card of toUpsert) {
@@ -382,7 +402,12 @@ export async function persistDeckTransition(
   }
 
   // Deck-level fields: next draw position tracks how many cards have ever left
-  // the deck; the Power Hour override is written back verbatim (R4.3).
+  // the deck. Power Hour's draw override is no longer a deck-level timestamp
+  // (R17.2); the claim route derives `drawOverride` from the active effect
+  // windows and the resulting pending mode is persisted here from the engine
+  // state's `pendingMode` (`choose_one` vs `keep_all`), so a reload resolves the
+  // pending draw with the same keep rule. `draw_override_until` is now unused
+  // but left in place (no destructive migration), so it is written back as null.
   const nextDrawPosition = after.cards.filter(
     (card) => card.state !== "deck",
   ).length;
@@ -390,9 +415,8 @@ export async function persistDeckTransition(
     gameId,
     teamId,
     nextDrawPosition,
-    after.powerHourUntil == null
-      ? null
-      : new Date(after.powerHourUntil).toISOString(),
+    null,
+    after.pendingMode,
   ]);
 
   // A draw records its bar so the once-per-bar rule survives a reload (R1.4).
@@ -401,21 +425,98 @@ export async function persistDeckTransition(
     await tx.query(INSERT_CARD_DRAW_SQL, [gameId, teamId, barId, drawnCount]);
   }
 
-  const records: CardEventRecord[] = changed.map((card) => ({
+  return changed.map((card) => ({
     cardId: card.id,
     teamId,
     slug: card.slug,
     state: card.state,
   }));
+}
+
+/**
+ * Persist the row diff between `before` and `after` and append the canonical
+ * event for the transition, inside the caller's transaction (R4.1, R4.2).
+ *
+ * Only the cards whose engine state actually changed are upserted, plus the
+ * `team_decks` deck-level fields (`next_draw_position`, `draw_override_until`,
+ * `pending_mode`) and, for a draw, the `card_draws` record. The appended event
+ * carries the changed cards in the board-projection shape so
+ * `applyCardInventoryEvent` folds them without a parallel client source (R4.2).
+ *
+ * When `inventoryFollowUp` is supplied, any Use It or Lose It completions and
+ * voided Fairest offers are merged into this same inventory event so they commit
+ * with the hand change rather than in a parallel event (R8.3, R8.5, R9.12).
+ *
+ * @returns the appended event's `seq`.
+ */
+export async function persistDeckTransition(
+  tx: QueryRunner,
+  args: PersistDeckTransitionArgs,
+): Promise<number> {
+  const {
+    ctx,
+    kind,
+    before,
+    after,
+    barId,
+    eventExtra,
+    inventoryFollowUp,
+    seeded,
+  } = args;
+  const { gameId, teamId } = ctx;
+
+  // Write the row diff and get the changed cards in board-projection shape; the
+  // event this function appends carries exactly those records (R4.2).
+  const records = await persistDeckRows(tx, {
+    ctx,
+    kind,
+    before,
+    after,
+    barId,
+    seeded,
+  });
+
+  // Only ride a follow-up on the event when something actually settled, so an
+  // ordinary transition's payload stays unchanged (keeps existing folds/tests
+  // stable). `eventExtra` may still override/extend the payload explicitly.
+  const followUpExtra = followUpPayload(inventoryFollowUp);
 
   const event = await appendEvent(tx, {
     gameId,
     type: EVENT_TYPE_FOR[kind],
     actor: { kind: "team", teamId },
-    payload: { teamId, cards: records, ...(eventExtra ?? {}) },
+    payload: {
+      teamId,
+      cards: records,
+      ...followUpExtra,
+      ...(eventExtra ?? {}),
+    },
   });
 
   return event.seq;
+}
+
+/**
+ * The payload slice carrying an {@link InventoryFollowUp} onto the inventory
+ * event, or an empty object when nothing settled. Empty follow-up arrays are
+ * omitted entirely so an ordinary transition's event payload is byte-identical
+ * to before this rider existed (the board projection only acts on non-empty
+ * lists, and existing folds/tests stay stable).
+ */
+function followUpPayload(
+  followUp: InventoryFollowUp | undefined,
+): Record<string, unknown> {
+  if (followUp === undefined) {
+    return {};
+  }
+  const extra: Record<string, unknown> = {};
+  if (followUp.completeChallenges.length > 0) {
+    extra.completeChallenges = followUp.completeChallenges;
+  }
+  if (followUp.voidOffers.length > 0) {
+    extra.voidOffers = followUp.voidOffers;
+  }
+  return extra;
 }
 
 async function upsertInstance(
@@ -452,8 +553,16 @@ async function upsertInstance(
  * deterministic so repeated upserts of the same engine card target the same row:
  * a UUIDv5-style derivation over the stable triple. We use a name-based UUID so
  * the id is reproducible without a round-trip read.
+ *
+ * Exported so a card play can reference the real `card_instances` row it is
+ * mutating (`card_plays.card_instance_id`) without a round-trip read — the id is
+ * reproducible from the same `(game, team, slug)` triple the upsert uses.
  */
-function instanceRowId(gameId: string, teamId: string, slug: CardSlug): string {
+export function instanceRowId(
+  gameId: string,
+  teamId: string,
+  slug: CardSlug,
+): string {
   // Deterministic v5-like derivation keyed on the stable triple. randomUUID is
   // not used here because the id must be reproducible across transitions; the
   // engine card id is itself unique per team+slug, so we hash it into a UUID.
@@ -579,6 +688,7 @@ export async function applyDeckTransition(
     readonly transition: DeckTransitionFn;
     readonly barId?: string;
     readonly eventExtra?: DeckEventExtra;
+    readonly inventoryFollowUp?: InventoryFollowUp;
   },
 ): Promise<ApplyDeckResult> {
   const { state: before, seeded } = await loadDeckStateWithOrigin(tx, args.ctx);
@@ -593,9 +703,59 @@ export async function applyDeckTransition(
     after: result.state,
     barId: args.barId,
     eventExtra: args.eventExtra,
+    inventoryFollowUp: args.inventoryFollowUp,
     seeded,
   });
   return { ok: true, seq, state: result.state, cardIds: result.cardIds };
+}
+
+/** Result of {@link applyDeckRowsOnly}. */
+export type ApplyDeckRowsResult =
+  | {
+      readonly ok: true;
+      readonly state: DeckState;
+      readonly records: readonly CardEventRecord[];
+    }
+  | { readonly ok: false; readonly reason: string; readonly state: DeckState };
+
+/**
+ * Load the deck, apply one pure engine transition, and persist the row diff
+ * WITHOUT appending any event, returning the changed cards for the caller to
+ * embed in its own canonical event, inside the caller's transaction.
+ *
+ * This is {@link applyDeckTransition} minus the event append: it exists for a
+ * mutation that moves a card but owns a single, differently-named canonical event
+ * (a Fairest decision moving the Fairest card to `played` inside one
+ * `fairest_decided` event rather than a separate `card_played`; design.md
+ * "Fairest decision route"). The caller carries the returned records as that
+ * event's `cards` section.
+ *
+ * If the engine rejects the transition, nothing is persisted and the rejection
+ * reason is returned (the caller maps it to an HTTP response).
+ */
+export async function applyDeckRowsOnly(
+  tx: QueryRunner,
+  args: {
+    readonly ctx: DeckContext;
+    readonly kind: DeckTransitionKind;
+    readonly transition: DeckTransitionFn;
+    readonly barId?: string;
+  },
+): Promise<ApplyDeckRowsResult> {
+  const { state: before, seeded } = await loadDeckStateWithOrigin(tx, args.ctx);
+  const result = args.transition(before);
+  if (!result.ok) {
+    return { ok: false, reason: result.reason ?? "rejected", state: before };
+  }
+  const records = await persistDeckRows(tx, {
+    ctx: args.ctx,
+    kind: args.kind,
+    before,
+    after: result.state,
+    barId: args.barId,
+    seeded,
+  });
+  return { ok: true, state: result.state, records };
 }
 
 /** Result of {@link injectCardToHand}. */

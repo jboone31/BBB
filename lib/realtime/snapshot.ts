@@ -196,6 +196,19 @@ export interface SnapshotSource {
    * unordered source.
    */
   fetchEventsAscending(gameId: string): Promise<GameEvent[]>;
+  /**
+   * Return every persisted event for `gameId` with `seq > afterSeq`, ordered by
+   * `seq` ascending — the tail past a watermark (design.md "Recheck behind
+   * Realtime"; Req 23.7).
+   *
+   * This backs the live-board recheck (`lib/realtime/recheck.ts`): when one
+   * Recheck_Interval passes with no new event, the board fetches the tail above
+   * its last applied `seq` and folds it, so a Realtime message dropped between
+   * the watermark and now is recovered within the Delivery_Bound. Implementations
+   * apply the `seq > afterSeq` filter and the ordering in the query, RLS-scoped
+   * like {@link fetchEventsAscending} in the browser.
+   */
+  fetchEventsAfter(gameId: string, afterSeq: number): Promise<GameEvent[]>;
 }
 
 /**
@@ -209,6 +222,21 @@ const SELECT_EVENTS_ASC_SQL = `
 select id, game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at
 from game_events
 where game_id = $1
+order by seq asc
+`;
+
+/**
+ * SQL that selects a game's events with `seq` greater than a watermark, ordered
+ * by `seq` ascending — the read side of the live-board recheck tail fetch
+ * (`lib/realtime/recheck.ts`; Req 23.7). Served by the same
+ * `game_events_game_seq_idx` index as {@link SELECT_EVENTS_ASC_SQL}.
+ *
+ * Positional parameters: $1 game_id, $2 after_seq (exclusive lower bound).
+ */
+const SELECT_EVENTS_AFTER_SQL = `
+select id, game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at
+from game_events
+where game_id = $1 and seq > $2
 order by seq asc
 `;
 
@@ -231,6 +259,16 @@ export function snapshotSourceFromQueryRunner(
   return {
     async fetchEventsAscending(gameId: string): Promise<GameEvent[]> {
       const { rows } = await runner.query(SELECT_EVENTS_ASC_SQL, [gameId]);
+      return rows.map(rowToGameEvent);
+    },
+    async fetchEventsAfter(
+      gameId: string,
+      afterSeq: number,
+    ): Promise<GameEvent[]> {
+      const { rows } = await runner.query(SELECT_EVENTS_AFTER_SQL, [
+        gameId,
+        afterSeq,
+      ]);
       return rows.map(rowToGameEvent);
     },
   };
