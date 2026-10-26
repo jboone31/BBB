@@ -29,12 +29,15 @@ export const DEV_FLAGS = Object.freeze({
   /**
    * Dev-only "add card to hand" capability (Requirement 5.2/5.3).
    *
-   * When `false` (the default, i.e. prod mode) the inject button is not rendered
-   * and the inject route refuses the operation even if called directly. Flip to
-   * `true` only on a dev branch to exercise card flows without playing through a
-   * real claim/draw.
+   * When `false` the inject button is not rendered and the inject route refuses
+   * the operation even if called directly. When `true` both are enabled.
+   *
+   * ⚠️ REMINDER: this is currently `true` for prototype testing on the Vercel
+   * deployment. Flip it back to `false` once you're done exercising card
+   * injection — leaving it on lets anyone with the board open force cards into a
+   * hand, bypassing the normal claim/draw flow.
    */
-  DEV_CARD_INJECTION: false,
+  DEV_CARD_INJECTION: true,
 } as const);
 
 /** The name of a committed dev flag. */
