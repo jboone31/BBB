@@ -58,7 +58,7 @@ interface Fixture {
  */
 async function createFixture(): Promise<Fixture> {
   const { withTransaction } = await db();
-  const sessionId = `it-cardbehavior-${randomUUID()}`;
+  const sessionId = `${SESSION_PREFIX}${randomUUID()}`;
 
   return withTransaction(async (tx) => {
     const game = await tx.query(
@@ -115,7 +115,7 @@ async function createFixture(): Promise<Fixture> {
          (slug, name, card_type, requires_target, effect_summary)
        values ($1, 'CB Fixture Card', 'economy_boost', false, 'fixture')
        returning id`,
-      [`cb-fixture-${randomUUID()}`],
+      [`${DEFINITION_PREFIX}${randomUUID()}`],
     );
     const definitionId = String(definition.rows[0]?.id);
 
@@ -204,17 +204,48 @@ async function createFixture(): Promise<Fixture> {
   });
 }
 
-async function deleteFixture(fixture: Fixture): Promise<void> {
+/** Session-id prefix shared by every game this suite creates. */
+const SESSION_PREFIX = "it-cardbehavior-";
+/** Slug prefix shared by every throwaway catalog row this suite creates. */
+const DEFINITION_PREFIX = "cb-fixture-";
+
+/**
+ * Delete every game and throwaway catalog row this suite has ever created.
+ *
+ * `game_events` and `score_ledger_entries` are append-only (0003 / 0010
+ * triggers), so the cascade from `games` is rejected unless both triggers are
+ * disabled for this transaction (the same pattern as the other integration
+ * suites; `alter table ... disable trigger` is transactional, so the guard is
+ * back on at commit). Deleting the game cascades to teams/players/bars/claims/
+ * card_instances/card_plays and every 0013 table; the card_definitions rows
+ * have no game_id, so they go explicitly after their instances are gone.
+ *
+ * Purging by prefix (not just this run's ids) also clears games left by an
+ * interrupted earlier run. A leftover game stays `live` with hand-inserted
+ * transition events whose effects are still unannounced, which would make the
+ * all-games Cron_Route sweep hit the transition unique index.
+ */
+async function purgeFixtures(): Promise<void> {
   const { withTransaction } = await db();
   await withTransaction(async (tx) => {
-    // Deleting the game cascades to teams/players/bars/claims/card_instances/
-    // card_plays and every new 0013 table. The throwaway card_definitions row
-    // has no game_id, so remove it explicitly after the game (and its instances)
-    // are gone.
-    await tx.query(`delete from games where id = $1`, [fixture.gameId]);
-    await tx.query(`delete from card_definitions where id = $1`, [
-      fixture.definitionId,
+    await tx.query(
+      `alter table game_events disable trigger game_events_no_update_delete`,
+    );
+    await tx.query(
+      `alter table score_ledger_entries disable trigger score_ledger_entries_no_update_delete`,
+    );
+    await tx.query(`delete from games where admin_session_id like $1`, [
+      `${SESSION_PREFIX}%`,
     ]);
+    await tx.query(`delete from card_definitions where slug like $1`, [
+      `${DEFINITION_PREFIX}%`,
+    ]);
+    await tx.query(
+      `alter table game_events enable trigger game_events_no_update_delete`,
+    );
+    await tx.query(
+      `alter table score_ledger_entries enable trigger score_ledger_entries_no_update_delete`,
+    );
     return undefined;
   });
 }
@@ -223,18 +254,16 @@ describe.skipIf(!DB_CONFIGURED)("live card-behavior schema (0013)", () => {
   let fixture: Fixture;
 
   beforeAll(async () => {
+    await purgeFixtures();
     fixture = await createFixture();
   }, 30000);
 
   afterAll(async () => {
-    if (fixture) {
-      try {
-        await deleteFixture(fixture);
-      } catch {
-        /* best-effort cleanup */
-      }
+    try {
+      await purgeFixtures();
+    } finally {
+      await serverDb?.closeDb();
     }
-    await serverDb?.closeDb();
   }, 30000);
 
   it("accepts a first live award but rejects a second un-reversed one per (effect, team)", async () => {

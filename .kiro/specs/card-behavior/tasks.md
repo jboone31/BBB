@@ -334,7 +334,7 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - `supabase/__tests__/integration/cardBehaviorRace.integration.test.ts`: concurrent claim and Crop Dusting / challenge play serialize under the game lock
     - _Requirements: 19.2, 24.4_
 
-- [ ] 8. Checkpoint - persistence and routes
+- [x] 8. Checkpoint - persistence and routes
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 9. Projection and toasts
@@ -513,7 +513,7 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Under `app/` list the new route directories (`api/cron/card-effects`, and under `api/games/[gameId]`: `challenges`, `fairest-offers`, `host`, `effects`); note the new `lib/cards` (including `boundaryToasts.ts`, `clockOffset.ts`), `lib/claims/blocks.ts` and `lib/claims/legalNextBar.ts`, `lib/map` geo/bar-resolver, `lib/realtime/recheck.ts`, and `lib/scoring/allocation.ts` responsibilities in the `lib/` descriptions; keep the Top-Level Layout unchanged (no new top-level directories)
     - _Requirements: 19.8, 20.5a, 20.5b_
 
-- [~] 14. Final checkpoint - full verification
+- [x] 14. Final checkpoint - full verification
   - Run `npm test`, lint, type-check, and `npm run build`; confirm the default run stays offline and integration suites (including 10.9) run only under `npm run test:integration`. Ensure all tests pass, ask the user if questions arise.
   - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.5, 24.6, 24.7_
 
