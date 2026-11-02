@@ -55,6 +55,9 @@ function delayedSnapshot(): SnapshotSource {
       await Promise.resolve();
       return [event(1)];
     },
+    async fetchEventsAfter(): Promise<GameEvent[]> {
+      return [];
+    },
   };
 }
 
@@ -90,6 +93,7 @@ describe("subscribe startup lifecycle", () => {
       fetchEventsAscending: async () => {
         throw new Error("snapshot failed");
       },
+      fetchEventsAfter: async () => [],
     };
 
     await expect(

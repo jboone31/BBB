@@ -18,6 +18,8 @@
  * (see the scoring property test) and reused by server routes later.
  */
 
+import { computeBarAllocation, reconcileBar } from "./allocation";
+
 /** Total points a non-finish scoring bar is worth, split among its claimers. */
 export const NON_FINISH_BAR_TOTAL_POINTS = 12;
 
@@ -91,6 +93,11 @@ function validateClaimingTeamIds(teamIds: readonly string[]): void {
  * claimant sets. Only nonzero changes are returned, in deterministic team-id
  * order. Start bars never award points; finish bars award one solo 12-point
  * entry and may not transition from an existing claimant set.
+ *
+ * This is a thin wrapper over the target-allocation model in `./allocation`
+ * with no Party Crasher phantom and no Insurance floors, so a plain claim or
+ * unclaim reconciles to the same adjustments it always has. The finish bar keeps
+ * its dedicated `finish_award` category rather than reconciling as a share.
  */
 export function computeShareAdjustments(
   transition: ShareTransition,
@@ -119,24 +126,18 @@ export function computeShareAdjustments(
     ];
   }
 
-  const previousShare =
-    previous.length === 0 ? 0 : computeShares(previous.length);
-  const nextShare = next.length === 0 ? 0 : computeShares(next.length);
-  const teams = [...new Set([...previous, ...next])].sort();
-
-  return teams.flatMap((teamId) => {
-    const points =
-      (next.includes(teamId) ? nextShare : 0) -
-      (previous.includes(teamId) ? previousShare : 0);
-    if (points === 0) {
-      return [];
-    }
-    return [
-      {
-        teamId,
-        points,
-        category: previous.length === 0 ? "bar_share" : "bar_share_correction",
-      },
-    ];
+  const noFloors = new Map<string, number>();
+  const holdings = computeBarAllocation({
+    barKind: "scoring",
+    claimantTeamIds: previous,
+    phantom: false,
+    protectedFloors: noFloors,
   });
+  const target = computeBarAllocation({
+    barKind: "scoring",
+    claimantTeamIds: next,
+    phantom: false,
+    protectedFloors: noFloors,
+  });
+  return reconcileBar(holdings, target, () => previous.length === 0);
 }

@@ -43,6 +43,21 @@
  *      dismissable.
  *   6. **Card mutations.** POSTs to `/cards/{keep,discard,play,inject}` and the
  *      claim route, surfacing explicit errors on failure.
+ *   7. **Card behavior (card-behavior task 10.6).** Renders the
+ *      {@link ToastStack} (event toasts with their pending actions plus
+ *      Boundary_Toasts, from `lib/gameboard/boardWiring.ts`), passes the map
+ *      overlays, claim-block pre-check, and Happy Hour bonus bars to the
+ *      Map_Region, and the Use-It-or-Lose-It hand state to the Cards_Region.
+ *      Every event source funnels through one ordered apply gate, and a
+ *      {@link RecheckController} runs while the game is live so a dropped
+ *      Realtime event is fetched within one Recheck_Interval (Req 23.7, 23.8).
+ *   8. **Board timers (card-behavior task 12.5).** A
+ *      {@link BoardTimerController} calls the Settle_Nudge on mount, reconnect,
+ *      and 3-5 s after each known effect boundary while live, measures the
+ *      Server_Clock_Offset from every response, and wakes at each
+ *      Boundary_Toast to re-derive the toasts. Every time-based selector and
+ *      the {@link EffectsStrip} countdowns use offset-corrected server time
+ *      (Req 3.7, 20.3a, 20.7-20.12).
  *
  * Role & team derivation. Two durable per-game facts (kept in the same storage
  * as the session so they survive reload) resolve the Session's role: whether it
@@ -65,8 +80,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import CardPlayPanel from "@/components/board/CardPlayPanel";
-import CardsRegion from "@/components/board/CardsRegion";
+import CardPlayPanel, {
+  type CardPlayServerError,
+  type PlayTargets,
+} from "@/components/board/CardPlayPanel";
+import CardsRegion, {
+  type DiscardReason,
+} from "@/components/board/CardsRegion";
 import MapRegion, {
   type ClaimAction,
   type ClaimAttestation,
@@ -74,6 +94,9 @@ import MapRegion, {
 import RegionNav from "@/components/board/RegionNav";
 import ScoreboardRegion from "@/components/board/ScoreboardRegion";
 import TargetedNotification from "@/components/board/TargetedNotification";
+import ToastStack, { type PostAction } from "@/components/board/ToastStack";
+import HostCardPanel from "@/components/board/HostCardPanel";
+import EffectsStrip from "@/components/board/EffectsStrip";
 
 import { selectBoardAccess } from "@/lib/gameboard/access";
 import {
@@ -88,6 +111,32 @@ import {
   type GameBoardView,
 } from "@/lib/gameboard/events";
 import {
+  selectBonusClaimable,
+  selectClaimBlocksForBar,
+  selectMapOverlays,
+  selectHostItems,
+  selectOpenChallengesFor,
+} from "@/lib/gameboard/cardBehavior";
+import {
+  buildCardTargetContext,
+  buildSelectorContext,
+  composeBoardToasts,
+  mirrorIsLegalInView,
+  readDismissalRecord,
+  withDismissed,
+  writeDismissalRecord,
+} from "@/lib/gameboard/boardWiring";
+import {
+  boundaryToastId,
+  deriveBoundaryToasts,
+} from "@/lib/cards/boundaryToasts";
+import type { ToastDismissalRecord } from "@/lib/cards/toasts";
+import { BoardTimerController } from "@/lib/cards/boardTimers";
+import { serverNow } from "@/lib/cards/clockOffset";
+import type { EffectRecord } from "@/lib/cards/effects";
+import type { FairestOfferRecord } from "@/lib/cards/behaviorState";
+import type { ClaimBlock } from "@/lib/claims/blocks";
+import {
   INITIAL_REGION,
   type Region,
   selectRegion,
@@ -100,13 +149,22 @@ import { CARD_SLUGS, getCardMetadata } from "@/lib/cards/catalog";
 import { isDevCardInjectionEnabled } from "@/lib/config/devFlags";
 
 import type { GameEvent } from "@/lib/events";
-import { subscribe, type RealtimeSubscription } from "@/lib/realtime";
+import {
+  applyInOrder,
+  initialOrderedApplyState,
+  subscribe,
+  type OrderedApplyState,
+  type RealtimeSubscription,
+} from "@/lib/realtime";
 import { LocalStorageLastSeenStore } from "@/lib/realtime/lastSeenStore";
 import {
   makeReconnectAttempt,
   ReconnectController,
   ReconnectPhase,
+  type Scheduler,
 } from "@/lib/realtime/reconnect";
+import { RecheckController } from "@/lib/realtime/recheck";
+import type { SnapshotSource } from "@/lib/realtime/snapshot";
 import { bindResumeSignals, ResumeController } from "@/lib/realtime/resume";
 import {
   createBrowserSupabaseClient,
@@ -134,11 +192,11 @@ type ConnectionStatus =
 /** The structured response the card-play route returns. */
 type PlayResponse =
   | { applied: true; seq?: number | null; [k: string]: unknown }
-  | { applied: false; error: string };
+  | { applied: false; error: string; details?: unknown };
 
 type ClaimResponse =
   | { applied: true; seq?: number | null; result?: unknown }
-  | { applied: false; error: string };
+  | { applied: false; error: string; details?: unknown };
 
 type EndGameResponse =
   { applied: true; seq: number } | { applied: false; error: string };
@@ -156,6 +214,98 @@ function readLocal(key: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Timer seam for the {@link RecheckController}. Passed explicitly (rather than
+ * relying on the module default) so the controller always has a real timer.
+ */
+const browserScheduler: Scheduler = (callback, delayMs) => {
+  const handle = setTimeout(callback, delayMs);
+  return () => clearTimeout(handle);
+};
+
+/**
+ * How often the board refreshes its server-time reading while live, so the
+ * time-based selectors (claim blocks, map overlays, bonus windows, and
+ * Boundary_Toasts) move on even when no event arrives.
+ */
+const BOARD_CLOCK_TICK_MS = 5_000;
+
+/**
+ * The blocking cards from a `blocked` claim rejection (`details.blocks`), or
+ * null when the rejection is not a block with a usable list.
+ */
+function readBlockedDetails(
+  error: string,
+  details: unknown,
+): readonly ClaimBlock[] | null {
+  if (error !== "blocked" || typeof details !== "object" || details === null) {
+    return null;
+  }
+  const blocks = (details as { blocks?: unknown }).blocks;
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return null;
+  }
+  return blocks as ClaimBlock[];
+}
+
+/** Empty dismissal record used before the snapshot seeds the real one. */
+const EMPTY_DISMISSAL: ToastDismissalRecord = { floorSeq: -1, dismissed: [] };
+
+/** A stable empty list, so memoized props do not change identity needlessly. */
+const NO_TEAM_BLOCKS: Readonly<Record<string, readonly ClaimBlock[]>> = {};
+
+/**
+ * Build the ToastStack poster: the same Fairest-offer and challenge-resolve
+ * routes the stack's default poster uses, with the session header attached.
+ */
+function makeToastPoster(sessionId: string | null): PostAction {
+  return async (action, gameId) => {
+    if (sessionId === null) {
+      return { applied: false, error: "missing_session" };
+    }
+    const base = `/api/games/${encodeURIComponent(gameId)}`;
+    let url: string;
+    let body: unknown;
+    switch (action.kind) {
+      case "fairest_play":
+      case "fairest_decline":
+        url = `${base}/fairest-offers/${encodeURIComponent(action.offerId)}`;
+        body = {
+          decision: action.kind === "fairest_play" ? "play" : "decline",
+        };
+        break;
+      case "mark_complete":
+      case "we_failed":
+        url = `${base}/challenges/${encodeURIComponent(action.challengeId)}/resolve`;
+        body = {
+          outcome: action.kind === "mark_complete" ? "completed" : "failed",
+        };
+        break;
+      default: {
+        const _exhaustive: never = action;
+        return _exhaustive;
+      }
+    }
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [SESSION_HEADER]: sessionId,
+        },
+        body: JSON.stringify(body),
+      });
+      return (await res.json()) as {
+        applied: boolean;
+        error?: string;
+        details?: { reason?: string } | null;
+      };
+    } catch {
+      return { applied: false, error: "unavailable" };
+    }
+  };
 }
 
 export default function BoardPage(): React.JSX.Element {
@@ -188,6 +338,49 @@ export default function BoardPage(): React.JSX.Element {
   const [view, setView] = useState<GameBoardView>(() =>
     initialGameBoardView(gameId),
   );
+
+  // --- Ordered apply gate + recheck (Req 23.6, 23.7, 23.8) -----------------
+  // Every event source (the initial subscription, reconnect/resume catch-up and
+  // channels, the recheck fetch, and the post-claim refresh) funnels through
+  // `ingestRef.current`, which applies events in contiguous seq order through
+  // `applyInOrder`, folds them into the view, and notes each applied event on
+  // the RecheckController. Its watermark is the recheck's `lastSeq`.
+  const orderRef = useRef<OrderedApplyState>(initialOrderedApplyState());
+  const ingestRef = useRef<((event: GameEvent) => void) | null>(null);
+  const recheckRef = useRef<RecheckController | null>(null);
+  const snapshotSourceRef = useRef<SnapshotSource | null>(null);
+  const lifecycleRef = useRef<GameBoardView["lifecycle"]>(view.lifecycle);
+
+  // Device-clock reading for the time-based card-behavior selectors. Refreshed
+  // on every applied event, on each toast-timer fire, on `visibilitychange`, and
+  // on a coarse tick while live. Selectors never read it directly: they use
+  // `serverNowMs`, the reading corrected by the Server_Clock_Offset measured
+  // from each Settle_Nudge response (Req 20.7, 20.9).
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [offsetMs, setOffsetMs] = useState<number>(0);
+  // Mirrors `offsetMs` so a re-created timer controller keeps the last offset.
+  const offsetRef = useRef<number>(0);
+  const serverNowMs = serverNow(nowMs, offsetMs);
+  // Board toast + nudge timers (Req 20.3a, 20.8), owned by a controller that
+  // also tracks the offset. Held in a ref so reconnect/resume and folds reach it.
+  const boardTimersRef = useRef<BoardTimerController | null>(null);
+
+  // Per-game toast dismissal record `{ floorSeq, dismissed }`, seeded when the
+  // snapshot loads (floorSeq = snapshot watermark on this device's first load).
+  const [dismissal, setDismissal] =
+    useState<ToastDismissalRecord>(EMPTY_DISMISSAL);
+  // Boundary_Toast ids already shown by this board session (20.11, 20.12).
+  const [sessionShown, setSessionShown] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Server-reported claim blocks for the bar of the last `blocked` claim (4.5).
+  const [serverClaimBlocks, setServerClaimBlocks] = useState<{
+    barId: string;
+    blocks: readonly ClaimBlock[];
+  } | null>(null);
+  // A server rejection of the last play, shown inline in the play panel.
+  const [playServerError, setPlayServerError] =
+    useState<CardPlayServerError | null>(null);
   const refreshRoster = useCallback(async (): Promise<void> => {
     if (sessionId === null) {
       return;
@@ -336,15 +529,35 @@ export default function BoardPage(): React.JSX.Element {
     const snapshotSource = supabaseSnapshotSource(client);
     const lastSeenStore = new LocalStorageLastSeenStore();
 
-    // Fold one applied event into the view (R8.3). Guarded by
-    // applyGameBoardEvent's own idempotence, so a re-delivered event never
-    // double-applies.
+    snapshotSourceRef.current = snapshotSource;
+
+    // Fold events into the view in contiguous seq order (R8.3; Req 23.2). Every
+    // source funnels through here: the ordered gate de-duplicates re-deliveries
+    // and buffers out-of-order arrivals until the gap fills, so the view never
+    // skips a seq. An arrival ahead of the frontier is noted on the recheck
+    // first, which fetches the gap at once (Req 23.7); each applied event is then
+    // noted so the quiet timer restarts.
     const foldEvent = (event: GameEvent): void => {
-      if (cancelled) {
+      if (cancelled || event.gameId !== gameId) {
         return;
       }
-      setView((prev) => applyGameBoardEvent(prev, event));
+      const before = orderRef.current;
+      if (event.seq > before.lastSeenSequence + 1) {
+        recheckRef.current?.noteEvent(event);
+      }
+      const result = applyInOrder(orderRef.current, event);
+      orderRef.current = result.state;
+      if (result.applied.length === 0) {
+        return;
+      }
+      const applied = result.applied;
+      setView((prev) => applied.reduce(applyGameBoardEvent, prev));
+      setNowMs(Date.now());
+      for (const appliedEvent of applied) {
+        recheckRef.current?.noteEvent(appliedEvent);
+      }
     };
+    ingestRef.current = foldEvent;
 
     const handleChannelStatus = (channelStatus: string): void => {
       if (cancelled) {
@@ -381,6 +594,8 @@ export default function BoardPage(): React.JSX.Element {
           setStatus("reload-required");
         } else if (phase === ReconnectPhase.Connected) {
           setStatus("subscribed");
+          // Settle_Nudge on reconnect (Req 20.8).
+          void boardTimersRef.current?.nudge();
         }
       },
     });
@@ -403,6 +618,8 @@ export default function BoardPage(): React.JSX.Element {
       onResumed: () => {
         if (!cancelled) {
           setStatus("subscribed");
+          // A resume re-establishes delivery, so it nudges too (Req 20.8).
+          void boardTimersRef.current?.nudge();
         }
       },
     });
@@ -425,7 +642,31 @@ export default function BoardPage(): React.JSX.Element {
               if (cancelled) {
                 return;
               }
-              setView(foldGameBoardEvents(gameId, snapshotEvents));
+              const snapshotView = foldGameBoardEvents(gameId, snapshotEvents);
+              setView(snapshotView);
+              setNowMs(Date.now());
+              // Seed the ordered gate from the snapshot watermark so live and
+              // recheck events continue from it.
+              if (
+                snapshotView.lastSeenSequence >
+                orderRef.current.lastSeenSequence
+              ) {
+                orderRef.current = initialOrderedApplyState(
+                  snapshotView.lastSeenSequence,
+                );
+              }
+              // Seed the toast dismissal record: reuse this device's stored
+              // record, or start one whose floor is this first-load watermark
+              // so historical informational toasts are not replayed.
+              const storedDismissal = readDismissalRecord(gameId);
+              const seededDismissal = storedDismissal ?? {
+                floorSeq: snapshotView.lastSeenSequence,
+                dismissed: [],
+              };
+              if (storedDismissal === null) {
+                writeDismissalRecord(gameId, seededDismissal);
+              }
+              setDismissal(seededDismissal);
               setViewLoaded(true);
               const storedPlayerId = readLocal(playerIdKey(gameId));
               if (storedPlayerId !== null) {
@@ -469,6 +710,12 @@ export default function BoardPage(): React.JSX.Element {
 
     return () => {
       cancelled = true;
+      if (ingestRef.current === foldEvent) {
+        ingestRef.current = null;
+      }
+      if (snapshotSourceRef.current === snapshotSource) {
+        snapshotSourceRef.current = null;
+      }
       unbindResume();
       reconnect.stop();
       reconnectRef.current = null;
@@ -479,6 +726,127 @@ export default function BoardPage(): React.JSX.Element {
       }
     };
   }, [gameId, configured, sessionId, refreshRoster]);
+
+  // --- Recheck behind Realtime (Req 23.7, 23.8) ---------------------------
+  // While the game is live, a RecheckController fetches every event above the
+  // ordered gate's watermark whenever one Recheck_Interval passes with no new
+  // event (or at once on a seq gap), and applies them through the same gate.
+  // It is stopped on unmount and as soon as the game is no longer live. The
+  // ReconnectController / ResumeController snapshot-plus-tail refetch above is
+  // unchanged (Req 23.6); the recheck is not a reconnect.
+  const isLive = view.lifecycle === "live";
+  useEffect(() => {
+    lifecycleRef.current = view.lifecycle;
+  }, [view.lifecycle]);
+
+  useEffect(() => {
+    if (!isLive || !viewLoaded || !configured || gameId === "") {
+      return;
+    }
+    const source = snapshotSourceRef.current;
+    if (source === null) {
+      return;
+    }
+    const controller = new RecheckController(gameId, {
+      fetchEventsAfter: (id, afterSeq) => source.fetchEventsAfter(id, afterSeq),
+      apply: (events) => {
+        const ordered = [...events].sort((a, b) => a.seq - b.seq);
+        for (const event of ordered) {
+          ingestRef.current?.(event);
+        }
+      },
+      lastSeq: () => orderRef.current.lastSeenSequence,
+      isLive: () => lifecycleRef.current === "live",
+      scheduler: browserScheduler,
+    });
+    recheckRef.current = controller;
+    controller.start();
+    return () => {
+      controller.stop();
+      if (recheckRef.current === controller) {
+        recheckRef.current = null;
+      }
+    };
+  }, [configured, gameId, isLive, viewLoaded]);
+
+  // Coarse server-time tick while live so timed blocks, overlays, bonus windows,
+  // and Boundary_Toasts advance without a new event.
+  useEffect(() => {
+    if (!isLive) {
+      return;
+    }
+    const handle = setInterval(() => setNowMs(Date.now()), BOARD_CLOCK_TICK_MS);
+    return () => clearInterval(handle);
+  }, [isLive]);
+
+  // --- Board timers + Server_Clock_Offset (Req 20.3a, 20.7-20.12) ---------
+  // While live, a BoardTimerController nudges `/effects/settle` on mount (and on
+  // reconnect/resume, above), re-measures the offset from every response, and
+  // runs the toast timer (re-derive Boundary_Toasts at the next boundary) and
+  // the nudge timer (3-5 s after each known boundary). Nothing server-side backs
+  // the nudge (Req 20.3d). Stopped on unmount and as soon as the game ends.
+  const timedEffects = useMemo<readonly EffectRecord[]>(
+    () => Object.values(view.cardBehavior.effects),
+    [view.cardBehavior.effects],
+  );
+  const timedEffectsRef = useRef<readonly EffectRecord[]>(timedEffects);
+  useEffect(() => {
+    timedEffectsRef.current = timedEffects;
+    // Reschedule after each fold that changes the effect set.
+    boardTimersRef.current?.reschedule();
+  }, [timedEffects]);
+
+  useEffect(() => {
+    if (!isLive || !viewLoaded || sessionId === null || gameId === "") {
+      return;
+    }
+    const controller = new BoardTimerController({
+      scheduler: browserScheduler,
+      deviceNow: () => Date.now(),
+      effects: () => timedEffectsRef.current,
+      isLive: () => lifecycleRef.current === "live",
+      settle: async () => {
+        try {
+          const res = await fetch(
+            `/api/games/${encodeURIComponent(gameId)}/effects/settle`,
+            { method: "POST", headers: { [SESSION_HEADER]: sessionId } },
+          );
+          const body = (await res.json()) as {
+            applied?: boolean;
+            result?: { serverNow?: unknown };
+          };
+          return body.applied === true &&
+            typeof body.result?.serverNow === "string"
+            ? { serverNow: body.result.serverNow }
+            : null;
+        } catch {
+          return null;
+        }
+      },
+      onOffsetChange: (offset) => {
+        offsetRef.current = offset;
+        setOffsetMs(offset);
+        setNowMs(Date.now());
+      },
+      onBoundary: () => setNowMs(Date.now()),
+      initialOffsetMs: offsetRef.current,
+    });
+    boardTimersRef.current = controller;
+    controller.start();
+
+    const onVisibility = (): void => {
+      setNowMs(Date.now());
+      controller.reschedule();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      controller.stop();
+      if (boardTimersRef.current === controller) {
+        boardTimersRef.current = null;
+      }
+    };
+  }, [gameId, isLive, sessionId, viewLoaded]);
 
   // --- Derived role / access ----------------------------------------------
   const isPlayer = myPlayerId !== null;
@@ -551,6 +919,172 @@ export default function BoardPage(): React.JSX.Element {
   const scoreTotals = useMemo(() => selectScoreTotals(view), [view]);
   const claimedBarCounts = useMemo(() => selectClaimedBarCounts(view), [view]);
 
+  // --- Card-behavior wiring (Req 3.9, 4.5, 13.4) ---------------------------
+  const selectorCtx = useMemo(() => buildSelectorContext(view), [view]);
+
+  // Claim-block pre-check for the own team on every candidate bar, unioned with
+  // the server's blocks from the last `blocked` claim response (4.5, 3.10).
+  const claimBlocksByBar = useMemo(() => {
+    if (myTeamId === null) {
+      return NO_TEAM_BLOCKS;
+    }
+    const byBar: Record<string, readonly ClaimBlock[]> = {};
+    for (const barKey of selectorCtx.bars.keys()) {
+      const blocks = selectClaimBlocksForBar(
+        view.cardBehavior,
+        selectorCtx,
+        myTeamId,
+        barKey,
+        serverNowMs,
+      );
+      if (blocks.length > 0) {
+        byBar[barKey] = blocks;
+      }
+    }
+    if (serverClaimBlocks !== null && serverClaimBlocks.blocks.length > 0) {
+      const existing = byBar[serverClaimBlocks.barId] ?? [];
+      byBar[serverClaimBlocks.barId] =
+        existing.length > 0 ? existing : serverClaimBlocks.blocks;
+    }
+    return byBar;
+  }, [
+    myTeamId,
+    serverNowMs,
+    selectorCtx,
+    serverClaimBlocks,
+    view.cardBehavior,
+  ]);
+
+  const mapOverlays = useMemo(
+    () =>
+      myTeamId === null
+        ? []
+        : selectMapOverlays(
+            view.cardBehavior,
+            selectorCtx,
+            myTeamId,
+            serverNowMs,
+          ),
+    [myTeamId, serverNowMs, selectorCtx, view.cardBehavior],
+  );
+
+  const bonusClaimableBarIds = useMemo(
+    () =>
+      myTeamId === null
+        ? []
+        : selectBonusClaimable(view.cardBehavior, myTeamId, serverNowMs),
+    [myTeamId, serverNowMs, view.cardBehavior],
+  );
+
+  // Host_Card_Panel rows (21.10, 21.11): only computed for the host of a live game.
+  const hostItems = useMemo(
+    () =>
+      isAdmin && isLive ? selectHostItems(view.cardBehavior, serverNowMs) : [],
+    [isAdmin, isLive, serverNowMs, view.cardBehavior],
+  );
+
+  // Use It or Lose It hand state for the Cards_Region (8.2, 9.3).
+  const uioliState = useMemo(() => {
+    if (myTeamId === null) {
+      return { hasOpenUioli: false, fairestPromptPending: false };
+    }
+    const open = selectOpenChallengesFor(view.cardBehavior, myTeamId).filter(
+      (challenge) => challenge.slug === "use-it-or-lose-it",
+    );
+    const openIds = new Set(open.map((challenge) => challenge.challengeId));
+    const fairestPromptPending = Object.values(view.cardBehavior.offers).some(
+      (offer) =>
+        offer.status === "pending" &&
+        offer.holderTeamId === myTeamId &&
+        offer.challengeId !== null &&
+        openIds.has(offer.challengeId),
+    );
+    return { hasOpenUioli: open.length > 0, fairestPromptPending };
+  }, [myTeamId, view.cardBehavior]);
+
+  // Boundary_Toasts (3.7, 20.3a, 20.10-20.12): the local toast timer advances
+  // `serverNowMs` (offset-corrected), with the folded announced flags as the
+  // transition-event fallback. The first derive after a reload is the
+  // missed-boundary catch-up; after game end, `deriveBoundaryToasts` keeps only
+  // ids already in this session's `sessionShown`.
+  const boundaryToasts = useMemo(() => {
+    const effects = Object.values(view.cardBehavior.effects);
+    const playSeqByEffect = new Map<string, number>();
+    const announced = new Set<string>();
+    for (const effect of effects) {
+      const play =
+        effect.sourcePlayId === null
+          ? undefined
+          : view.cardBehavior.plays[effect.sourcePlayId];
+      if (play !== undefined) {
+        playSeqByEffect.set(effect.effectId, play.seq);
+      }
+      if (effect.startAnnounced) {
+        announced.add(boundaryToastId(effect.effectId, "start"));
+      }
+      if (effect.endAnnounced) {
+        announced.add(boundaryToastId(effect.effectId, "end"));
+      }
+    }
+    return deriveBoundaryToasts({
+      effects,
+      playSeqByEffect,
+      lifecycle: view.lifecycle,
+      serverNowMs,
+      announced,
+      sessionShown,
+      dismissal,
+    });
+  }, [dismissal, serverNowMs, sessionShown, view.cardBehavior, view.lifecycle]);
+
+  // Record newly shown Boundary_Toast ids for this session (adjusting state
+  // while rendering; guarded so it settles after one extra render).
+  const unseenBoundaryIds = boundaryToasts
+    .map((toast) => toast.id)
+    .filter((id) => !sessionShown.has(id));
+  if (unseenBoundaryIds.length > 0) {
+    setSessionShown((prev) => new Set([...prev, ...unseenBoundaryIds]));
+  }
+
+  const boardToasts = useMemo(
+    () =>
+      composeBoardToasts({
+        view,
+        viewerTeamId: myTeamId,
+        boundaryToasts,
+        dismissal,
+      }),
+    [boundaryToasts, dismissal, myTeamId, view],
+  );
+
+  // Targeting facts for the Card_Play_Panel so it can gray out Pioneer/Scenic
+  // targets left with no Legal_Next_Bar (Req 10.12, 22.5).
+  const cardTargetCtx = useMemo(
+    () => buildCardTargetContext(view, selectorCtx, serverNowMs),
+    [serverNowMs, selectorCtx, view],
+  );
+
+  const isMirrorLegal = useCallback(
+    (offer: FairestOfferRecord): boolean =>
+      mirrorIsLegalInView(view, selectorCtx, offer, serverNowMs),
+    [serverNowMs, selectorCtx, view],
+  );
+
+  const handleDismissToast = useCallback(
+    (toastId: string): void => {
+      setDismissal((current) => {
+        const next = withDismissed(current, toastId);
+        if (next !== current) {
+          writeDismissalRecord(gameId, next);
+        }
+        return next;
+      });
+    },
+    [gameId],
+  );
+
+  const toastPoster = useMemo(() => makeToastPoster(sessionId), [sessionId]);
+
   // Redirect a lobby-phase visitor to the game's lobby (R1.3). Done as an effect
   // so navigation happens after render, and never renders the Regions.
   useEffect(() => {
@@ -573,14 +1107,12 @@ export default function BoardPage(): React.JSX.Element {
   // via realtime (R3.1/R3.7); on failure an explicit "not delivered" shows and
   // the hand is unchanged.
   const handleConfirmPlay = useCallback(
-    async (
-      card: BoardCardView,
-      targets: { targetTeamId?: string; targetBarId?: string },
-    ): Promise<void> => {
+    async (card: BoardCardView, targets: PlayTargets): Promise<void> => {
       if (view.lifecycle === "ended" || playPending) {
         return;
       }
       setPlayError(null);
+      setPlayServerError(null);
       if (sessionId === null) {
         setPlayError("not_delivered");
         return;
@@ -597,11 +1129,31 @@ export default function BoardPage(): React.JSX.Element {
             cardId: card.cardId,
             targetTeamId: targets.targetTeamId,
             targetBarId: targets.targetBarId,
+            params: targets.params,
           }),
         });
         const body = (await res.json()) as PlayResponse;
         if (!body.applied) {
-          setPlayError("not_delivered");
+          // A Pioneer / Scenic `no_legal_next_bar` (or another reasoned
+          // `invalid_input`) is shown inline in the panel; anything else is
+          // the generic "not delivered" notice.
+          const details = body.details as
+            { reason?: unknown; rules?: unknown } | null | undefined;
+          if (
+            body.error === "invalid_input" &&
+            details !== null &&
+            details !== undefined &&
+            typeof details.reason === "string"
+          ) {
+            setPlayServerError({
+              reason: details.reason,
+              rules: Array.isArray(details.rules)
+                ? (details.rules as CardPlayServerError["rules"])
+                : undefined,
+            });
+          } else {
+            setPlayError("not_delivered");
+          }
         } else {
           setPlayingCard(null);
         }
@@ -620,7 +1172,11 @@ export default function BoardPage(): React.JSX.Element {
   // event back into view.cards, so the projection updates without local hand
   // state. A failed update surfaces an explicit error and never looks applied.
   const handleCardMutation = useCallback(
-    async (action: "keep" | "discard", cardId: string): Promise<void> => {
+    async (
+      action: "keep" | "discard",
+      cardId: string,
+      reason?: DiscardReason,
+    ): Promise<void> => {
       if (
         sessionId === null ||
         cardMutationPending !== null ||
@@ -637,7 +1193,9 @@ export default function BoardPage(): React.JSX.Element {
             "content-type": "application/json",
             [SESSION_HEADER]: sessionId,
           },
-          body: JSON.stringify({ cardId }),
+          body: JSON.stringify(
+            reason === undefined ? { cardId } : { cardId, reason },
+          ),
         });
         const body = (await response.json()) as
           { applied: true; seq?: number } | { applied: false; error: string };
@@ -735,13 +1293,14 @@ export default function BoardPage(): React.JSX.Element {
   const handleClaimMutation = useCallback(
     async (
       barId: string,
-      action: ClaimAction,
+      action: ClaimAction | "bonus",
       attestation: ClaimAttestation,
     ): Promise<void> => {
       if (sessionId === null || pendingClaimBarId !== null) {
         return;
       }
       setClaimMutationError(null);
+      setServerClaimBlocks(null);
       setPendingClaimBarId(barId);
       try {
         const response = await fetch(`/api/games/${gameId}/claims`, {
@@ -750,10 +1309,21 @@ export default function BoardPage(): React.JSX.Element {
             "content-type": "application/json",
             [SESSION_HEADER]: sessionId,
           },
-          body: JSON.stringify({ action, barId, ...attestation }),
+          body: JSON.stringify(
+            action === "bonus"
+              ? { action, barId }
+              : { action, barId, ...attestation },
+          ),
         });
         const body = (await response.json()) as ClaimResponse;
         if (!body.applied) {
+          const blocks = readBlockedDetails(body.error, body.details);
+          if (blocks !== null) {
+            // A `blocked` claim shows the standard claim-blocked message with
+            // the blocking cards in the bar popup (4.5, 3.10).
+            setServerClaimBlocks({ barId, blocks });
+            return;
+          }
           setClaimMutationError({
             barId,
             message:
@@ -763,7 +1333,9 @@ export default function BoardPage(): React.JSX.Element {
                   ? "Your team already claims this bar."
                   : body.error === "claim_not_active"
                     ? "Your team no longer claims this bar."
-                    : "The claim was not saved. Please try again.",
+                    : action === "bonus"
+                      ? "The bonus could not be claimed. Please try again."
+                      : "The claim was not saved. Please try again.",
           });
         } else {
           const client = createBrowserSupabaseClient();
@@ -773,13 +1345,21 @@ export default function BoardPage(): React.JSX.Element {
                 await supabaseSnapshotSource(client).fetchEventsAscending(
                   gameId,
                 );
-
-              const refreshedView = foldGameBoardEvents(gameId, events);
-              setView((current) =>
-                refreshedView.lastSeenSequence >= current.lastSeenSequence
-                  ? refreshedView
-                  : current,
-              );
+              const ingest = ingestRef.current;
+              if (ingest !== null) {
+                // Reconcile through the ordered gate so the recheck watermark
+                // and the view stay consistent.
+                for (const event of events) {
+                  ingest(event);
+                }
+              } else {
+                const refreshedView = foldGameBoardEvents(gameId, events);
+                setView((current) =>
+                  refreshedView.lastSeenSequence >= current.lastSeenSequence
+                    ? refreshedView
+                    : current,
+                );
+              }
             } catch {
               // Realtime remains the primary update path if reconciliation fails.
             }
@@ -795,6 +1375,17 @@ export default function BoardPage(): React.JSX.Element {
       }
     },
     [gameId, pendingClaimBarId, sessionId],
+  );
+
+  // Happy Hour Bonus_Claim from the bar popup (13.4): the claim route with
+  // `action: "bonus"`, sharing the claim pending/error state.
+  const handleBonusClaim = useCallback(
+    (barId: string): Promise<void> =>
+      handleClaimMutation(barId, "bonus", {
+        allMembersPresent: true,
+        finishedDrinkCount: 0,
+      }),
+    [handleClaimMutation],
   );
 
   const handleEndGame = useCallback(async (): Promise<void> => {
@@ -1287,6 +1878,26 @@ export default function BoardPage(): React.JSX.Element {
         />
       ))}
 
+      {/* Card-behavior toasts (3.x): event toasts for this viewer with their
+          pending actions, plus Boundary_Toasts, inline and non-modal. */}
+      <ToastStack
+        gameId={gameId}
+        toasts={boardToasts}
+        teams={view.teams}
+        offers={view.cardBehavior.offers}
+        isMirrorLegal={isMirrorLegal}
+        onDismiss={handleDismissToast}
+        postAction={toastPoster}
+      />
+
+      {/* Effects_Strip (20.7): pending/active timed effects with countdowns
+          from server time (device clock corrected by the offset). */}
+      <EffectsStrip
+        effects={timedEffects}
+        offsetMs={offsetMs}
+        teams={view.teams}
+      />
+
       {/* Region navigation: three controls, active one distinguished. While a
           draw is unresolved the nav is locked to the Cards region (UAT forced
           draw-resolution workflow). */}
@@ -1326,6 +1937,10 @@ export default function BoardPage(): React.JSX.Element {
           pendingBarId={pendingClaimBarId}
           mutationError={claimMutationError}
           readOnly={readOnly || drawLocked}
+          claimBlocksByBar={claimBlocksByBar}
+          bonusClaimableBarIds={bonusClaimableBarIds}
+          onBonusClaim={handleBonusClaim}
+          overlays={mapOverlays}
         />
       ) : null}
       {effectiveRegion === "scoreboard" ? (
@@ -1344,8 +1959,8 @@ export default function BoardPage(): React.JSX.Element {
             onKeepCard={(card) => {
               void handleCardMutation("keep", card.cardId);
             }}
-            onDiscardCard={(card) => {
-              void handleCardMutation("discard", card.cardId);
+            onDiscardCard={(card, reason) => {
+              void handleCardMutation("discard", card.cardId, reason);
             }}
             onForfeitDraw={() => {
               void handleForfeitDraw();
@@ -1355,10 +1970,13 @@ export default function BoardPage(): React.JSX.Element {
                 return;
               }
               setPlayError(null);
+              setPlayServerError(null);
               setPlayingCard(card);
             }}
             readOnly={readOnly}
             pendingCardId={cardMutationPending}
+            hasOpenUioli={uioliState.hasOpenUioli}
+            fairestPromptPending={uioliState.fairestPromptPending}
           />
           {cardMutationError !== null ? (
             <p
@@ -1462,12 +2080,15 @@ export default function BoardPage(): React.JSX.Element {
             bars={CANDIDATE_BARS}
             claims={claimState}
             finishBarId={null}
+            targetContext={cardTargetCtx}
             pending={playPending}
+            serverError={playServerError}
             onConfirm={(targets) => {
               void handleConfirmPlay(playingCard, targets);
             }}
             onCancel={() => {
               setPlayError(null);
+              setPlayServerError(null);
               setPlayingCard(null);
             }}
           />
@@ -1488,6 +2109,16 @@ export default function BoardPage(): React.JSX.Element {
             </p>
           ) : null}
         </>
+      ) : null}
+
+      {/* Host_Card_Panel (21.10, 21.11): host-only while the game is live. */}
+      {isAdmin && isLive ? (
+        <HostCardPanel
+          gameId={gameId}
+          sessionId={sessionId}
+          items={hostItems}
+          teams={view.teams}
+        />
       ) : null}
     </main>
   );

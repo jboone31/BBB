@@ -293,7 +293,8 @@ export function utcMillisTimestamp(now: Date = new Date()): string {
  *     supplied fields, stamping `created_at` at UTC-ms precision.
  *
  * Positional parameters: $1 game_id, $2 event_type, $3 actor_kind,
- * $4 actor_team_id (nullable), $5 payload (jsonb), $6 created_at (timestamptz).
+ * $4 actor_team_id (nullable), $5 payload (JSON text, cast `::text::jsonb`),
+ * $6 created_at (timestamptz).
  */
 const APPEND_EVENT_SQL = `
 with locked as (
@@ -305,7 +306,7 @@ next as (
   where game_id = $1
 )
 insert into game_events (game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at)
-select $1, next.seq, $2, $3::event_actor_kind, $4, $5::jsonb, $6::timestamptz
+select $1, next.seq, $2, $3::event_actor_kind, $4, $5::text::jsonb, $6::timestamptz
 from next, locked
 returning id, game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at
 `;
@@ -349,7 +350,11 @@ export async function appendEvent(
   // 3. UTC-ms timestamp (Req 4.2).
   const createdAt = utcMillisTimestamp();
 
-  // jsonb parameter is passed as JSON text (default '{}' when undefined).
+  // jsonb parameter is passed as JSON text (default '{}' when undefined) and
+  // cast `$5::text::jsonb` in SQL. A bare `$5::jsonb` makes postgres.js
+  // JSON-encode the string again, storing a jsonb string scalar instead of an
+  // object (which breaks `payload->>'key'` indexes such as
+  // game_events_effect_transition_once).
   const payloadJson = payload === undefined ? "{}" : JSON.stringify(payload);
 
   // 4. Lock + next-seq + insert in one statement (Req 4.5).

@@ -17,6 +17,24 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   prettier,
+  // `lib/**` is framework-free domain logic (game rules, scoring, data access)
+  // with no React. The `react-hooks` rules treat any `use*`-prefixed call as a
+  // React Hook, but functions like `useItOrLoseItShouldComplete` are pure,
+  // design-mandated domain helpers (not hooks), so those rules do not apply
+  // here. Disable them for this glob only.
+  {
+    files: ["lib/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "react-hooks/exhaustive-deps": "off",
+      // Allow intentionally-unused args that are part of a design-required
+      // signature when they are underscore-prefixed (e.g. `_now`).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next and skip non-source dirs.
   globalIgnores([
     ".next/**",

@@ -14,6 +14,11 @@
  */
 import type { QueryRunner } from "@/lib/events";
 import type { DeckRejection } from "@/lib/cards/deck";
+import {
+  loadBehaviorState,
+  settleDueTransitions,
+  type BehaviorState,
+} from "@/lib/cards/behaviorStore";
 
 import { assertMember, type LobbyErrorReason } from "@/app/api/games/_shared";
 
@@ -66,6 +71,73 @@ export async function resolveCardActor(
     return { ok: false, reason: "no_team" };
   }
   return { ok: true, teamId: String(teamId) };
+}
+
+const CLOCK_NOW_SQL = `select clock_timestamp() as now`;
+
+/**
+ * The resolved context every Card_Behavior_Mutation route needs after the
+ * shared pipeline preamble: the acting team, the server `now`, and the single
+ * loaded {@link BehaviorState} snapshot.
+ */
+export type CardMutationContext =
+  | {
+      readonly ok: true;
+      readonly teamId: string;
+      readonly nowIso: string;
+      readonly state: BehaviorState;
+    }
+  | { readonly ok: false; readonly reason: LobbyErrorReason };
+
+/**
+ * Run the Card_Behavior_Mutation pipeline preamble (design.md "Mutation
+ * pipeline"), inside the caller's open transaction against the `FOR UPDATE`
+ * locked game row:
+ *
+ *   1. authorize + resolve the acting team ({@link resolveCardActor});
+ *   2. read `clock_timestamp()` as the server `now` (after the lock, so server
+ *      time agrees with lock order);
+ *   3. lazily settle due effect transitions ({@link settleDueTransitions},
+ *      pipeline step 3) at that same `now`, before loading state, so the loaded
+ *      snapshot reflects the flipped announcement flags and every boundary at or
+ *      before `now` is announced with its transition events ordered before this
+ *      mutation's own events;
+ *   4. load the single {@link BehaviorState} snapshot ({@link loadBehaviorState})
+ *      so the inventory follow-up planner sees the current challenge / offer
+ *      state alongside the deck.
+ *
+ * Returns the acting team, the server `now`, and the loaded snapshot on success,
+ * or a structured rejection reason (membership, lifecycle, or no-team) that the
+ * caller maps to an HTTP response. The settle is a no-op for a non-live game,
+ * which {@link resolveCardActor} rejects before we reach it anyway.
+ */
+export async function loadCardMutationContext(
+  tx: QueryRunner,
+  gameId: string,
+  sessionId: string,
+): Promise<CardMutationContext> {
+  // Pipeline step 1: authorize + lock, resolving the acting team.
+  const actor = await resolveCardActor(tx, gameId, sessionId);
+  if (!actor.ok) {
+    return { ok: false, reason: actor.reason };
+  }
+
+  // Pipeline step 2: server time, read after the lock.
+  const { rows: clockRows } = await tx.query(CLOCK_NOW_SQL, []);
+  const nowRaw = clockRows[0]?.now;
+  const nowIso =
+    nowRaw instanceof Date
+      ? nowRaw.toISOString()
+      : new Date(String(nowRaw)).toISOString();
+
+  // Pipeline step 3: lazily settle due effect transitions at this `now`, under
+  // the lock the caller already holds, before loading state.
+  await settleDueTransitions(tx, gameId, nowIso);
+
+  // Pipeline step 4: the single loaded snapshot, reflecting the settled flags.
+  const state = await loadBehaviorState(tx, gameId, nowIso);
+
+  return { ok: true, teamId: actor.teamId, nowIso, state };
 }
 
 /**

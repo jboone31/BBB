@@ -32,6 +32,18 @@
  *
  * Mobile-first (R6 cross-cutting): single-column, `box-sizing: border-box`, and
  * every interactive control is at least 44×44 CSS pixels.
+ *
+ * Use It or Lose It + Fairest (card-behavior R8.2, R9.3, R9.11). When the
+ * viewing team has an OPEN Use-It-or-Lose-It challenge (`hasOpenUioli`), each
+ * held card gains a "Can't play, discard" honor-system control that discards the
+ * card through the normal discard callback with the reason `"cannot_play"`
+ * (R8.2). That control is HIDDEN while a Fairest prompt is pending for the same
+ * challenge (`fairestPromptPending`), because the Fairest flow owns the decision
+ * then (R9.3). A held Fairest of Them All card is never played from the hand: it
+ * shows no Play button and, in its place, the note "Played from a challenge
+ * prompt" (R9.11). As with everything else here, the component enforces nothing;
+ * it receives these two facts as props from the folded view and reports the
+ * discard intent back to the page.
  */
 
 import { useState } from "react";
@@ -40,6 +52,7 @@ import {
   getCardMetadata,
   getCardText,
   type CardSlug,
+  type CardText,
 } from "@/lib/cards/catalog";
 import type { BoardCardView } from "@/lib/gameboard/events";
 
@@ -48,6 +61,16 @@ const TOUCH_TARGET = "44px";
 
 /** The default maximum hand size (R2.3). */
 export const MAX_HAND_SIZE = 2;
+
+/** The catalog slug for Fairest of Them All (card-behavior R9.11). */
+const FAIREST_SLUG: CardSlug = "fairest-of-them-all";
+
+/**
+ * The discard reason recorded for the Use-It-or-Lose-It "Can't play, discard"
+ * action (card-behavior R8.2). Passed through `onDiscardCard` so the page can
+ * forward it as `{ reason: "cannot_play" }` to `/cards/discard`.
+ */
+export type DiscardReason = "cannot_play";
 
 export interface CardsRegionProps {
   /**
@@ -63,8 +86,14 @@ export interface CardsRegionProps {
   readonly adminNotPlayer: boolean;
   /** Keep a specific pending card (the server discards the rest of the draw). */
   readonly onKeepCard: (card: BoardCardView) => void;
-  /** Discard a specific held or pending card. */
-  readonly onDiscardCard: (card: BoardCardView) => void;
+  /**
+   * Discard a specific held or pending card. The optional `reason` is set to
+   * `"cannot_play"` only when the player uses the Use-It-or-Lose-It "Can't play,
+   * discard" action (card-behavior R8.2); the page forwards it to
+   * `/cards/discard` as `{ reason: "cannot_play" }`. An ordinary hand/pending
+   * discard passes no reason.
+   */
+  readonly onDiscardCard: (card: BoardCardView, reason?: DiscardReason) => void;
   /** Play a specific held card (targeting flow is owned by the page). */
   readonly onPlayCard: (card: BoardCardView) => void;
   /**
@@ -77,6 +106,21 @@ export interface CardsRegionProps {
   readonly readOnly?: boolean;
   /** The card id currently awaiting a server response, if any (disables it). */
   readonly pendingCardId?: string | null;
+  /**
+   * `true` when the viewing team has an OPEN Use-It-or-Lose-It challenge that
+   * requires it to play or discard every card in hand (card-behavior R8.2). When
+   * set, each held card shows a "Can't play, discard" control. This fact comes
+   * from the folded view, not from this component.
+   */
+  readonly hasOpenUioli?: boolean;
+  /**
+   * `true` when a Fairest prompt is pending for that same Use-It-or-Lose-It
+   * challenge — i.e. the team holds Fairest of Them All and an offer is pending
+   * (card-behavior R9.3). While set, the "Can't play, discard" control is hidden
+   * because the Fairest flow owns the decision. Also sourced from the folded
+   * view.
+   */
+  readonly fairestPromptPending?: boolean;
 }
 
 /** The human-facing catalog name for a card slug, falling back to the slug. */
@@ -88,12 +132,8 @@ function cardName(slug: string): string {
   }
 }
 
-/** The player-facing description + requirement text for a card slug, if cataloged. */
-function cardText(slug: string): {
-  description: string;
-  castingRequirement: string | null;
-  targetRequirement: string | null;
-} | null {
+/** The player-facing text for a card slug, if cataloged. */
+function cardText(slug: string): CardText | null {
   try {
     return getCardText(slug as CardSlug);
   } catch {
@@ -110,6 +150,8 @@ export default function CardsRegion({
   onForfeitDraw,
   readOnly = false,
   pendingCardId = null,
+  hasOpenUioli = false,
+  fairestPromptPending = false,
 }: CardsRegionProps): React.JSX.Element {
   const pending = cards.filter((card) => card.state === "pending");
   const hand = cards.filter((card) => card.state === "hand");
@@ -120,6 +162,11 @@ export default function CardsRegion({
   // frees a slot or forfeits (R2.4): the prompt to play/discard/forfeit comes
   // BEFORE the two newly drawn cards are revealed.
   const revealPending = hasPendingDraw && !handFull;
+  // The Use-It-or-Lose-It "Can't play, discard" control shows on each held card
+  // only while the team has an open UIOLI challenge AND no Fairest prompt is
+  // pending for it; the Fairest flow owns the decision while pending (R8.2,
+  // R9.3).
+  const showCannotPlayDiscard = hasOpenUioli && !fairestPromptPending;
 
   // The card whose detail panel is open (R2.2) — a held card or a revealed
   // pending card. Toggled by selecting a card's name; at most one at a time.
@@ -286,8 +333,10 @@ export default function CardsRegion({
                         </button>
                       </div>
 
-                      {/* Card effect + requirement text shown inline at choice
-                          time (R2.2) so the keep decision is informed. */}
+                      {/* Card requirement + effect + target text shown inline
+                          at choice time (R2.2) so the keep decision is informed:
+                          Requires (when present), then Effect, then Target
+                          note. */}
                       <div
                         style={{
                           display: "flex",
@@ -295,6 +344,17 @@ export default function CardsRegion({
                           gap: "0.3rem",
                         }}
                       >
+                        {text?.requires != null ? (
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.8rem",
+                              color: "#555",
+                            }}
+                          >
+                            <strong>Requires:</strong> {text.requires}
+                          </p>
+                        ) : null}
                         <p
                           style={{
                             margin: 0,
@@ -302,10 +362,10 @@ export default function CardsRegion({
                             color: "#333",
                           }}
                         >
-                          {text?.description ??
+                          {text?.effect ??
                             "No description is available for this card."}
                         </p>
-                        {text?.castingRequirement != null ? (
+                        {text != null ? (
                           <p
                             style={{
                               margin: 0,
@@ -313,19 +373,7 @@ export default function CardsRegion({
                               color: "#555",
                             }}
                           >
-                            <strong>To play:</strong> {text.castingRequirement}
-                          </p>
-                        ) : null}
-                        {text?.targetRequirement != null ? (
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: "0.8rem",
-                              color: "#555",
-                            }}
-                          >
-                            <strong>Target must:</strong>{" "}
-                            {text.targetRequirement}
+                            <strong>Target:</strong> {text.targetNote}
                           </p>
                         ) : null}
                       </div>
@@ -382,6 +430,10 @@ export default function CardsRegion({
                   const expanded = inspectedCardId === card.cardId;
                   const detailId = `card-detail-${card.cardId}`;
                   const text = expanded ? cardText(card.slug) : null;
+                  // Fairest of Them All is never played from the hand: it is
+                  // played from a challenge prompt, so it shows no Play button
+                  // and a note in its place (R9.11).
+                  const isFairest = card.slug === FAIREST_SLUG;
                   return (
                     <li
                       key={card.cardId}
@@ -441,19 +493,36 @@ export default function CardsRegion({
                         <span
                           style={{
                             display: "flex",
+                            alignItems: "center",
                             gap: "0.4rem",
                             flex: "0 0 auto",
                           }}
                         >
-                          <button
-                            type="button"
-                            aria-label={`Play ${name}`}
-                            disabled={readOnly || busy}
-                            onClick={() => onPlayCard(card)}
-                            style={playButtonStyle(readOnly || busy)}
-                          >
-                            Play
-                          </button>
+                          {isFairest ? (
+                            // Fairest shows no Play button; the note stands in
+                            // its place to explain how it is played (R9.11).
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                fontStyle: "italic",
+                                color: "#555",
+                                textAlign: "right",
+                                maxWidth: "9rem",
+                              }}
+                            >
+                              Played from a challenge prompt
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={`Play ${name}`}
+                              disabled={readOnly || busy}
+                              onClick={() => onPlayCard(card)}
+                              style={playButtonStyle(readOnly || busy)}
+                            >
+                              Play
+                            </button>
+                          )}
                           <button
                             type="button"
                             aria-label={`Discard ${name}`}
@@ -465,6 +534,22 @@ export default function CardsRegion({
                           </button>
                         </span>
                       </div>
+
+                      {/* Use It or Lose It honor-system control (R8.2): while
+                          the team has an open UIOLI challenge, each held card can
+                          be discarded with the reason "cannot_play". Hidden while
+                          a Fairest prompt is pending for that challenge (R9.3). */}
+                      {showCannotPlayDiscard ? (
+                        <button
+                          type="button"
+                          aria-label={`Can't play ${name}, discard`}
+                          disabled={readOnly || busy}
+                          onClick={() => onDiscardCard(card, "cannot_play")}
+                          style={cannotPlayDiscardButtonStyle(readOnly || busy)}
+                        >
+                          Can&apos;t play, discard
+                        </button>
+                      ) : null}
 
                       {/* Card detail panel: real catalog effect + playing
                           requirement text (R2.2). */}
@@ -483,6 +568,19 @@ export default function CardsRegion({
                             border: "1px solid #ccd4ee",
                           }}
                         >
+                          {/* Inspection order (R2.2): Requires (when present),
+                              then Effect, then Target note. */}
+                          {text?.requires != null ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "0.85rem",
+                                color: "#444",
+                              }}
+                            >
+                              <strong>Requires:</strong> {text.requires}
+                            </p>
+                          ) : null}
                           <p
                             style={{
                               margin: 0,
@@ -490,10 +588,10 @@ export default function CardsRegion({
                               color: "#1a1a1a",
                             }}
                           >
-                            {text?.description ??
+                            {text?.effect ??
                               "No description is available for this card."}
                           </p>
-                          {text?.castingRequirement != null ? (
+                          {text != null ? (
                             <p
                               style={{
                                 margin: 0,
@@ -501,34 +599,7 @@ export default function CardsRegion({
                                 color: "#444",
                               }}
                             >
-                              <strong>To play:</strong>{" "}
-                              {text.castingRequirement}
-                            </p>
-                          ) : null}
-                          {text?.targetRequirement != null ? (
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: "0.85rem",
-                                color: "#444",
-                              }}
-                            >
-                              <strong>Target must:</strong>{" "}
-                              {text.targetRequirement}
-                            </p>
-                          ) : null}
-                          {text != null &&
-                          text.castingRequirement == null &&
-                          text.targetRequirement == null ? (
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: "0.85rem",
-                                color: "#444",
-                                fontStyle: "italic",
-                              }}
-                            >
-                              No requirements — it applies on its own.
+                              <strong>Target:</strong> {text.targetNote}
                             </p>
                           ) : null}
                         </div>
@@ -596,6 +667,24 @@ function discardButtonStyle(disabled: boolean): React.CSSProperties {
     border: "1px solid #888",
     background: disabled ? "#f0f0f0" : "#ffffff",
     color: "#1a1a1a",
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+function cannotPlayDiscardButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    alignSelf: "flex-start",
+    minHeight: TOUCH_TARGET,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.6rem 0.9rem",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    borderRadius: "0.5rem",
+    border: "1px solid #7a1a1a",
+    background: disabled ? "#f0e0e0" : "#fff0f0",
+    color: "#7a1a1a",
     cursor: disabled ? "not-allowed" : "pointer",
   };
 }

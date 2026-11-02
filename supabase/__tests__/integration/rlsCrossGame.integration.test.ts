@@ -200,7 +200,7 @@ async function createGameFixture(): Promise<GameFixture> {
 
     const event = await tx.query(
       `insert into game_events (game_id, seq, event_type, actor_kind, payload)
-       values ($1, 1, 'rls_fixture', 'system', $2::jsonb)
+       values ($1, 1, 'rls_fixture', 'system', $2::text::jsonb)
        returning id`,
       [gameId, JSON.stringify({ marker: "fixture" })],
     );

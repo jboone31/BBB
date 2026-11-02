@@ -78,6 +78,18 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+/**
+ * Assert no mutation was posted. A live board legitimately calls the
+ * Settle_Nudge (`/effects/settle`) on mount (card-behavior Req 20.8), so that
+ * call is excluded.
+ */
+function expectNoMutationFetch(fetchMock: ReturnType<typeof vi.fn>): void {
+  const mutationCalls = fetchMock.mock.calls.filter(
+    ([url]) => !String(url).endsWith("/effects/settle"),
+  );
+  expect(mutationCalls).toEqual([]);
+}
+
 // --- realtime seams: configurable per test ---------------------------------
 //
 // The page reads `isSupabaseConfigured()`, opens a browser client, and folds a
@@ -116,7 +128,9 @@ vi.mock("@/lib/realtime/supabaseBrowser", () => ({
 // ResumeController inside the same effect that calls this, so a resolved
 // subscribe proves the controllers were wired up (their behavior is reused from
 // the lib/realtime property suites, not re-tested here).
-vi.mock("@/lib/realtime", () => ({
+vi.mock("@/lib/realtime", async (importOriginal) => ({
+  // Keep the pure ordered-apply core the page's event gate uses.
+  ...(await importOriginal<typeof import("@/lib/realtime")>()),
   subscribe: vi.fn(
     async (
       _gameId: string,
@@ -437,7 +451,7 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoMutationFetch(fetchMock);
 
     fireEvent.click(screen.getByRole("button", { name: /open game menu/i }));
     fireEvent.click(screen.getByRole("menuitem", { name: "End Game" }));
@@ -541,7 +555,38 @@ describe("Game_Board access gate (Requirements 1.1, 1.3, 1.4, 1.5, 1.6)", () => 
       screen.getByText(/game will continue for everyone else/i),
     ).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoMutationFetch(fetchMock);
+  });
+
+  it("card-behavior R20.8: a live board calls the Settle_Nudge on mount", async () => {
+    const gameId = "game-settle-nudge";
+    routeParams.gameId = gameId;
+    seedPlayer(gameId);
+    snapshotEvents = [
+      gameCreatedEvent(gameId),
+      teamCreatedEvent(gameId),
+      gameStartedEvent(gameId),
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        applied: true,
+        seq: 3,
+        result: { appended: 0, serverNow: new Date().toISOString() },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/games/${gameId}/effects/settle`,
+        expect.objectContaining({
+          method: "POST",
+          headers: { "x-bbb-session-id": mockSessionId },
+        }),
+      );
+    });
   });
 
   it("R6.4: host leave invokes the authoritative end transition", async () => {

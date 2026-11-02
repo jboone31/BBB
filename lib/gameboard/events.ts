@@ -28,6 +28,16 @@
  */
 
 import type { GameEvent } from "@/lib/events";
+import type {
+  AwardRecord,
+  ChallengeRecord,
+  ChallengeStatus,
+  FairestOfferRecord,
+  FairestOfferStatus,
+} from "@/lib/cards/behaviorState";
+import type { EffectKind, EffectRecord } from "@/lib/cards/effects";
+import type { CastingParams } from "@/lib/cards/inputs";
+import type { CardSlug } from "@/lib/cards/catalog";
 
 /**
  * The Game_Board `event_type` string constants (design.md §Components 1).
@@ -72,6 +82,13 @@ export const GAME_BOARD_EVENT_TYPES = {
   scoreModifierApplied: "score_modifier_applied",
   notificationCreated: "notification_created",
   wireframeCardPlayed: "wireframe_card_played",
+  // Card-behavior mutation events carrying embedded records (design.md §Projection
+  // Changes). Each one also runs applyRecordSections, upserting the challenge,
+  // offer, effect, and award records it embeds by id.
+  challengeResolved: "challenge_resolved",
+  fairestDecided: "fairest_decided",
+  happyHourBonusClaimed: "happy_hour_bonus_claimed",
+  hostOverrideApplied: "host_override_applied",
 } as const;
 
 /** A Game_Board `event_type` string (one of {@link GAME_BOARD_EVENT_TYPES}'s values). */
@@ -179,6 +196,94 @@ export interface BoardScoreEntryView {
   readonly sourceId: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Card-behavior projection slice (design.md §Projection Changes).
+//
+// `GameBoardView.cardBehavior` is the time-independent fold of the card-behavior
+// events: the embedded challenge / offer / effect / award records (upserted by
+// id, a later seq replacing an earlier one), the card plays, and a seq-ordered,
+// deduped list of toast descriptors. Time is only an input to selectors
+// (lib/gameboard/cardBehavior.ts, task 9.2), so the fold stays deterministic and
+// snapshot-equivalent.
+// ---------------------------------------------------------------------------
+
+/**
+ * One recorded `card_played` fact in the card-behavior slice: the slug, caster,
+ * optional team / bar target, validated casting params, and the event `seq` /
+ * `createdAt` for ordering. Keyed by `playId` in {@link CardBehaviorView.plays}.
+ */
+export interface PlayView {
+  readonly playId: string;
+  readonly slug: CardSlug;
+  readonly casterTeamId: string;
+  readonly targetTeamId: string | null;
+  readonly barKey: string | null;
+  readonly params: CastingParams;
+  readonly seq: number;
+  readonly createdAt: string;
+}
+
+/**
+ * A toast descriptor folded from a toast-producing card-behavior event
+ * (design.md §Projection Changes). Descriptors are seq-ordered and deduped by
+ * {@link ToastEvent.id}; `deriveToasts` (task 9.4) renders them per viewer. The
+ * fold stores the audience-independent facts only — the subject the toast is
+ * about and the source event — so selectors route and template them.
+ *
+ * Effect transition events (`effect_activated` / `effect_expired`) push no toast
+ * events; their boundary toasts come from `deriveBoundaryToasts` (task 9.7).
+ */
+export interface ToastEvent {
+  /** Stable identity: `${seq}:${kind}:${subjectId}`, deduped across folds. */
+  readonly id: string;
+  readonly seq: number;
+  readonly kind: ToastEventKind;
+  /** The record the toast is about (playId, challengeId, offerId, or effectId). */
+  readonly subjectId: string;
+}
+
+/**
+ * The kinds of toast-producing card-behavior event the fold records. `deriveToasts`
+ * maps each to the per-viewer toast copy; the projection stays audience-agnostic.
+ */
+export type ToastEventKind =
+  | "play" // card_played
+  | "challenge_resolved" // challenge_resolved
+  | "fairest_decided" // fairest_decided (mirror / mirror_others)
+  | "bonus_claimed" // happy_hour_bonus_claimed
+  | "host_override" // host_override_applied
+  | "payout"; // score_awarded patient_investor_award
+
+/**
+ * The time-independent card-behavior fold (design.md §Projection Changes).
+ *
+ *   - `plays`: `card_played` facts keyed by `playId`.
+ *   - `challenges` / `offers` / `effects` / `awards`: the embedded records,
+ *     upserted by id (a later seq replaces an earlier one).
+ *   - `toastEvents`: seq-ordered, deduped toast descriptors (no effect-transition
+ *     toasts; boundary toasts are derived separately).
+ */
+export interface CardBehaviorView {
+  readonly plays: Readonly<Record<string, PlayView>>;
+  readonly challenges: Readonly<Record<string, ChallengeRecord>>;
+  readonly offers: Readonly<Record<string, FairestOfferRecord>>;
+  readonly effects: Readonly<Record<string, EffectRecord>>;
+  readonly awards: Readonly<Record<string, AwardRecord>>;
+  readonly toastEvents: readonly ToastEvent[];
+}
+
+/** The empty card-behavior slice (the base case of the fold). */
+export function initialCardBehaviorView(): CardBehaviorView {
+  return {
+    plays: {},
+    challenges: {},
+    offers: {},
+    effects: {},
+    awards: {},
+    toastEvents: [],
+  };
+}
+
 /**
  * The folded Game_Board state the Game_Board_Client renders (design.md
  * §Components 1, §Data Models).
@@ -214,6 +319,14 @@ export interface GameBoardView {
   readonly notifications: BoardNotificationView[];
   readonly activeClaims: BoardClaimView[];
   readonly scoreEntries: BoardScoreEntryView[];
+  /**
+   * The card-behavior fold (design.md §Projection Changes): embedded challenge /
+   * offer / effect / award records, card plays, and toast descriptors. The
+   * `activeChallenges` / `activeEffects` / `activeRestrictions` / `notifications`
+   * fields above remain as deprecated read-only aliases for the legacy wireframe
+   * events until their selectors move onto this slice (task 9.2).
+   */
+  readonly cardBehavior: CardBehaviorView;
   readonly lastSeenSequence: number;
 }
 
@@ -247,6 +360,7 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     notifications: [],
     activeClaims: [],
     scoreEntries: [],
+    cardBehavior: initialCardBehaviorView(),
     lastSeenSequence: NO_EVENTS_SEQ,
   };
 }
@@ -281,58 +395,114 @@ export function applyGameBoardEvent(
   // Advance the watermark for every fresh event, then interpret the payload.
   const advanced: GameBoardView = { ...view, lastSeenSequence: event.seq };
 
-  switch (event.eventType) {
-    case GAME_BOARD_EVENT_TYPES.gameCreated:
-      return applyGameCreated(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.teamCreated:
-      return applyTeamFromPayload(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.playerJoined:
-      return applyPlayerJoined(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.teamChanged:
-      return applyTeamChanged(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.playerLeft:
-      return applyPlayerLeft(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.gameStarted:
-      return { ...advanced, lifecycle: "live" };
-    case GAME_BOARD_EVENT_TYPES.gameEnded:
-      return { ...advanced, lifecycle: "ended" };
-    case GAME_BOARD_EVENT_TYPES.deckSeeded:
-    case GAME_BOARD_EVENT_TYPES.cardsDrawn:
-    case GAME_BOARD_EVENT_TYPES.cardKept:
-    case GAME_BOARD_EVENT_TYPES.cardDiscarded:
-      return applyCardInventoryEvent(advanced, event);
-    case GAME_BOARD_EVENT_TYPES.cardPlayed:
-      // A play updates the card inventory AND records a targeting fact so
-      // eligibility selectors can enforce the same-name-once rule (R3.3).
-      return applyCardPlayed(applyCardInventoryEvent(advanced, event), event);
-    case GAME_BOARD_EVENT_TYPES.challengeIssued:
-      return applyChallengeIssued(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.challengeConfirmed:
-    case GAME_BOARD_EVENT_TYPES.challengeRejected:
-      return applyChallengeResolved(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.effectCreated:
-    case GAME_BOARD_EVENT_TYPES.effectActivated:
-      return applyEffectCreated(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.effectExpired:
-      return removeExpiredEffect(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.notificationCreated:
-      return applyNotificationCreated(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.scoreAwarded:
-    case GAME_BOARD_EVENT_TYPES.scoreModifierApplied:
-      return applyScoreEntry(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.claimBlocked:
-      return advanced;
-    case GAME_BOARD_EVENT_TYPES.claimRecorded:
-      return applyClaimRecorded(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.claimRemoved:
-      return applyClaimRemoved(advanced, event.payload);
-    case GAME_BOARD_EVENT_TYPES.wireframeCardPlayed:
-      return applyWireframeCardPlayed(advanced, event);
-    default:
-      // Unknown/foreign event type: the watermark has advanced so the fold stays
-      // aligned with the generic snapshot, but the board domain fields are left
-      // untouched.
-      return advanced;
+  // Run the type-specific handler first, then fold the embedded card-behavior
+  // record sections (challenges, offers, effects, awards, scoreEntries,
+  // removedClaims) for every event (design.md §Projection Changes). The record
+  // fold is keyed on camelCase record ids the routes embed, so legacy wireframe
+  // events (which carry none) leave `cardBehavior` untouched.
+  const interpreted = interpret();
+  return applyRecordSections(interpreted, event);
+
+  function interpret(): GameBoardView {
+    switch (event.eventType) {
+      case GAME_BOARD_EVENT_TYPES.gameCreated:
+        return applyGameCreated(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.teamCreated:
+        return applyTeamFromPayload(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.playerJoined:
+        return applyPlayerJoined(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.teamChanged:
+        return applyTeamChanged(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.playerLeft:
+        return applyPlayerLeft(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.gameStarted:
+        return { ...advanced, lifecycle: "live" };
+      case GAME_BOARD_EVENT_TYPES.gameEnded:
+        return applyGameEnded(advanced, event);
+      case GAME_BOARD_EVENT_TYPES.deckSeeded:
+      case GAME_BOARD_EVENT_TYPES.cardsDrawn:
+      case GAME_BOARD_EVENT_TYPES.cardKept:
+      case GAME_BOARD_EVENT_TYPES.cardDiscarded:
+        return applyCardInventoryEvent(advanced, event);
+      case GAME_BOARD_EVENT_TYPES.cardPlayed:
+        // A play updates the card inventory AND records a targeting fact so
+        // eligibility selectors can enforce the same-name-once rule (R3.3),
+        // records a PlayView, and pushes a `play` toast event.
+        return applyCardPlayed(applyCardInventoryEvent(advanced, event), event);
+      case GAME_BOARD_EVENT_TYPES.challengeIssued:
+        return applyChallengeIssued(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.challengeConfirmed:
+      case GAME_BOARD_EVENT_TYPES.challengeRejected:
+        return applyChallengeResolved(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.effectCreated:
+        return applyEffectCreated(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.effectActivated:
+      case GAME_BOARD_EVENT_TYPES.effectExpired:
+        // New card-behavior transition events carry an embedded effect record
+        // (no legacy `effectType`): `applyRecordSections` upserts it, and
+        // `applyEffectTransition` sets its startAnnounced / endAnnounced flag.
+        // They push no toast events. Legacy wireframe effect payloads
+        // (`effectType` + `sourcePlayId`, no `effects` array) still fold through
+        // the deprecated aliases below.
+        return applyEffectTransition(
+          event.eventType === GAME_BOARD_EVENT_TYPES.effectActivated
+            ? applyEffectCreated(advanced, event.payload)
+            : removeExpiredEffect(advanced, event.payload),
+          event,
+        );
+      case GAME_BOARD_EVENT_TYPES.notificationCreated:
+        return applyNotificationCreated(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.scoreAwarded:
+        // A patient_investor_award entry also pushes a payout toast event.
+        return applyScorePayoutToast(
+          applyScoreEntry(advanced, event.payload),
+          event,
+        );
+      case GAME_BOARD_EVENT_TYPES.scoreModifierApplied:
+        return applyScoreEntry(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.claimBlocked:
+        return advanced;
+      case GAME_BOARD_EVENT_TYPES.claimRecorded:
+        return applyClaimRecorded(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.claimRemoved:
+        return applyClaimRemoved(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.challengeResolved:
+        return pushToastEvent(
+          advanced,
+          event,
+          "challenge_resolved",
+          "challengeId",
+        );
+      case GAME_BOARD_EVENT_TYPES.fairestDecided:
+        // A Fairest decision moves the Fairest card to `played`, so it also folds
+        // through the inventory handler for its `cards` section (design.md).
+        return pushToastEvent(
+          applyCardInventoryEvent(advanced, event),
+          event,
+          "fairest_decided",
+          "offerId",
+        );
+      case GAME_BOARD_EVENT_TYPES.happyHourBonusClaimed:
+        return pushToastEventFirstKey(advanced, event, "bonus_claimed", [
+          "barKey",
+          "effectId",
+        ]);
+      case GAME_BOARD_EVENT_TYPES.hostOverrideApplied:
+        // A host override targets either a challenge (clear/reset) or an effect
+        // (end early); key the toast on whichever id the payload carries.
+        return pushToastEventFirstKey(advanced, event, "host_override", [
+          "challengeId",
+          "effectId",
+        ]);
+      case GAME_BOARD_EVENT_TYPES.wireframeCardPlayed:
+        return applyWireframeCardPlayed(advanced, event);
+      default:
+        // Unknown/foreign event type: the watermark has advanced so the fold
+        // stays aligned with the generic snapshot, but the board domain fields
+        // are left untouched. `applyRecordSections` still runs so any embedded
+        // records are folded.
+        return advanced;
+    }
   }
 
   function applyGameCreated(
@@ -620,7 +790,37 @@ function applyCardPlayed(view: GameBoardView, event: GameEvent): GameBoardView {
     targetTeamId: readString(event.payload, "targetTeamId") ?? null,
     targetBarId: readString(event.payload, "targetBarId") ?? null,
   };
-  return { ...view, cardPlays: [...view.cardPlays, play] };
+  const withLegacyPlay: GameBoardView = {
+    ...view,
+    cardPlays: [...view.cardPlays, play],
+  };
+
+  // Record the card-behavior PlayView (keyed by playId) and a `play` toast
+  // descriptor. A play missing a `playId` records neither (the legacy cardPlays
+  // fact above still applies).
+  const playId = readString(event.payload, "playId");
+  if (playId === undefined) {
+    return withLegacyPlay;
+  }
+  const playView: PlayView = {
+    playId,
+    slug: slug as CardSlug,
+    casterTeamId: castingTeamId,
+    targetTeamId: readString(event.payload, "targetTeamId") ?? null,
+    barKey:
+      readString(event.payload, "barKey") ??
+      readString(event.payload, "targetBarKey") ??
+      null,
+    params: readCastingParams(event.payload),
+    seq: event.seq,
+    createdAt: event.createdAt,
+  };
+  const plays = { ...withLegacyPlay.cardBehavior.plays, [playId]: playView };
+  const withPlay: GameBoardView = {
+    ...withLegacyPlay,
+    cardBehavior: { ...withLegacyPlay.cardBehavior, plays },
+  };
+  return pushToastEvent(withPlay, event, "play", "playId");
 }
 
 function applyChallengeIssued(
@@ -815,6 +1015,371 @@ function applyScoreEntry(view: GameBoardView, payload: unknown): GameBoardView {
       null,
   };
   return { ...view, scoreEntries: [...view.scoreEntries, entry] };
+}
+
+// ---------------------------------------------------------------------------
+// Card-behavior record sections (design.md §Projection Changes).
+//
+// `applyRecordSections` runs after every event's type-specific handler. It
+// upserts the embedded `challenges`, `offers` (`fairestOffers`), `effects`, and
+// `awards` records by id — a later seq replaces an earlier one, so re-delivery
+// and snapshot/tail splits converge — folds the `scoreEntries` section through
+// the existing `applyScoreEntry` (deduped by `entryId`), and applies the
+// `removedClaims` section through `applyClaimRemoved`. Records are keyed by the
+// camelCase ids the routes embed; an event carrying none (every legacy wireframe
+// event) leaves the slice untouched.
+// ---------------------------------------------------------------------------
+
+/** The embedded-record array field names, each keyed by the record's id field. */
+const RECORD_SECTIONS: readonly {
+  readonly field: string;
+  readonly slot: "challenges" | "offers" | "effects" | "awards";
+  readonly idKey: string;
+}[] = [
+  { field: "challenges", slot: "challenges", idKey: "challengeId" },
+  { field: "fairestOffers", slot: "offers", idKey: "offerId" },
+  { field: "offers", slot: "offers", idKey: "offerId" },
+  { field: "effects", slot: "effects", idKey: "effectId" },
+  { field: "awards", slot: "awards", idKey: "awardId" },
+];
+
+function applyRecordSections(
+  view: GameBoardView,
+  event: GameEvent,
+): GameBoardView {
+  let cardBehavior = view.cardBehavior;
+
+  for (const section of RECORD_SECTIONS) {
+    const records = readRecords(event.payload, section.field);
+    for (const record of records) {
+      const id =
+        typeof record[section.idKey] === "string"
+          ? (record[section.idKey] as string)
+          : undefined;
+      if (id === undefined) {
+        continue;
+      }
+      cardBehavior = upsertRecord(cardBehavior, section.slot, id, record);
+    }
+  }
+
+  let next: GameBoardView =
+    cardBehavior === view.cardBehavior ? view : { ...view, cardBehavior };
+
+  // Fold embedded ledger entries through the existing score fold (deduped by
+  // entryId) and remove any embedded claim removals.
+  for (const entry of readRecords(event.payload, "scoreEntries")) {
+    next = applyScoreEntry(next, entry);
+  }
+  for (const removed of readRecords(event.payload, "removedClaims")) {
+    next = applyClaimRemoved(next, removed);
+  }
+
+  return next;
+}
+
+/** Upsert one embedded record into the named card-behavior slot by id. */
+function upsertRecord(
+  view: CardBehaviorView,
+  slot: "challenges" | "offers" | "effects" | "awards",
+  id: string,
+  record: Record<string, unknown>,
+): CardBehaviorView {
+  switch (slot) {
+    case "challenges":
+      return {
+        ...view,
+        challenges: { ...view.challenges, [id]: challengeFromRecord(record) },
+      };
+    case "offers":
+      return {
+        ...view,
+        offers: { ...view.offers, [id]: offerFromRecord(record) },
+      };
+    case "effects":
+      return {
+        ...view,
+        effects: { ...view.effects, [id]: effectFromRecord(record) },
+      };
+    case "awards":
+      return {
+        ...view,
+        awards: { ...view.awards, [id]: awardFromRecord(record) },
+      };
+  }
+}
+
+/**
+ * Set a card-behavior effect's `startAnnounced` / `endAnnounced` flag from an
+ * `effect_activated` / `effect_expired` transition event (design.md). The
+ * effect record itself was already upserted by `applyRecordSections`; this only
+ * flips the announced flag so `deriveBoundaryToasts` can use it as its event
+ * fallback. Transition events push no toast events. A payload with no `effectId`
+ * (legacy wireframe effect) is a no-op here.
+ */
+function applyEffectTransition(
+  view: GameBoardView,
+  event: GameEvent,
+): GameBoardView {
+  const effectId = readString(event.payload, "effectId");
+  if (effectId === undefined) {
+    return view;
+  }
+  const existing = view.cardBehavior.effects[effectId];
+  if (existing === undefined) {
+    return view;
+  }
+  const activated = event.eventType === GAME_BOARD_EVENT_TYPES.effectActivated;
+  const updated: EffectRecord = activated
+    ? { ...existing, startAnnounced: true }
+    : { ...existing, endAnnounced: true };
+  return {
+    ...view,
+    cardBehavior: {
+      ...view.cardBehavior,
+      effects: { ...view.cardBehavior.effects, [effectId]: updated },
+    },
+  };
+}
+
+/**
+ * `game_ended`: flip the lifecycle and, matching the server, mark every
+ * uncancelled card-behavior effect cancelled at the event time with reason
+ * `game_ended`, and drop pending toast descriptors (the board is read-only once
+ * ended, design.md §Projection Changes).
+ */
+function applyGameEnded(view: GameBoardView, event: GameEvent): GameBoardView {
+  const endedAt = event.createdAt;
+  const entries = Object.entries(view.cardBehavior.effects);
+  let changed = false;
+  const effects: Record<string, EffectRecord> = {};
+  for (const [id, effect] of entries) {
+    if (effect.cancelledAt === null && effect.consumedAt === null) {
+      effects[id] = {
+        ...effect,
+        cancelledAt: endedAt,
+        cancelReason: "game_ended",
+      };
+      changed = true;
+    } else {
+      effects[id] = effect;
+    }
+  }
+  return {
+    ...view,
+    lifecycle: "ended",
+    cardBehavior: changed
+      ? { ...view.cardBehavior, effects }
+      : view.cardBehavior,
+  };
+}
+
+/** Push a payout toast event for a `patient_investor_award` ledger entry. */
+function applyScorePayoutToast(
+  view: GameBoardView,
+  event: GameEvent,
+): GameBoardView {
+  if (readString(event.payload, "category") !== "patient_investor_award") {
+    return view;
+  }
+  const entryId = readString(event.payload, "entryId");
+  if (entryId === undefined) {
+    return view;
+  }
+  return pushToastEventWithSubject(view, event, "payout", entryId);
+}
+
+/**
+ * Push one deduped, seq-ordered {@link ToastEvent} onto the card-behavior slice,
+ * reading the subject id from `payload[subjectKey]`. A missing subject records no
+ * toast. Deduped by the toast `id` (`${seq}:${kind}:${subjectId}`), so a
+ * re-delivered event or a snapshot/tail overlap never adds a second descriptor.
+ */
+function pushToastEvent(
+  view: GameBoardView,
+  event: GameEvent,
+  kind: ToastEventKind,
+  subjectKey: string,
+): GameBoardView {
+  const subjectId = readString(event.payload, subjectKey);
+  if (subjectId === undefined) {
+    return view;
+  }
+  return pushToastEventWithSubject(view, event, kind, subjectId);
+}
+
+/** Push a toast event keyed on the first present id among `subjectKeys`. */
+function pushToastEventFirstKey(
+  view: GameBoardView,
+  event: GameEvent,
+  kind: ToastEventKind,
+  subjectKeys: readonly string[],
+): GameBoardView {
+  for (const key of subjectKeys) {
+    const subjectId = readString(event.payload, key);
+    if (subjectId !== undefined) {
+      return pushToastEventWithSubject(view, event, kind, subjectId);
+    }
+  }
+  return view;
+}
+
+function pushToastEventWithSubject(
+  view: GameBoardView,
+  event: GameEvent,
+  kind: ToastEventKind,
+  subjectId: string,
+): GameBoardView {
+  const id = `${event.seq}:${kind}:${subjectId}`;
+  if (view.cardBehavior.toastEvents.some((toast) => toast.id === id)) {
+    return view;
+  }
+  const toast: ToastEvent = { id, seq: event.seq, kind, subjectId };
+  return {
+    ...view,
+    cardBehavior: {
+      ...view.cardBehavior,
+      toastEvents: [...view.cardBehavior.toastEvents, toast],
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Embedded-record parsers.
+//
+// The routes embed the planners' camelCase record objects straight into the
+// event payload (jsonb round-trip), so each parser narrows the id and
+// structural fields it needs and coerces the rest with the record's declared
+// default, keeping the fold total over any stored payload.
+// ---------------------------------------------------------------------------
+
+function strField(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === "string" ? value : "";
+}
+
+function strOrNullField(
+  record: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = record[key];
+  return typeof value === "string" ? value : null;
+}
+
+function numOrNullField(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function boolField(record: Record<string, unknown>, key: string): boolean {
+  return record[key] === true;
+}
+
+function objField(
+  record: Record<string, unknown>,
+  key: string,
+): Readonly<Record<string, unknown>> {
+  const value = record[key];
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
+}
+
+/** Read a validated {@link CastingParams} value from a payload, defaulting to `none`. */
+function readCastingParams(payload: unknown): CastingParams {
+  const record = readRecord(payload);
+  const params = record?.params;
+  return params !== null && typeof params === "object" && !Array.isArray(params)
+    ? (params as CastingParams)
+    : { kind: "none" };
+}
+
+function challengeFromRecord(record: Record<string, unknown>): ChallengeRecord {
+  return {
+    challengeId: strField(record, "challengeId"),
+    slug: strField(record, "slug") as CardSlug,
+    sourcePlayId: strField(record, "sourcePlayId"),
+    casterTeamId: strField(record, "casterTeamId"),
+    targetTeamId: strField(record, "targetTeamId"),
+    params:
+      record.params !== null &&
+      typeof record.params === "object" &&
+      !Array.isArray(record.params)
+        ? (record.params as CastingParams)
+        : { kind: "none" },
+    mirroredFromChallengeId: strOrNullField(record, "mirroredFromChallengeId"),
+    mirroredFromPlayId: strOrNullField(record, "mirroredFromPlayId"),
+    status: strField(record, "status") as ChallengeStatus,
+    createdAt: strField(record, "createdAt"),
+    resolvedAt: strOrNullField(record, "resolvedAt"),
+    resolvedByTeamId: strOrNullField(record, "resolvedByTeamId"),
+    resolvedBySessionId: strOrNullField(record, "resolvedBySessionId"),
+    resolvedByKind: strOrNullField(
+      record,
+      "resolvedByKind",
+    ) as ChallengeRecord["resolvedByKind"],
+    failureEffectId: strOrNullField(record, "failureEffectId"),
+  };
+}
+
+function offerFromRecord(record: Record<string, unknown>): FairestOfferRecord {
+  return {
+    offerId: strField(record, "offerId"),
+    sourcePlayId: strField(record, "sourcePlayId"),
+    slug: strField(record, "slug") as CardSlug,
+    holderTeamId: strField(record, "holderTeamId"),
+    originalCasterTeamId: strField(record, "originalCasterTeamId"),
+    challengeId: strOrNullField(record, "challengeId"),
+    restrictionEffectId: strOrNullField(record, "restrictionEffectId"),
+    status: strField(record, "status") as FairestOfferStatus,
+    decidedAt: strOrNullField(record, "decidedAt"),
+    mirroredChallengeId: strOrNullField(record, "mirroredChallengeId"),
+    mirroredEffectId: strOrNullField(record, "mirroredEffectId"),
+  };
+}
+
+function effectFromRecord(record: Record<string, unknown>): EffectRecord {
+  return {
+    effectId: strField(record, "effectId"),
+    slug: strField(record, "slug") as CardSlug,
+    kind: strField(record, "kind") as EffectKind,
+    sourcePlayId: strOrNullField(record, "sourcePlayId"),
+    sourceChallengeId: strOrNullField(record, "sourceChallengeId"),
+    ownerTeamId: strOrNullField(record, "ownerTeamId"),
+    targetTeamId: strOrNullField(record, "targetTeamId"),
+    targetBarKey: strOrNullField(record, "targetBarKey"),
+    startsAt: strField(record, "startsAt"),
+    endsAt: strOrNullField(record, "endsAt"),
+    params: objField(record, "params"),
+    attachedClaimId: strOrNullField(record, "attachedClaimId"),
+    attachedBarKey: strOrNullField(record, "attachedBarKey"),
+    protectedPoints: numOrNullField(record, "protectedPoints"),
+    consumedAt: strOrNullField(record, "consumedAt"),
+    cancelledAt: strOrNullField(record, "cancelledAt"),
+    cancelReason: strOrNullField(
+      record,
+      "cancelReason",
+    ) as EffectRecord["cancelReason"],
+    startAnnounced: boolField(record, "startAnnounced"),
+    endAnnounced: boolField(record, "endAnnounced"),
+  };
+}
+
+function awardFromRecord(record: Record<string, unknown>): AwardRecord {
+  return {
+    awardId: strField(record, "awardId"),
+    effectId: strField(record, "effectId"),
+    teamId: strField(record, "teamId"),
+    kind: strField(record, "kind") as AwardRecord["kind"],
+    claimId: strOrNullField(record, "claimId"),
+    ledgerEntryId: strField(record, "ledgerEntryId"),
+    reversedAt: strOrNullField(record, "reversedAt"),
+    reversalLedgerEntryId: strOrNullField(record, "reversalLedgerEntryId"),
+    createdAt: strField(record, "createdAt"),
+  };
 }
 
 /**

@@ -261,19 +261,39 @@ export function supabaseRealtimeTransport(
  * @returns a snapshot source that `subscribe()` folds into the initial snapshot.
  */
 export function supabaseSnapshotSource(client: SupabaseClient): SnapshotSource {
+  const EVENT_COLUMNS =
+    "id, game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at";
   return {
     async fetchEventsAscending(gameId: string): Promise<GameEvent[]> {
       const { data, error } = await client
         .from(GAME_EVENTS_TABLE)
-        .select(
-          "id, game_id, seq, event_type, actor_kind, actor_team_id, payload, created_at",
-        )
+        .select(EVENT_COLUMNS)
         .eq("game_id", gameId)
         .order("seq", { ascending: true });
 
       if (error !== null) {
         throw new Error(
           `failed to load snapshot for game ${gameId}: ${error.message}`,
+        );
+      }
+      return (data ?? []).map((row) => rowToGameEvent(row as GameEventRow));
+    },
+    async fetchEventsAfter(
+      gameId: string,
+      afterSeq: number,
+    ): Promise<GameEvent[]> {
+      // The live-board recheck tail fetch (design.md "Recheck behind Realtime";
+      // Req 23.7): the same RLS-scoped select, filtered to seq > afterSeq.
+      const { data, error } = await client
+        .from(GAME_EVENTS_TABLE)
+        .select(EVENT_COLUMNS)
+        .eq("game_id", gameId)
+        .gt("seq", afterSeq)
+        .order("seq", { ascending: true });
+
+      if (error !== null) {
+        throw new Error(
+          `failed to fetch events after seq ${afterSeq} for game ${gameId}: ${error.message}`,
         );
       }
       return (data ?? []).map((row) => rowToGameEvent(row as GameEventRow));
