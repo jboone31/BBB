@@ -27,6 +27,14 @@ begin;
 -- 0010 added revoked_at / revoked_reason for accidental undo. Card behavior adds
 -- Voted Off the Island, a second legitimate revocation cause. Constrain the
 -- reason to the two known causes so the projection can distinguish them.
+-- Before 0013 the column was free text, so normalize any legacy revocation
+-- reason (e.g. ad-hoc test values) to the ordinary undo cause first; card-driven
+-- revocations did not exist before this migration.
+update claims
+   set revoked_reason = 'ordinary_unclaim'
+ where revoked_reason is not null
+   and revoked_reason not in ('ordinary_unclaim', 'voted_off');
+
 alter table claims
   add constraint claims_revoked_reason_valid
     check (revoked_reason is null

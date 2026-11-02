@@ -179,6 +179,24 @@ describe("CardsRegion — hand inspection and card detail (R2.2)", () => {
     );
   });
 
+  it("orders the inspection as Requires, then Effect, then Target note (R1.6)", () => {
+    renderRegion({ cards: [card("art-school-dropout", "hand")] });
+    const name = getCardMetadata("art-school-dropout").name;
+    const text = getCardText("art-school-dropout");
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`${name} details`, "i") }),
+    );
+    const content =
+      screen.getByRole("group", { name: new RegExp(`${name} details`, "i") })
+        .textContent ?? "";
+    const requiresAt = content.indexOf(text.requires as string);
+    const effectAt = content.indexOf(text.effect);
+    const targetAt = content.indexOf(text.targetNote);
+    expect(requiresAt).toBeGreaterThanOrEqual(0);
+    expect(requiresAt).toBeLessThan(effectAt);
+    expect(effectAt).toBeLessThan(targetAt);
+  });
+
   it("omits the Requires line for a card with no casting requirement", () => {
     // insurance has no casting input, so its inspection shows no Requires line,
     // only the effect and target note.

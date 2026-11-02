@@ -502,8 +502,12 @@ export async function persistDeckTransition(
  * omitted entirely so an ordinary transition's event payload is byte-identical
  * to before this rider existed (the board projection only acts on non-empty
  * lists, and existing folds/tests stay stable).
+ *
+ * Exported so a mutation that persists its hand change with
+ * {@link applyDeckRowsOnly} (the card play) can ride the same follow-up on its
+ * own single canonical event.
  */
-function followUpPayload(
+export function followUpPayload(
   followUp: InventoryFollowUp | undefined,
 ): Record<string, unknown> {
   if (followUp === undefined) {

@@ -333,6 +333,13 @@ commit;
 -- it. We revoke execute from the browser roles so a client cannot invoke it via
 -- PostgREST RPC. Guarded with a DO block so this migration also applies on a bare
 -- Postgres (local test DB, CI) that lacks the Supabase default roles.
+--
+-- Postgres grants EXECUTE on every new function to PUBLIC by default, and anon /
+-- authenticated inherit through PUBLIC, so revoking from those two roles alone is
+-- not enough: revoke from PUBLIC first (the owner keeps its implicit right and
+-- service_role gets an explicit grant below).
+revoke execute on function bbb_settle_card_effects(uuid, boolean, timestamptz) from public;
+
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then

@@ -24,9 +24,31 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { FairestOfferRecord } from "@/lib/cards/behaviorState";
-import type { BoardTeamView } from "@/lib/gameboard/events";
+import type {
+  ChallengeRecord,
+  FairestOfferRecord,
+} from "@/lib/cards/behaviorState";
+import {
+  CARD_SLUGS,
+  getCardMetadata,
+  getCardText,
+  type CardSlug,
+} from "@/lib/cards/catalog";
+import type { CastingParams } from "@/lib/cards/inputs";
+import { formatDuration, renderTemplate } from "@/lib/cards/templates";
+import {
+  buildSelectorContext,
+  composeBoardToasts,
+  mirrorIsLegalInView,
+} from "@/lib/gameboard/boardWiring";
+import {
+  initialGameBoardView,
+  type BoardTeamView,
+  type GameBoardView,
+  type PlayView,
+} from "@/lib/gameboard/events";
 import type { Toast, ToastAction } from "@/lib/cards/toasts";
+import type { CandidateBar } from "@/lib/map/bars";
 
 import ToastStack, { MIRROR_NO_LONGER_LEGAL } from "./ToastStack";
 
@@ -272,5 +294,299 @@ describe("ToastStack — Pioneer/Scenic mirror legality (9.18)", () => {
         .disabled,
     ).toBe(false);
     expect(screen.queryByText(/no longer legal/i)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composed from a folded view (deriveToasts + selectPendingActions), so these
+// exercise the real copy and action routing the board renders.
+// ---------------------------------------------------------------------------
+
+const CASTER = "team-a";
+const TARGET = "team-b";
+const OTHER = "team-c";
+
+const VIEW_TEAMS = [
+  { id: CASTER, name: "Alpha", color: "#f00" },
+  { id: TARGET, name: "Bravo", color: "#0f0" },
+  { id: OTHER, name: "Charlie", color: "#00f" },
+] as GameBoardView["teams"];
+
+function paramsFor(slug: CardSlug): CastingParams {
+  switch (getCardMetadata(slug).castingInput) {
+    case "colors":
+      return { kind: "colors", colors: ["red", "blue", "green"] };
+    case "duration_seconds":
+      return { kind: "duration_seconds", seconds: 95 };
+    case "cuisine":
+      return { kind: "cuisine", cuisine: "Thai" };
+    default:
+      return { kind: "none" };
+  }
+}
+
+function playView(
+  slug: CardSlug,
+  seq: number,
+  targetTeamId: string | null = TARGET,
+): PlayView {
+  return {
+    playId: "p1",
+    slug,
+    casterTeamId: CASTER,
+    targetTeamId,
+    barKey: null,
+    params: paramsFor(slug),
+    seq,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+}
+
+function openChallenge(slug: CardSlug): ChallengeRecord {
+  return {
+    challengeId: "c1",
+    slug,
+    sourcePlayId: "p1",
+    casterTeamId: CASTER,
+    targetTeamId: TARGET,
+    params: paramsFor(slug),
+    mirroredFromChallengeId: null,
+    mirroredFromPlayId: null,
+    status: "open",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    resolvedAt: null,
+    resolvedByTeamId: null,
+    resolvedBySessionId: null,
+    resolvedByKind: null,
+    failureEffectId: null,
+  };
+}
+
+function behaviorView(
+  slug: CardSlug,
+  extra: Partial<GameBoardView["cardBehavior"]> = {},
+  activeClaims: GameBoardView["activeClaims"] = [],
+): GameBoardView {
+  const base = initialGameBoardView(GAME);
+  return {
+    ...base,
+    lifecycle: "live",
+    teams: VIEW_TEAMS,
+    activeClaims,
+    cardBehavior: {
+      ...base.cardBehavior,
+      plays: { p1: playView(slug, 5) },
+      toastEvents: [{ id: "5:play:p1", seq: 5, kind: "play", subjectId: "p1" }],
+      ...extra,
+    },
+    lastSeenSequence: 5,
+  };
+}
+
+function composeFor(view: GameBoardView, viewer: string): Toast[] {
+  return composeBoardToasts({
+    view,
+    viewerTeamId: viewer,
+    boundaryToasts: [],
+    dismissal: { floorSeq: -1, dismissed: [] },
+  });
+}
+
+function expectedValues(slug: CardSlug): Record<string, string> {
+  const values: Record<string, string> = {
+    Caster: "Alpha",
+    Target: "Bravo",
+    CARD: getCardMetadata(slug).name.toUpperCase(),
+  };
+  const params = paramsFor(slug);
+  if (params.kind === "colors") {
+    [values.color1, values.color2, values.color3] = params.colors;
+  } else if (params.kind === "duration_seconds") {
+    values.duration = formatDuration(params.seconds);
+  } else if (params.kind === "cuisine") {
+    values.cuisine = params.cuisine;
+  }
+  return values;
+}
+
+const TEAM_TARGET_SLUGS = CARD_SLUGS.filter(
+  (slug) => getCardMetadata(slug).targetMode === "team",
+);
+
+describe("ToastStack — target toast copy per card (R3.1)", () => {
+  it.each(TEAM_TARGET_SLUGS)(
+    "%s: the target sees '{Caster} has played {CARD} on you!' and the card's target body",
+    (slug) => {
+      const view = behaviorView(slug);
+      render(
+        <ToastStack
+          gameId={GAME}
+          toasts={composeFor(view, TARGET)}
+          teams={view.teams}
+          offers={{}}
+          isMirrorLegal={() => true}
+          postAction={vi.fn()}
+        />,
+      );
+      const values = expectedValues(slug);
+      const headline = `Alpha has played ${values.CARD} on you!`;
+      const toastEl = screen.getByRole("status", { name: headline });
+      expect(toastEl.textContent).toContain(headline);
+      const body = getCardText(slug).targetToastBody;
+      if (body !== null) {
+        const rendered = renderTemplate(body, values);
+        expect(toastEl.textContent).toContain(rendered);
+        // Every placeholder the copy uses was filled from the play's values.
+        expect(rendered).not.toMatch(/\{[A-Za-z0-9]+\}/);
+      }
+    },
+  );
+
+  it("shows the caster the standard caster copy", () => {
+    const view = behaviorView("wired");
+    render(
+      <ToastStack
+        gameId={GAME}
+        toasts={composeFor(view, CASTER)}
+        teams={view.teams}
+        offers={{}}
+        isMirrorLegal={() => true}
+        postAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("You played WIRED on Bravo.")).toBeTruthy();
+  });
+
+  it("gives the target of a gated card a Mark complete action", () => {
+    const view = behaviorView("wired", {
+      challenges: { c1: openChallenge("wired") },
+    });
+    render(
+      <ToastStack
+        gameId={GAME}
+        toasts={composeFor(view, TARGET)}
+        teams={view.teams}
+        offers={{}}
+        isMirrorLegal={() => true}
+        postAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /mark complete/i })).toBeTruthy();
+  });
+});
+
+describe("ToastStack — a pending Fairest prompt hides the challenge's actions (R9.3)", () => {
+  function fairestOffer(
+    status: FairestOfferRecord["status"],
+  ): FairestOfferRecord {
+    return {
+      offerId: "o1",
+      sourcePlayId: "p1",
+      slug: "everyones-a-critic",
+      holderTeamId: TARGET,
+      originalCasterTeamId: CASTER,
+      challengeId: "c1",
+      restrictionEffectId: null,
+      status,
+      decidedAt: status === "pending" ? null : "2024-01-01T00:01:00.000Z",
+      mirroredChallengeId: null,
+      mirroredEffectId: null,
+    };
+  }
+
+  function renderFor(status: FairestOfferRecord["status"]) {
+    const view = behaviorView("everyones-a-critic", {
+      challenges: { c1: openChallenge("everyones-a-critic") },
+      offers: { o1: fairestOffer(status) },
+    });
+    return render(
+      <ToastStack
+        gameId={GAME}
+        toasts={composeFor(view, TARGET)}
+        teams={view.teams}
+        offers={view.cardBehavior.offers}
+        isMirrorLegal={() => true}
+        postAction={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows only Play / Decline while the prompt is pending", () => {
+    renderFor("pending");
+    expect(screen.getByRole("button", { name: /^play$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /decline/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /mark complete/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /we failed/i })).toBeNull();
+  });
+
+  it("restores Mark complete / We failed once the prompt is declined (R9.4)", () => {
+    renderFor("declined");
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /mark complete/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /we failed/i })).toBeTruthy();
+  });
+});
+
+describe("ToastStack — Pioneer Fairest prompt re-checks legality from the current view (R9.18)", () => {
+  const BARS: CandidateBar[] = [
+    { id: "bar-1", name: "Bar One", lat: 33.78, lng: -84.37 },
+    { id: "bar-2", name: "Bar Two", lat: 33.77, lng: -84.36 },
+  ];
+
+  const pioneerOffer: FairestOfferRecord = {
+    offerId: "o1",
+    sourcePlayId: "p1",
+    slug: "pioneer",
+    holderTeamId: TARGET,
+    originalCasterTeamId: CASTER,
+    challengeId: null,
+    restrictionEffectId: "e1",
+    status: "pending",
+    decidedAt: null,
+    mirroredChallengeId: null,
+    mirroredEffectId: null,
+  };
+
+  function stackFor(claims: GameBoardView["activeClaims"]) {
+    const view = behaviorView(
+      "pioneer",
+      { offers: { o1: pioneerOffer } },
+      claims,
+    );
+    const ctx = buildSelectorContext(view, BARS);
+    return (
+      <ToastStack
+        gameId={GAME}
+        toasts={composeFor(view, TARGET)}
+        teams={view.teams}
+        offers={view.cardBehavior.offers}
+        isMirrorLegal={(o) => mirrorIsLegalInView(view, ctx, o, 0)}
+        postAction={vi.fn()}
+      />
+    );
+  }
+
+  it("flips Play to disabled with the notice when the caster loses its last legal bar, Decline stays enabled", () => {
+    const { rerender } = render(
+      stackFor([{ claimId: "cl-1", barId: "bar-1", teamId: OTHER }]),
+    );
+    const play = () =>
+      screen.getByRole("button", { name: /^play$/i }) as HTMLButtonElement;
+    expect(play().disabled).toBe(false);
+    expect(screen.queryByText(/no longer legal/i)).toBeNull();
+
+    // Another team claims the remaining bar: Alpha would have no Legal_Next_Bar.
+    rerender(
+      stackFor([
+        { claimId: "cl-1", barId: "bar-1", teamId: OTHER },
+        { claimId: "cl-2", barId: "bar-2", teamId: OTHER },
+      ]),
+    );
+    expect(play().disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: /decline/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(screen.getByText(MIRROR_NO_LONGER_LEGAL("Alpha"))).toBeTruthy();
   });
 });

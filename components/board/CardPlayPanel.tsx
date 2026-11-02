@@ -73,6 +73,7 @@ import {
   selectBarTargetEligibility,
   selectTeamTargetEligibility,
   type BarTargetEligibility,
+  type CardTargetContext,
   type TeamTargetEligibility,
 } from "@/lib/gameboard/cardEligibility";
 import type { ClaimState } from "@/lib/map/claims";
@@ -143,6 +144,13 @@ export interface CardPlayPanelProps {
    * case is a Pioneer/Scenic `no_legal_next_bar` the client could not predict.
    */
   readonly serverError?: CardPlayServerError | null;
+  /**
+   * The durable targeting facts (bar coordinates, claims, previous bars, active
+   * Pioneer/Scenic rules) for the eligibility selectors. Without it the panel
+   * falls back to the bare `finishBarId` context, which cannot evaluate the
+   * Pioneer/Scenic Legal_Next_Bar rule (R10.12, R22.5).
+   */
+  readonly targetContext?: CardTargetContext;
 }
 
 function cardName(slug: string): string {
@@ -234,6 +242,7 @@ export default function CardPlayPanel({
   onCancel,
   pending = false,
   serverError = null,
+  targetContext,
 }: CardPlayPanelProps): React.JSX.Element {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [selectedBarId, setSelectedBarId] = useState<string | null>(null);
@@ -284,11 +293,21 @@ export default function CardPlayPanel({
   const barStepActive = targetsBar;
   const teamStepActive = targetsTeam && (!targetsBar || selectedBarId !== null);
 
+  // A supplied context carries the durable facts; a known finishBarId still
+  // wins for the finish-bar rule. Otherwise use the legacy bare finish key.
+  const eligibilityCtx: CardTargetContext | string | null =
+    targetContext !== undefined
+      ? {
+          ...targetContext,
+          finishBarKey: finishBarId ?? targetContext.finishBarKey,
+        }
+      : finishBarId;
+
   const teamRows = selectTeamTargetEligibility(
     view,
     card.slug as CardSlug,
     castingTeamId,
-    finishBarId,
+    eligibilityCtx,
     teams,
   ).filter((row) => row.reason !== "caster");
 
@@ -296,7 +315,7 @@ export default function CardPlayPanel({
     view,
     card.slug as CardSlug,
     bars.map((bar) => bar.id),
-    finishBarId,
+    eligibilityCtx,
   );
   const barById = new Map(bars.map((bar) => [bar.id, bar]));
   const teamById = new Map(teams.map((team) => [team.id, team]));

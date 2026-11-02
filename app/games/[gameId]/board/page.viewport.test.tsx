@@ -72,6 +72,7 @@ import {
   screen,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameEvent } from "@/lib/events";
@@ -119,7 +120,9 @@ vi.mock("@/lib/realtime/supabaseBrowser", () => ({
   }),
 }));
 
-vi.mock("@/lib/realtime", () => ({
+vi.mock("@/lib/realtime", async (importOriginal) => ({
+  // Keep the pure ordered-apply core the page's event gate uses.
+  ...(await importOriginal<typeof import("@/lib/realtime")>()),
   subscribe: async (
     _gameId: string,
     options: {
@@ -178,10 +181,24 @@ vi.mock("@/lib/session/supabaseSession", () => ({
 // in jsdom), so stub it with a lightweight, DOM-safe surface that still exposes
 // a ≥44px claim control — enough for the mobile-first control assertions without
 // pulling Leaflet into jsdom.
+// The stub also records the claim-block pre-check the page forwards, so the
+// card-behavior band tests can assert the map receives the claim-blocked
+// messaging input (the popup rendering itself is covered with the real
+// component in components/board/BarLeafletMap.viewport.test.tsx).
+const mapProps = vi.hoisted(() => ({
+  claimBlocksByBar: undefined as
+    | Readonly<Record<string, readonly { kind: string; slug: string }[]>>
+    | undefined,
+}));
+
 vi.mock("@/components/board/BarLeafletMap", () => ({
   default: ({
     onMutate,
+    claimBlocksByBar,
   }: {
+    claimBlocksByBar?: Readonly<
+      Record<string, readonly { kind: string; slug: string }[]>
+    >;
     onMutate: (
       barId: string,
       action: "claim" | "unclaim",
@@ -190,20 +207,23 @@ vi.mock("@/components/board/BarLeafletMap", () => ({
         finishedDrinkCount: number;
       },
     ) => void;
-  }): React.JSX.Element => (
-    <button
-      type="button"
-      onClick={() =>
-        onMutate("stub-bar", "claim", {
-          allMembersPresent: true,
-          finishedDrinkCount: 1,
-        })
-      }
-      style={{ minWidth: "44px", minHeight: "44px" }}
-    >
-      Claim this bar
-    </button>
-  ),
+  }): React.JSX.Element => {
+    mapProps.claimBlocksByBar = claimBlocksByBar;
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          onMutate("stub-bar", "claim", {
+            allMembersPresent: true,
+            finishedDrinkCount: 1,
+          })
+        }
+        style={{ minWidth: "44px", minHeight: "44px" }}
+      >
+        Claim this bar
+      </button>
+    );
+  },
 }));
 
 import BoardPage from "./page";
@@ -331,7 +351,134 @@ async function renderLiveBoard(): Promise<ReturnType<typeof render>> {
   return result;
 }
 
+/**
+ * The live snapshot plus player-1 joining team-a (the viewer's Team), then the
+ * given extra events. Seqs continue from the base log.
+ */
+function viewerOnTeamA(
+  gameId: string,
+  extra: readonly Omit<GameEvent, "id" | "gameId" | "seq" | "createdAt">[],
+): GameEvent[] {
+  const base: GameEvent[] = [
+    ...liveSnapshot(gameId),
+    {
+      id: `evt-${gameId}-4`,
+      gameId,
+      seq: 4,
+      eventType: "player_joined",
+      actorKind: "team",
+      actorTeamId: null,
+      payload: { playerId: "player-1", displayName: "Me" },
+      createdAt: "2024-01-01T00:00:03.000Z",
+    },
+    {
+      id: `evt-${gameId}-5`,
+      gameId,
+      seq: 5,
+      eventType: "team_changed",
+      actorKind: "team",
+      actorTeamId: "team-a",
+      payload: { playerId: "player-1", fromTeamId: null, toTeamId: "team-a" },
+      createdAt: "2024-01-01T00:00:04.000Z",
+    },
+  ];
+  return [
+    ...base,
+    ...extra.map((event, index) => {
+      const seq = base.length + index + 1;
+      return {
+        ...event,
+        id: `evt-${gameId}-${seq}`,
+        gameId,
+        seq,
+        createdAt: `2024-01-01T00:00:${String(seq).padStart(2, "0")}.000Z`,
+      } as GameEvent;
+    }),
+  ];
+}
+
+/** team-a holds one card of the given slug. */
+function heldCard(
+  slug: string,
+): Omit<GameEvent, "id" | "gameId" | "seq" | "createdAt"> {
+  return {
+    eventType: "card_kept",
+    actorKind: "team",
+    actorTeamId: "team-a",
+    payload: {
+      teamId: "team-a",
+      cards: [
+        { cardId: `team-a:${slug}`, teamId: "team-a", slug, state: "hand" },
+      ],
+    },
+  };
+}
+
+/** team-b plays Wired on team-a, opening a challenge (a claim gate on team-a). */
+const WIRED_ON_VIEWER: Omit<GameEvent, "id" | "gameId" | "seq" | "createdAt"> =
+  {
+    eventType: "card_played",
+    actorKind: "team",
+    actorTeamId: "team-b",
+    payload: {
+      playId: "play-1",
+      slug: "wired",
+      castingTeamId: "team-b",
+      targetTeamId: "team-a",
+      params: { kind: "none" },
+      challenges: [
+        {
+          challengeId: "challenge-1",
+          slug: "wired",
+          sourcePlayId: "play-1",
+          casterTeamId: "team-b",
+          targetTeamId: "team-a",
+          params: { kind: "none" },
+          mirroredFromChallengeId: null,
+          mirroredFromPlayId: null,
+          status: "open",
+          createdAt: "2024-01-01T00:00:06.000Z",
+          resolvedAt: null,
+          resolvedByTeamId: null,
+          resolvedBySessionId: null,
+          resolvedByKind: null,
+          failureEffectId: null,
+        },
+      ],
+    },
+  };
+
+/** Assert every rendered interactive control declares a ≥44px touch target. */
+function expectTouchTargets(root: HTMLElement): void {
+  const controls = root.querySelectorAll<HTMLElement>(
+    "button, input, select, textarea, a[href]",
+  );
+  expect(controls.length).toBeGreaterThan(0);
+  for (const control of controls) {
+    const h = pxValue(control.style.minHeight) ?? pxValue(control.style.height);
+    expect(h).not.toBeNull();
+    expect(h as number).toBeGreaterThanOrEqual(44);
+    const w = pxValue(control.style.minWidth) ?? pxValue(control.style.width);
+    if (w !== null) {
+      expect(w).toBeGreaterThanOrEqual(44);
+    }
+  }
+}
+
+/** Assert no inline px width/min-width under `root` exceeds `width`. */
+function expectNoWiderThan(root: HTMLElement, width: number): void {
+  for (const el of root.querySelectorAll<HTMLElement>("*")) {
+    for (const raw of [el.style.width, el.style.minWidth]) {
+      const px = pxValue(raw);
+      if (px !== null) {
+        expect(px).toBeLessThanOrEqual(width);
+      }
+    }
+  }
+}
+
 beforeEach(() => {
+  mapProps.claimBlocksByBar = undefined;
   routeParams.gameId = GAME_ID;
   snapshotEvents = liveSnapshot(GAME_ID);
   pushMock.mockClear();
@@ -640,6 +787,134 @@ describe("Game_Board page mobile viewport (Requirements 9.1, 9.2, 9.3, 9.5)", ()
 
     it("applies a universal border-box box model", () => {
       expect(GLOBALS_CSS).toMatch(/box-sizing:\s*border-box/);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Card-behavior UI at the 320px and desktop bands (card-behavior Task 10.8,
+// Requirement 24.5): the board's ToastStack, the play input step, and the map
+// claim-blocked messaging render without clipping and stay keyboard operable.
+// ---------------------------------------------------------------------------
+
+/** The narrow small-phone floor and two representative desktop widths. */
+const CARD_UI_BANDS = [320, 1024, 1440] as const;
+
+describe("Game_Board card-behavior UI viewport bands (Requirement 24.5)", () => {
+  describe.each(CARD_UI_BANDS)("at %dpx wide", (width) => {
+    it("renders the targeted team's challenge toast inline, focused, with ≥44px actions", async () => {
+      setViewportWidth(width);
+      snapshotEvents = viewerOnTeamA(GAME_ID, [WIRED_ON_VIEWER]);
+      const { container } = await renderLiveBoard();
+
+      const toast = await screen.findByRole("alert", {
+        name: /played wired on you/i,
+      });
+      const markComplete = within(toast).getByRole("button", {
+        name: /mark complete/i,
+      });
+      // The first pending action is focused on appearance (keyboard users land
+      // on what they owe).
+      expect(document.activeElement).toBe(markComplete);
+
+      const stack = container.querySelector<HTMLElement>(
+        '[aria-label="Card notifications"]',
+      );
+      expect(stack).not.toBeNull();
+      expect(stack?.style.maxWidth).toBe("100%");
+      expect(stack?.style.boxSizing).toBe("border-box");
+      expectTouchTargets(stack as HTMLElement);
+      expectNoWiderThan(container, width);
+    });
+
+    it("keeps the Region nav reachable by keyboard with a toast active", async () => {
+      setViewportWidth(width);
+      const user = userEvent.setup();
+      snapshotEvents = viewerOnTeamA(GAME_ID, [WIRED_ON_VIEWER]);
+      const { container } = await renderLiveBoard();
+      await screen.findByRole("alert", { name: /played wired on you/i });
+
+      // The inline, non-modal toast never traps focus: Tab moves on from the
+      // focused action to further controls, and the nav activates by keyboard.
+      const nav = within(container).getByRole("navigation", {
+        name: /game board regions/i,
+      });
+      const scoreboard = within(nav).getByRole("button", {
+        name: /scoreboard/i,
+      });
+      scoreboard.focus();
+      await user.keyboard("{Enter}");
+      expect(
+        await screen.findByRole("region", { name: /^scoreboard$/i }),
+      ).not.toBeNull();
+      // The toast persists across Region changes.
+      expect(
+        screen.getByRole("alert", { name: /played wired on you/i }),
+      ).not.toBeNull();
+    });
+
+    it("forwards the claim-blocked pre-check to the map for the gated team", async () => {
+      setViewportWidth(width);
+      snapshotEvents = viewerOnTeamA(GAME_ID, [WIRED_ON_VIEWER]);
+      await renderLiveBoard();
+      await screen.findByRole("button", { name: /claim this bar/i });
+      await screen.findByRole("alert", { name: /played wired on you/i });
+
+      // An open challenge on the viewer's Team gates every bar, so the map
+      // receives a non-empty challenge block per bar for its popup notice.
+      const byBar = mapProps.claimBlocksByBar ?? {};
+      const entries = Object.values(byBar);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const blocks of entries) {
+        expect(blocks).toContainEqual(
+          expect.objectContaining({ kind: "challenge", slug: "wired" }),
+        );
+      }
+    });
+
+    it("renders the play input step without clipping and operates it by keyboard", async () => {
+      setViewportWidth(width);
+      const user = userEvent.setup();
+      snapshotEvents = viewerOnTeamA(GAME_ID, [heldCard("art-school-dropout")]);
+      const { container } = await renderLiveBoard();
+
+      fireEvent.click(screen.getByRole("button", { name: /^cards$/i }));
+      const play = await screen.findByRole("button", { name: /^play /i });
+      play.focus();
+      await user.keyboard("{Enter}");
+
+      const dialog = await screen.findByRole("dialog", { name: /play card/i });
+      expect(dialog.style.width).toBe("100%");
+      expect(dialog.style.maxWidth).toBe("100%");
+      const group = within(dialog).getByRole("group", {
+        name: /choose three colors/i,
+      });
+      const toggles = within(group).getAllByRole("button");
+      expect(toggles).toHaveLength(7);
+      // The toggle row wraps instead of overflowing a 320px dialog.
+      expect((toggles[0].parentElement as HTMLElement).style.flexWrap).toBe(
+        "wrap",
+      );
+      expectTouchTargets(dialog);
+      expectNoWiderThan(container, width);
+
+      // Keyboard: Enter / Space toggle colors; a fourth pick is refused at the
+      // cap (aria-disabled, still focusable so it can be un-picked later).
+      toggles[0].focus();
+      await user.keyboard("{Enter}");
+      await user.tab();
+      expect(document.activeElement).toBe(toggles[1]);
+      await user.keyboard(" ");
+      await user.tab();
+      await user.keyboard("{Enter}");
+      expect(
+        toggles.slice(0, 3).map((t) => t.getAttribute("aria-pressed")),
+      ).toEqual(["true", "true", "true"]);
+      expect(within(group).getByText(/\(3\/3\)/)).not.toBeNull();
+      expect(toggles[3].getAttribute("aria-disabled")).toBe("true");
+      toggles[3].focus();
+      await user.keyboard("{Enter}");
+      expect(toggles[3].getAttribute("aria-pressed")).toBe("false");
     });
   });
 });

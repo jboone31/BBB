@@ -149,7 +149,7 @@ describe.skipIf(!DB_CONFIGURED)(
       await withTransaction(async (tx) => {
         await tx.query(
           `update claims
-              set revoked_at = now(), revoked_reason = 'integration-test'
+              set revoked_at = now(), revoked_reason = 'ordinary_unclaim'
             where id = $1`,
           [fixture.claimId],
         );

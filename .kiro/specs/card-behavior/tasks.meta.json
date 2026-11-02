@@ -992,6 +992,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050536509
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565525916
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565536647
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793566511849
       }
     ],
     "7.8 Create `app/api/games/[gameId]/challenges/[challengeId]/resolve/route.ts`": [
@@ -1067,6 +1082,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038253002
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526002
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565536892
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567972175
       }
     ],
     "8. Checkpoint - persistence and routes": [
@@ -1074,6 +1104,16 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038253058
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526060
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586533478
       }
     ],
     "9.1 Add `CardBehaviorView` to the board fold in `lib/gameboard/events.ts`": [
@@ -1341,6 +1381,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050535551
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526116
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565538087
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793566512189
       }
     ],
     "10.7 Write component tests for ToastStack, CardPlayPanel, and CardsRegion": [
@@ -1348,6 +1403,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254106
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526169
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567046762
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567973970
       }
     ],
     "10.8 Extend viewport tests to the new UI": [
@@ -1355,6 +1425,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254211
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526235
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567986157
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568713254
       }
     ],
     "10.9 Write the live delivery integration test": [
@@ -1362,6 +1447,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254271
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526307
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567986502
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568713552
       }
     ],
     "11.1 Create `app/api/games/[gameId]/host/challenges/[challengeId]/route.ts`": [
@@ -1408,6 +1508,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050537403
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526360
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565538908
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793566511789
       }
     ],
     "11.4 Create `components/board/HostCardPanel.tsx` and wire it into the board page": [
@@ -1415,6 +1530,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254499
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526415
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567987699
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568714765
       }
     ],
     "11.5 Write viewport tests for HostCardPanel": [
@@ -1422,6 +1552,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254563
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526468
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568724193
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586181852
       }
     ],
     "12.1 Write `supabase/migrations/0014_card_effect_sweep.sql`": [
@@ -1451,6 +1596,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050538809
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526521
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565539897
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793566512521
       }
     ],
     "12.3 Create `app/api/cron/card-effects/route.ts` (optional Cron_Route)": [
@@ -1463,6 +1623,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050539906
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526579
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567047649
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567972890
       }
     ],
     "12.4 Write route tests for settlement": [
@@ -1470,6 +1645,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254804
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526630
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567988909
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568715945
       }
     ],
     "12.5 Add the board timers, Server_Clock_Offset, and `EffectsStrip`": [
@@ -1477,6 +1667,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254877
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526686
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568725106
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586182723
       }
     ],
     "12.6 Write viewport tests for EffectsStrip": [
@@ -1484,6 +1689,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254931
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526736
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586185941
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586528736
       }
     ],
     "12.7 Write integration tests for settlement": [
@@ -1491,6 +1711,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038254991
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526786
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567989725
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568716694
       }
     ],
     "12.8 Write a hermetic text test for migration 0014": [
@@ -1515,6 +1750,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038255100
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526838
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586186744
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586529523
       }
     ],
     "13.2 Update `.kiro/steering/structure.md`": [
@@ -1522,6 +1772,21 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038255160
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526887
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586187638
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586530431
       }
     ],
     "14. Final checkpoint - full verification": [
@@ -1529,6 +1794,11 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793038255221
+      },
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793565526937
       }
     ],
     "5. Migration 0013": [
@@ -1571,6 +1841,41 @@
         "executionId": "95514bf9-d977-4830-98e6-e990717cb2a0",
         "chatSessionId": "sess_69b1bf2b-bcc3-418f-86cd-86d7e9a76c10",
         "timestamp": 1793050165737
+      }
+    ],
+    "7. Player-facing routes": [
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793567972248
+      }
+    ],
+    "10. Board UI": [
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793568713603
+      }
+    ],
+    "11. Host overrides": [
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586181925
+      }
+    ],
+    "12. Timer settlement": [
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586528802
+      }
+    ],
+    "13. Oracle and steering updates": [
+      {
+        "executionId": "cddf08d4-c68d-4ed6-8e73-8a98ee165e1b",
+        "chatSessionId": "sess_fbbc95f1-2092-4ba0-9e3d-502e96b8d322",
+        "timestamp": 1793586530489
       }
     ]
   }

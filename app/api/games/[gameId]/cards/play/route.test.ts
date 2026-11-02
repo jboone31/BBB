@@ -379,9 +379,9 @@ vi.mock("@/lib/cards/persistence", async () => {
   >("@/lib/cards/persistence");
   return {
     ...actual,
-    applyDeckTransition: vi.fn(async () =>
+    applyDeckRowsOnly: vi.fn(async () =>
       deckTransitionOk
-        ? { ok: true, seq: 0, state: {} }
+        ? { ok: true, state: {}, records: [] }
         : { ok: false, reason: "card_not_in_hand", state: {} },
     ),
   };

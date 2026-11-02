@@ -40,7 +40,11 @@ import { NextResponse } from "next/server";
 import { withTransaction } from "@/lib/db/server";
 import { appendEvent, type QueryRunner } from "@/lib/events";
 import { GAME_BOARD_EVENT_TYPES } from "@/lib/gameboard/events";
-import { instanceRowId, applyDeckTransition } from "@/lib/cards/persistence";
+import {
+  instanceRowId,
+  applyDeckRowsOnly,
+  followUpPayload,
+} from "@/lib/cards/persistence";
 import { playCard } from "@/lib/cards/deck";
 import {
   loadBehaviorState,
@@ -94,7 +98,7 @@ const INSERT_PLAY_SQL = `
 insert into card_plays
   (id, game_id, card_instance_id, casting_team_id, target_team_id, slug,
    target_bar_id, target_bar_key, params)
-values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9::text::jsonb)
 on conflict (id) do update
   set target_team_id = excluded.target_team_id,
       slug = excluded.slug,
@@ -212,11 +216,13 @@ async function writePlanAndAppend(
   ]);
 
   // 2. The caster's deck transition for the played card (removes it from hand).
-  const played = await applyDeckTransition(tx, {
+  //    Row diff only: the changed cards and any inventory follow-up ride on the
+  //    single canonical card_played event below, so the play appends one
+  //    card_played rather than a separate inventory event plus the canonical one.
+  const played = await applyDeckRowsOnly(tx, {
     ctx: { gameId, teamId: casterTeamId },
     kind: "play",
     transition: (deck) => playCard(deck, cardId),
-    inventoryFollowUp: plan.inventoryFollowUp,
   });
   if (!played.ok) {
     // The planner already validated the card is in hand; a rejection here means
@@ -279,6 +285,8 @@ async function writePlanAndAppend(
       playId: sourcePlayId,
       castingTeamId: casterTeamId,
       teamId: casterTeamId,
+      cards: played.records,
+      ...followUpPayload(plan.inventoryFollowUp),
       slug: plan.slug,
       targetTeamId: req.targetTeamId ?? null,
       targetBarKey: plan.targetBar?.barKey ?? null,

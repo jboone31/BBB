@@ -22,12 +22,15 @@
  * Protection: the request must present the shared cron secret in the
  * `authorization: Bearer <secret>` header (matching Vercel Cron's convention and
  * the sibling `auto-timeout` route), compared against the `CRON_SECRET`
- * environment variable. The secret is read on demand (never a `NEXT_PUBLIC_*`
+ * environment variable using a constant-time comparison (SHA-256 digests fed to
+ * `crypto.timingSafeEqual`). The secret is read on demand (never a `NEXT_PUBLIC_*`
  * var) so it stays server-only, and if it is unset/empty the route **fails
  * closed** — it refuses to settle rather than running unauthenticated (Req
  * 20.5a). This route is intentionally **not** registered in `vercel.json` crons;
  * it has no schedule and is invoked manually/externally only.
  */
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { withTransaction } from "@/lib/db/server";
@@ -58,6 +61,19 @@ function bearerToken(authorization: string | null): string | null {
 }
 
 /**
+ * Compare a presented token to the configured secret in constant time.
+ *
+ * Both values are SHA-256 hashed first so the buffers handed to
+ * `timingSafeEqual` always have equal length; this avoids leaking the secret's
+ * length through an early length-mismatch return.
+ */
+function secretMatches(presented: string, configured: string): boolean {
+  const a = createHash("sha256").update(presented, "utf8").digest();
+  const b = createHash("sha256").update(configured, "utf8").digest();
+  return timingSafeEqual(a, b);
+}
+
+/**
  * Authorize the request against `CRON_SECRET`.
  *
  * @returns `null` if authorized, or a JSON error response describing why not.
@@ -76,7 +92,7 @@ function authorize(request: Request): NextResponse | null {
   }
 
   const presented = bearerToken(request.headers.get("authorization"));
-  if (presented !== configured) {
+  if (presented === null || !secretMatches(presented, configured)) {
     return NextResponse.json(
       { ok: false, error: "unauthorized" },
       { status: 401 },
@@ -103,10 +119,11 @@ async function handle(request: Request): Promise<NextResponse> {
     });
 
     return NextResponse.json({ ok: true, appended }, { status: 200 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "settle failed";
+  } catch {
+    // The transaction rolled back (any appended transitions included). Report a
+    // transient failure without echoing internal database error text.
     return NextResponse.json(
-      { ok: false, error: "unavailable", message },
+      { ok: false, error: "unavailable" },
       { status: 503 },
     );
   }

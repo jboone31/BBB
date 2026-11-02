@@ -132,7 +132,8 @@ export async function POST(
       },
       { status: 200 },
     );
-  } catch {
+  } catch (TMPERR) {
+    console.error("TMPDEBUG settle", (TMPERR as Error)?.message, (TMPERR as { code?: string })?.code);
     // A thrown error rolled the transaction back (settle transitions included);
     // report it as a transient failure (Req 20.9).
     return notApplied("unavailable");

@@ -279,7 +279,7 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Fake `QueryRunner`: passes the mutation's `now`, runs before `loadBehaviorState`, reports the last transition seq, and propagates thrown errors so the caller rolls back
     - _Requirements: 19.9, 19.10_
 
-- [ ] 7. Player-facing routes
+- [x] 7. Player-facing routes
   - [x] 7.1 Rework `app/api/games/[gameId]/cards/play/route.ts`
     - Body adds `params`; pipeline: lock, `clock_timestamp()`, lazy settle (6.7), `loadBehaviorState`, `planCardPlay`; write `card_plays` (slug, targets, params), deck transition, challenges, offers, effects, claim revocations, released protections, reconciled ledger entries; append `card_played` with embedded records plus one `claim_removed` for Voted Off
     - Map `invalid_card` / `target_ineligible` → `invalid_input`, `not_live` → `conflict`, card not in hand → `conflict`; Pioneer/Scenic with no Legal_Next_Bar → `invalid_input` with `details.reason = "no_legal_next_bar"` and `rules`
@@ -309,7 +309,7 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Lazy settle (6.7) first; use `planBonusClaim`; write +5 and the award; append exactly one `happy_hour_bonus_claimed` mutation event with `scoreEntries`; no claim, no draw
     - _Requirements: 13.5, 13.6, 13.7, 19.6, 19.9, 19.10_
 
-  - [-] 7.7 Write route tests for claims
+  - [x] 7.7 Write route tests for claims
     - Extend `claims/route.test.ts`: blocked details list every block with end times, a timed block enforced at server time with no transition event yet, side-effect writes in one transaction, unclaim reversals, Bonus_Claim exactly-one-mutation-event (with a due-transition fixture) and each rejection, rejections commit no domain rows or mutation events, settle precedes `loadBehaviorState`, append failure rollback
     - _Requirements: 19.3, 19.4, 19.5, 19.6, 19.9, 19.10, 20.3c, 24.2_
 
@@ -330,11 +330,11 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Holder-only authorization, decline and play outcomes, Fairest no longer in hand → `conflict`, decided offer → `already_resolved`, Pioneer/Scenic Play whose mirror became illegal → `invalid_input` with the offer still pending and Decline still accepted afterwards, exactly one mutation event with a due-transition fixture, rollback
     - _Requirements: 9.4, 9.5, 9.16, 9.17, 19.5, 19.9, 19.10, 24.2_
 
-  - [~] 7.12 Write integration test for claim and play races
+  - [x] 7.12 Write integration test for claim and play races
     - `supabase/__tests__/integration/cardBehaviorRace.integration.test.ts`: concurrent claim and Crop Dusting / challenge play serialize under the game lock
     - _Requirements: 19.2, 24.4_
 
-- [~] 8. Checkpoint - persistence and routes
+- [ ] 8. Checkpoint - persistence and routes
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 9. Projection and toasts
@@ -397,7 +397,7 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - `lib/realtime/recheck.test.ts` with a fake scheduler: fires after 15 s quiet, restarts on contiguous events, fetches at once on a seq gap, does not run when not live, re-arms after a failed fetch; reconnect still refetches snapshot plus tail
     - _Requirements: 23.6, 23.7, 23.8_
 
-- [ ] 10. Board UI
+- [x] 10. Board UI
   - [x] 10.1 Update `components/board/CardsRegion.tsx`
     - "Can't play, discard" on each held card while the team has an open UIOLI challenge (posts `/cards/discard` with `reason: "cannot_play"`), hidden while a Fairest prompt is pending for that challenge; Fairest shows no Play button and the note "Played from a challenge prompt"
     - _Requirements: 8.2, 9.3, 9.11_
@@ -422,24 +422,24 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - From `selectMapOverlays`: dashed "restricted" outline for the restricted team only, Crop Dusting lock badge for non-casters, Cancel Culture `L.Circle` radius 402.336 m (dashed/translucent pending, solid active), Happy Hour "+5" badge; every overlay has a text label
     - _Requirements: 10.9, 11.6, 12.8_
 
-  - [-] 10.6 Wire the new UI into `app/games/[gameId]/board/page.tsx`
+  - [x] 10.6 Wire the new UI into `app/games/[gameId]/board/page.tsx`
     - Render `ToastStack`, pass overlays, claim-block context, and action handlers to the regions
     - Start a `RecheckController` (9.9) while the game is live, call `noteEvent` for every applied Realtime or recheck event, and stop it on unmount or game end; keep the reconnect snapshot-plus-tail refetch
     - _Requirements: 3.9, 4.5, 13.4, 23.6, 23.7, 23.8_
 
-  - [~] 10.7 Write component tests for ToastStack, CardPlayPanel, and CardsRegion
+  - [x] 10.7 Write component tests for ToastStack, CardPlayPanel, and CardsRegion
     - Toast copy per card, Fairest prompt hides actions, Pioneer/Scenic Fairest "no longer legal" notice with Play disabled and Decline enabled, picker "No legal next bar for this team" graying label, input-step validation, Requires display, UIOLI discard action
     - _Requirements: 1.6, 3.1, 6.6, 8.2, 9.3, 9.18, 10.12_
 
-  - [~] 10.8 Extend viewport tests to the new UI
+  - [x] 10.8 Extend viewport tests to the new UI
     - Add 320px and desktop band coverage for `ToastStack`, the play input step, and map claim-blocked messaging (`components/board/ToastStack.viewport.test.tsx` and the board `page.viewport.test.tsx`), checking no clipping and keyboard operability
     - _Requirements: 24.5_
 
-  - [~] 10.9 Write the live delivery integration test
+  - [x] 10.9 Write the live delivery integration test
     - `supabase/__tests__/integration/recheckDelivery.integration.test.ts` (runs only under `npm run test:integration`): commit an event for a live game and assert the Target_Team member's Board_Projection, driven by Realtime plus the `RecheckController`, includes it within one Recheck_Interval (15 s), retrying the assertion up to 3 times before failing
     - _Requirements: 23.8, 24.4, 24.6_
 
-- [ ] 11. Host overrides
+- [x] 11. Host overrides
   - [x] 11.1 Create `app/api/games/[gameId]/host/challenges/[challengeId]/route.ts`
     - Body `{ action: "clear" | "reset" }`; `assertAdmin` (`not_admin` → `not_authorized`); `clock_timestamp()`, lazy settle (6.7); `hostChallengeOverride`; one `host_override_applied` mutation event
     - _Requirements: 21.1, 21.2, 21.3, 21.7, 21.9, 19.9, 19.10_
@@ -449,19 +449,19 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Route: body `{ action: "end" }`; `assertAdmin`, `clock_timestamp()`, lazy settle (6.7), one `host_override_applied` mutation event embedding the effect and score entries
     - _Requirements: 21.4, 21.5, 21.6, 21.7, 21.9, 21.11, 19.9, 19.10_
 
-  - [-] 11.3 Write route tests for host overrides
+  - [x] 11.3 Write route tests for host overrides
     - Host-only authorization (`not_authorized`, no writes), clear/reset transitions including critic block cancellation and UIOLI reset `conflict`, effect end for each kind including a Pioneer/Scenic restriction (the team's next claim is no longer restriction-blocked), awards unchanged, exactly one mutation event with a due-transition fixture, append failure rollback
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 21.7, 21.9, 21.11, 19.9, 19.10, 24.2_
 
-  - [~] 11.4 Create `components/board/HostCardPanel.tsx` and wire it into the board page
+  - [x] 11.4 Create `components/board/HostCardPanel.tsx` and wire it into the board page
     - Host-only while live: every challenge (status, target, card) with Clear/Reset and every pending/active effect with "End early" from `selectHostItems`, including each unconsumed Pioneer or Scenic Route restriction labeled with its team; confirm before posting
     - _Requirements: 21.8, 21.10, 21.11_
 
-  - [~] 11.5 Write viewport tests for HostCardPanel
+  - [x] 11.5 Write viewport tests for HostCardPanel
     - `components/board/HostCardPanel.viewport.test.tsx` at 320px and desktop bands, keyboard operable
     - _Requirements: 24.5_
 
-- [ ] 12. Timer settlement
+- [x] 12. Timer settlement
   - [x] 12.1 Write `supabase/migrations/0014_card_effect_sweep.sql`
     - Implement early (right after 5.1, see the dependency graph), because the lazy settle in 6.7 calls this function
     - One begin/commit. The migration creates no schedule of any kind: no scheduler job, no `cron.schedule` call, and no reference to the `cron` schema
@@ -470,20 +470,20 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - `grant execute` on `bbb_settle_card_effects` only to the server role the routes use; `revoke execute` from `anon` and `authenticated`
     - _Requirements: 19.9, 20.1, 20.3b, 20.3d, 20.4, 20.5c, 20.6_
 
-  - [-] 12.2 Create `app/api/games/[gameId]/effects/settle/route.ts` (Settle_Nudge)
+  - [x] 12.2 Create `app/api/games/[gameId]/effects/settle/route.ts` (Settle_Nudge)
     - `assertMember` → `missing_session` / `not_member` before any settle call, writing nothing
     - In its own transaction call `select bbb_settle_card_effects($1, true)` (`p_now` null, so only transitions due at the server time read after the lock are appended); respond `{ applied: true, seq, result: { appended, serverNow } }` with `serverNow` = `clock_timestamp()` for the Server_Clock_Offset; failures → `unavailable`
     - _Requirements: 20.3b, 20.4, 20.5b, 20.5c, 20.8, 20.9_
 
-  - [ ] 12.3 Create `app/api/cron/card-effects/route.ts` (optional Cron_Route)
+  - [x] 12.3 Create `app/api/cron/card-effects/route.ts` (optional Cron_Route)
     - GET/POST requiring `CRON_SECRET` bearer, failing closed when unset; call `bbb_settle_card_effects(null, false)`; do not add it to `vercel.json` crons
     - _Requirements: 20.3d, 20.4, 20.5a_
 
-  - [~] 12.4 Write route tests for settlement
+  - [x] 12.4 Write route tests for settlement
     - Settle: `missing_session` / `not_member` write nothing and never call the settle function; member call returns `appended`, `seq`, and `serverNow`; cron: missing secret config and wrong bearer refused, valid bearer calls the function; failures → `unavailable`
     - _Requirements: 20.5a, 20.5b, 20.5c, 20.9, 24.2_
 
-  - [~] 12.5 Add the board timers, Server_Clock_Offset, and `EffectsStrip`
+  - [x] 12.5 Add the board timers, Server_Clock_Offset, and `EffectsStrip`
     - Server clock offset from settle: after every Settle_Nudge response, set the offset with `measureOffset(sentAt, receivedAt, serverNow)` (1.5); all countdowns and boundary checks use `serverNow(Date.now(), offset)`
     - Nudge timer: call `/effects/settle` on mount, on reconnect, and at each known boundary + 3 s + random 0-2 s jitter (within 5 s); never while the game is not live; no server-side schedule backs it, so a game with no connected board gets no timing guarantee
     - Toast timer: `setTimeout` at `nextBoundaryAfter(effects, serverNow).atMs`, then re-derive Boundary_Toasts with `deriveBoundaryToasts` (9.7), passing `announced` from the folded flags, a per-session `sessionShown` set, and the per-game dismissal record; add shown ids to `sessionShown`
@@ -491,11 +491,11 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - Create `components/board/EffectsStrip.tsx` listing pending/active timed effects with countdowns from server time; wire timers and the strip into `app/games/[gameId]/board/page.tsx`
     - _Requirements: 3.7, 20.3a, 20.3d, 20.7, 20.8, 20.9, 20.10, 20.11, 20.12_
 
-  - [~] 12.6 Write viewport tests for EffectsStrip
+  - [x] 12.6 Write viewport tests for EffectsStrip
     - `components/board/EffectsStrip.viewport.test.tsx` at 320px and desktop bands
     - _Requirements: 20.7, 24.5_
 
-  - [~] 12.7 Write integration tests for settlement
+  - [x] 12.7 Write integration tests for settlement
     - `supabase/__tests__/integration/cardEffectSweep.integration.test.ts`: migrations 0013/0014 apply (the no-schedule check lives in the hermetic 12.8 text test); `bbb_settle_card_effects` agrees with `planEffectTransitions` on seeded fixtures; idempotent across concurrent Settle_Nudge, mutation (lazy settle), and Cron_Route calls; the partial unique index rejects a duplicate transition event
     - _Requirements: 19.9, 20.3b, 20.4, 24.4_
 
@@ -503,13 +503,13 @@ database and Realtime checks live only under `supabase/__tests__/integration` an
     - `supabase/__tests__/cardEffectSweep.migration.test.ts`: the migration file contains no `cron.` reference and no `schedule(` call, and revokes execute from `anon` and `authenticated`
     - _Requirements: 20.3d, 20.5c_
 
-- [ ] 13. Oracle and steering updates
-  - [~] 13.1 Update `docs/card-text-oracle.md`
+- [x] 13. Oracle and steering updates
+  - [x] 13.1 Update `docs/card-text-oracle.md`
     - Describe the Fairest prompt as a dedicated toast shown before the holder's normal challenge actions; state Mirrored_Challenges cannot be mirrored again; record that `lib/cards/cardText.ts` is the in-code home of the copy and the `CardText` reshape is complete; re-run the oracle parity test from 1.4
     - Change the oracle's status line from a "first-pass proposition" / "nothing is locked" to a locked status that names `lib/cards/cardText.ts` as the in-code source of truth for card copy (Requirement 2.3, 2.4)
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [~] 13.2 Update `.kiro/steering/structure.md`
+  - [x] 13.2 Update `.kiro/steering/structure.md`
     - Under `app/` list the new route directories (`api/cron/card-effects`, and under `api/games/[gameId]`: `challenges`, `fairest-offers`, `host`, `effects`); note the new `lib/cards` (including `boundaryToasts.ts`, `clockOffset.ts`), `lib/claims/blocks.ts` and `lib/claims/legalNextBar.ts`, `lib/map` geo/bar-resolver, `lib/realtime/recheck.ts`, and `lib/scoring/allocation.ts` responsibilities in the `lib/` descriptions; keep the Top-Level Layout unchanged (no new top-level directories)
     - _Requirements: 19.8, 20.5a, 20.5b_
 

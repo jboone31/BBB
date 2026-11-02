@@ -49,7 +49,6 @@ import {
   loadBehaviorState,
   reconcileBarsInTx,
   settleDueTransitions,
-  writeEffects,
   type BehaviorState,
   type EffectRecord,
   type ScoreEntryRecord,

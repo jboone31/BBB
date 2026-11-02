@@ -119,11 +119,13 @@ async function createFixture(): Promise<Fixture> {
     );
     const definitionId = String(definition.rows[0]?.id);
 
+    // card_instances_lifecycle_fields_valid (0011): a 'played' row carries no
+    // holder and a non-null played_at.
     const instance = await tx.query(
-      `insert into card_instances (game_id, definition_id, holder_team_id, state)
-       values ($1, $2, $3, 'played')
+      `insert into card_instances (game_id, definition_id, state, played_at)
+       values ($1, $2, 'played', now())
        returning id`,
-      [gameId, definitionId, casterTeamId],
+      [gameId, definitionId],
     );
     const instanceId = String(instance.rows[0]?.id);
 
@@ -313,7 +315,7 @@ describe.skipIf(!DB_CONFIGURED)("live card-behavior schema (0013)", () => {
       return withTransaction((tx) =>
         tx.query(
           `insert into game_events (game_id, seq, event_type, actor_kind, payload)
-           values ($1, $2, $3, 'system', $4::jsonb)`,
+           values ($1, $2, $3, 'system', $4::text::jsonb)`,
           [
             fixture.gameId,
             seq,

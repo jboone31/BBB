@@ -36,8 +36,16 @@ directories): `package.json`, `package-lock.json`, `tsconfig.json`, `next.config
 app/
   api/              # server route handlers
     cron/           # scheduled/maintenance endpoints
+      auto-timeout/   # ends live games older than 12h
+      card-effects/   # optional Cron_Route: Timer_Sweep across all live games
     demo-mutation/  # demo transactional-write endpoint
     games/          # game resource routes
+      [gameId]/
+        bars/ cards/ claims/ end/ join/ leave/ start/ teams/  # core game routes
+        challenges/     # [challengeId]/resolve: target team confirms/fails a challenge
+        fairest-offers/ # [offerId]: play (mirror) or decline a pending Fairest offer
+        host/           # admin overrides: challenges/[challengeId], effects/[effectId] (end early)
+        effects/        # settle/: member-driven Settle_Nudge (idempotent Timer_Sweep)
   demo/             # real-time propagation demo page
   layout.tsx        # root layout
   page.tsx          # landing page
@@ -67,17 +75,30 @@ property-tested in isolation.
 lib/
   config/     # committed, PR-controlled dev flags (no env vars)
   env/        # startup env loading + validation (fail fast on missing config)
-  scoring/    # bar point-split scoring + score ledger
+  scoring/    # bar point-split scoring + score ledger; allocation.ts = target-allocation
+              #   per bar (equal split, Party Crasher phantom, Insurance floors) diffed
+              #   into minimal ledger adjustments; award categories stay immutable
   gameend/    # game-end / winner determination
   gameboard/  # live board projection, access decisions, and event folding
   lobby/      # lobby projection, join-code, and share-link helpers
   events/     # append-only game_events log helpers
-  realtime/   # Supabase Realtime subscription helpers
+  realtime/   # Supabase Realtime subscription helpers; reconnect/resume recovery;
+              #   recheck.ts = quiet-timer poll that fetches missed events past the
+              #   last applied seq while a game is live (no reconnect)
   db/         # transactional server writes (postgres.js) + client access
   games/      # game domain operations
-  claims/     # bar-claim domain operations + eligibility rules
-  cards/      # Brawl Deck catalog + per-team deck logic
-  map/        # candidate bars, map claims, and marker projection helpers
+  claims/     # bar-claim domain operations + eligibility rules; blocks.ts = the single
+              #   evaluateClaimBlocks (collects every block reason, never short-circuits);
+              #   legalNextBar.ts = the single Legal_Next_Bar definition (Pioneer/Scenic)
+  cards/      # Brawl Deck catalog, per-team deck logic, card text, play planning,
+              #   challenges, effects, toasts, behavior state/persistence;
+              #   boundaryToasts.ts = local start/end Boundary_Toasts for timed effects;
+              #   clockOffset.ts = Server_Clock_Offset measurement + serverNow;
+              #   boardTimers.ts = board toast + Settle_Nudge timers against server time
+  map/        # candidate bars, map claims, and marker projection helpers;
+              #   geo.ts = geodesic distance for radius/Scenic rules;
+              #   barResolver.ts = shared server bar resolution (key -> bars.id,
+              #   materialize candidate on first touch, coords + kind)
   session/    # browser/session identity bridge
 ```
 

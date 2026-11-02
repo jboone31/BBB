@@ -14,7 +14,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ResolvedBarRef } from "@/lib/cards/behaviorState";
+import { getCardText } from "@/lib/cards/catalog";
 import type { GameEvent } from "@/lib/events";
+import type { CardTargetContext } from "@/lib/gameboard/cardEligibility";
 import { foldGameBoardEvents } from "@/lib/gameboard/events";
 import type { BoardCardView } from "@/lib/gameboard/events";
 
@@ -368,6 +371,99 @@ describe("CardPlayPanel — casting input step (card-behavior R6.1-R6.3)", () =>
     });
   });
 
+  it("duration: shows m:ss, rejects over 5:00, and sends seconds as params", () => {
+    const view = foldGameBoardEvents(GAME, [
+      teamCreated(1, "team-a", "Alpha"),
+      teamCreated(2, "team-b", "Bravo"),
+    ]);
+    const onConfirm = vi.fn();
+    render(
+      <CardPlayPanel
+        card={teamCard("bird-guide")}
+        view={view}
+        teams={view.teams}
+        castingTeamId="team-a"
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+    const group = screen.getByRole("group", { name: /enter a duration/i });
+    const minutes = within(group).getByLabelText(/minutes/i);
+    const seconds = within(group).getByLabelText(/seconds/i);
+    fireEvent.click(
+      within(
+        screen.getByRole("group", { name: /choose a target team/i }),
+      ).getByRole("button", { name: /bravo/i }),
+    );
+
+    // 5:30 is over the 5:00 cap: confirming warns and does not play.
+    fireEvent.change(minutes, { target: { value: "5" } });
+    fireEvent.change(seconds, { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(/0:00 and 5:00/);
+
+    // 2:05 is valid, shown as m:ss, and sent as 125 seconds.
+    fireEvent.change(minutes, { target: { value: "2" } });
+    fireEvent.change(seconds, { target: { value: "5" } });
+    expect(group.textContent).toContain("2:05");
+    fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    expect(onConfirm).toHaveBeenCalledWith({
+      targetTeamId: "team-b",
+      params: { kind: "duration_seconds", seconds: 125 },
+    });
+  });
+
+  it("cuisine: rejects a blank cuisine", () => {
+    const view = foldGameBoardEvents(GAME, [
+      teamCreated(1, "team-a", "Alpha"),
+      teamCreated(2, "team-b", "Bravo"),
+    ]);
+    const onConfirm = vi.fn();
+    render(
+      <CardPlayPanel
+        card={teamCard("different-tastes")}
+        view={view}
+        teams={view.teams}
+        castingTeamId="team-a"
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/enter the cuisine/i), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(/enter a cuisine/i);
+  });
+
+  it("places the Requires text before the Confirm button in the play flow (R6.6)", () => {
+    const view = foldGameBoardEvents(GAME, [
+      teamCreated(1, "team-a", "Alpha"),
+      teamCreated(2, "team-b", "Bravo"),
+    ]);
+    render(
+      <CardPlayPanel
+        card={teamCard("art-school-dropout")}
+        view={view}
+        teams={view.teams}
+        castingTeamId="team-a"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const requires = screen.getByText(/requires:/i);
+    expect(requires.textContent).toContain(
+      getCardText("art-school-dropout").requires,
+    );
+    const confirm = screen.getByRole("button", { name: /^confirm$/i });
+    expect(
+      requires.compareDocumentPosition(confirm) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows the card's Requires text above Confirm", () => {
     const view = foldGameBoardEvents(GAME, [teamCreated(1, "team-a", "Alpha")]);
     render(
@@ -392,18 +488,94 @@ describe("CardPlayPanel — Pioneer no_legal_next_bar row (R10.12, R22.5)", () =
     return { cardId: `${team}:${slug}`, teamId: team, slug, state: "hand" };
   }
 
-  it("grays the row with the rules label but keeps it keyboard-focusable (not disabled)", () => {
-    // Force a no_legal_next_bar verdict by stubbing the selector: the panel's
-    // own context lacks the durable facts, so we assert the label + focusability
-    // via a view where selectTeamTargetEligibility returns the reason. We build
-    // that through the real selector plus an already-restricted team is not
-    // reproducible here without server facts, so this test exercises the label
-    // mapping and focusability contract directly through a Pioneer card whose
-    // target rows are eligible, then checks eligible rows remain natively usable.
-    const view = foldGameBoardEvents(GAME, [
+  // Two scoring bars, both claimed by Charlie: under Pioneer, Bravo's next bar
+  // must be unclaimed by another team, so Bravo has no Legal_Next_Bar.
+  function blockedContext(
+    restrictions: ReadonlyMap<
+      string,
+      readonly ("pioneer" | "scenic")[]
+    > = new Map(),
+  ): CardTargetContext {
+    const start: ResolvedBarRef = { barKey: "", kind: "start", coords: null };
+    return {
+      finishBarKey: null,
+      barCoords: new Map([
+        ["bar-1", { lat: 33.78, lng: -84.37 }],
+        ["bar-2", { lat: 33.77, lng: -84.36 }],
+      ]),
+      claimState: { "bar-1": ["team-c"], "bar-2": ["team-c"] },
+      teamIds: ["team-a", "team-b", "team-c"],
+      previousBars: new Map([
+        ["team-a", start],
+        ["team-b", start],
+        ["team-c", start],
+      ]),
+      restrictions,
+    };
+  }
+
+  function pioneerView() {
+    return foldGameBoardEvents(GAME, [
       teamCreated(1, "team-a", "Alpha"),
       teamCreated(2, "team-b", "Bravo"),
+      teamCreated(3, "team-c", "Charlie"),
     ]);
+  }
+
+  it("grays a team with no legal next bar, labels why, and keeps it keyboard-focusable", () => {
+    const view = pioneerView();
+    const onConfirm = vi.fn();
+    render(
+      <CardPlayPanel
+        card={teamCardFor("pioneer", "team-a")}
+        view={view}
+        teams={view.teams}
+        castingTeamId="team-a"
+        targetContext={blockedContext()}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+    const group = screen.getByRole("group", { name: /choose a target team/i });
+    const bravo = within(group).getByRole("button", { name: /bravo/i });
+    // Grayed via aria-disabled but NOT natively disabled, so it stays focusable.
+    expect(bravo.getAttribute("aria-disabled")).toBe("true");
+    expect((bravo as HTMLButtonElement).disabled).toBe(false);
+    expect(bravo.textContent).toMatch(/no legal next bar for this team/i);
+    expect(bravo.textContent).toMatch(/under pioneer/i);
+    bravo.focus();
+    expect(document.activeElement).toBe(bravo);
+
+    // Selecting it is a no-op; confirming warns instead of playing.
+    fireEvent.click(bravo);
+    fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(/eligible target/i);
+  });
+
+  it("lists the existing restriction alongside the played rule (Scenic onto a Pioneer'd team)", () => {
+    const view = pioneerView();
+    render(
+      <CardPlayPanel
+        card={teamCardFor("scenic-route", "team-a")}
+        view={view}
+        teams={view.teams}
+        castingTeamId="team-a"
+        targetContext={blockedContext(new Map([["team-b", ["pioneer"]]]))}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const group = screen.getByRole("group", { name: /choose a target team/i });
+    const bravo = within(group).getByRole("button", { name: /bravo/i });
+    expect(bravo.getAttribute("aria-disabled")).toBe("true");
+    expect(bravo.textContent).toMatch(/no legal next bar for this team/i);
+    expect(bravo.textContent).toMatch(/under pioneer/i);
+    expect(bravo.textContent).toMatch(/under scenic route/i);
+  });
+
+  it("leaves every team eligible when the bare finish-bar context is used", () => {
+    const view = pioneerView();
     render(
       <CardPlayPanel
         card={teamCardFor("pioneer", "team-a")}
@@ -416,7 +588,7 @@ describe("CardPlayPanel — Pioneer no_legal_next_bar row (R10.12, R22.5)", () =
     );
     const group = screen.getByRole("group", { name: /choose a target team/i });
     const bravo = within(group).getByRole("button", { name: /bravo/i });
-    expect((bravo as HTMLButtonElement).disabled).toBe(false);
+    expect(bravo.getAttribute("aria-disabled")).toBe("false");
   });
 
   it("surfaces a server no_legal_next_bar rejection inline near the picker", () => {

@@ -24,6 +24,7 @@ import dynamic from "next/dynamic";
 import type { BoardTeamView } from "@/lib/gameboard/events";
 import type { ClaimState } from "@/lib/map/claims";
 import type { ClaimBlock } from "@/lib/claims/blocks";
+import type { MapOverlay } from "@/lib/gameboard/cardBehavior";
 
 export type ClaimAction = "claim" | "unclaim";
 
@@ -105,6 +106,11 @@ export interface MapRegionProps {
   readonly bonusClaimableBarIds?: readonly string[];
   /** Post a bonus claim (`action: "bonus"`) for the given bar. */
   readonly onBonusClaim?: (barId: string) => void | Promise<void>;
+  /**
+   * Card-behavior map overlays for the viewing team (`selectMapOverlays`,
+   * Requirements 10.9, 11.6, 12.8), forwarded to the Leaflet map.
+   */
+  readonly overlays?: readonly MapOverlay[];
 }
 
 export default function MapRegion({
@@ -118,6 +124,7 @@ export default function MapRegion({
   claimBlocksByBar,
   bonusClaimableBarIds,
   onBonusClaim,
+  overlays,
 }: MapRegionProps): React.JSX.Element {
   const ownTeam = teams.find((t) => t.id === ownTeamId);
 
@@ -165,6 +172,7 @@ export default function MapRegion({
           claimBlocksByBar={claimBlocksByBar}
           bonusClaimableBarIds={bonusClaimableBarIds}
           onBonusClaim={onBonusClaim}
+          overlays={overlays}
         />
       </div>
     </section>

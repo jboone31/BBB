@@ -8,7 +8,10 @@ says in a team's hand, and what each audience sees in toasts when it's played._
 - Mechanics are defined in `.kiro/steering/cards.md`, `.kiro/steering/game-rules.md`, and
   `v1/Card List.md`. This document decides **wording only**. If wording and mechanics ever
   disagree, the mechanics win and this copy gets corrected.
-- Status: **first-pass proposition.** Nothing is locked until signed off card by card.
+- Status: **locked.** The copy below is final for v1. Its in-code source of truth is
+  `lib/cards/cardText.ts`, which carries every field here character for character (line wraps
+  joined by single spaces). `lib/cards/cardText.oracle.test.ts` keeps the two in parity, so any
+  wording change must land in both files together.
 
 ## Text surfaces
 
@@ -234,11 +237,13 @@ name. Per-card entries below only list toasts that differ from these.
 - **Requires:** Play this immediately after your team is targeted by a challenge card.
 - **Effect:** The team that challenged you must also complete that challenge.
 - **Target:** The team that just challenged you.
-- **Prompt (inside the holder's target toast):** Play FAIREST OF THEM ALL to make {Caster}
-  complete this challenge too?
+- **Prompt (dedicated toast, shown to the holding team before its normal challenge actions):**
+  Play FAIREST OF THEM ALL to make {Caster} complete this challenge too?
 - **Mirrored toast (original caster):** {Target} played FAIREST OF THEM ALL! Your team must
   also complete {CARD}. Body: the original card's target toast, with the same entered values.
 - **Others' toast headline:** {Target} turned {CARD} back on {Caster} with FAIREST OF THEM ALL!
+- **Mirroring limit:** A mirrored challenge can't be mirrored again. The original caster gets
+  no FAIREST OF THEM ALL prompt for it, even if it holds the card.
 
 ## Voted Off the Island
 
@@ -260,10 +265,15 @@ name. Per-card entries below only list toasts that differ from these.
 - **End toasts:** timed effects and Patient Investor's payout send an informational toast to
   all teams.
 - **Durations** render as `m:ss`.
+- **Fairest of Them All prompt** is a dedicated toast shown to the holding target team before
+  its normal challenge actions (Mark complete and the rest), not an action inside the target
+  toast. A mirrored challenge can't be mirrored again.
 
-## Deferred to the spec
+## In-code copy
 
-- `CardText` in `lib/cards/catalog.ts` currently has `description`, `castingRequirement`, and
-  `targetRequirement`. To carry this copy it needs roughly `requires`, `effect`, `targetNote`,
-  `targetToastBody`, and per-card toast overrides (announcement, end, payout, mirror). This
-  reshape and moving the text into code happen as part of the Brawl Deck spec.
+- `lib/cards/cardText.ts` is the in-code home of this copy and the source of truth the app
+  renders from. The `CardText` reshape is complete: each card carries `requires`, `effect`,
+  `targetNote`, `targetToastBody`, and per-card toast overrides (announcement, others' body,
+  start, end, payout, Fairest prompt, mirror headlines, and Everyone's a Critic actions).
+- `lib/cards/cardText.oracle.test.ts` parses this document and asserts parity with
+  `cardText.ts`, field by field.

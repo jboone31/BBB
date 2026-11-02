@@ -178,15 +178,15 @@ order by ci.owner_team_id, ci.draw_position
 const PLAYS_SQL = `
 select cp.id as play_id,
        cp.slug,
-       cp.team_id as caster_team_id,
+       cp.casting_team_id as caster_team_id,
        cp.target_team_id,
        cp.target_bar_id,
        cp.target_bar_key,
        cp.params,
-       cp.created_at
+       cp.played_at as created_at
 from card_plays cp
 where cp.game_id = $1
-order by cp.created_at, cp.id
+order by cp.played_at, cp.id
 `;
 
 const CHALLENGES_SQL = `
@@ -588,7 +588,7 @@ insert into card_challenges
    resolved_at, resolved_by_kind, resolved_by_team_id, resolved_by_session_id,
    failure_effect_id)
 values
-  ($1, $2, $3, $4, $5, $6, $7::jsonb,
+  ($1, $2, $3, $4, $5, $6, $7::text::jsonb,
    $8, $9, $10, $11::timestamptz,
    $12::timestamptz, $13, $14, $15,
    $16)
@@ -702,9 +702,9 @@ insert into card_effects
 values
   ($1, $2, $3, $4, $5, $6,
    $7, $8, $9, $10,
-   $11::timestamptz, $12::timestamptz, $13::jsonb, $14, $15,
+   $11::timestamptz, $12::timestamptz, $13::text::jsonb, $14, $15,
    $16, $17::timestamptz, $18, $19::timestamptz,
-   $20, $21::timestamptz, $22::timestamptz, $23::timestamptz)
+   $20, $21::timestamptz, $22::timestamptz, statement_timestamp())
 on conflict (id) do update
   set ends_at = excluded.ends_at,
       params = excluded.params,
@@ -739,6 +739,10 @@ export async function writeEffects(
   rows: readonly EffectRecord[],
   bars: ReadonlyMap<string, ResolvedBar>,
 ): Promise<void> {
+  // `created_at` is stamped by the database clock in UPSERT_EFFECT_SQL, matching
+  // the server timestamps on claims and challenges in the same transaction. This
+  // app-clock instant is only the announcement fallback for a record that
+  // carries no explicit start/end time.
   const createdAt = new Date().toISOString();
   for (const r of rows) {
     const targetBarId =
@@ -779,7 +783,6 @@ export async function writeEffects(
       r.cancelReason,
       startAnnouncedAt,
       endAnnouncedAt,
-      createdAt,
     ]);
   }
 }
@@ -791,7 +794,7 @@ export async function writeEffects(
 const INSERT_LEDGER_SQL = `
 insert into score_ledger_entries
   (game_id, team_id, bar_id, source_claim_id, source_effect_id, category, points, metadata)
-values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+values ($1, $2, $3, $4, $5, $6, $7, $8::text::jsonb)
 returning id
 `;
 

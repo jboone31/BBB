@@ -183,7 +183,7 @@ where game_id = $1 and id = $2 and cancelled_at is null and consumed_at is null
 /** Advance a Patient Investor counter's counted list, paying out + consuming at 4. */
 const UPDATE_COUNTER_SQL = `
 update card_effects
-set params = $3::jsonb,
+set params = $3::text::jsonb,
     consumed_at = case when $4 then now() else consumed_at end,
     consumed_by_claim_id = case when $4 then $5 else consumed_by_claim_id end
 where game_id = $1 and id = $2
