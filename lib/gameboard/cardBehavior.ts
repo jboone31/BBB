@@ -190,6 +190,9 @@ export function selectClaimBlocksForBar(
  *   centered on the target bar, `pending` (dashed/translucent) before its start
  *   and `active` once live (12.8).
  * - `bonus_window`: a Happy Hour "+5" badge on a bar.
+ * - `phantom_share`: a Party Crasher phantom share on a bar, rendered as a black
+ *   band in the bar's pin (an unclaimed bar becomes solid black). Shown to every
+ *   team while the effect is active.
  */
 export type MapOverlay =
   | {
@@ -220,6 +223,12 @@ export type MapOverlay =
       readonly effectId: string;
       readonly barKey: string;
       readonly label: string;
+    }
+  | {
+      readonly kind: "phantom_share";
+      readonly effectId: string;
+      readonly barKey: string;
+      readonly label: string;
     };
 
 /**
@@ -234,6 +243,8 @@ export type MapOverlay =
  *   on the target bar's coordinates (12.8); a lock whose center has no
  *   resolvable coordinates is skipped.
  * - Happy Hour `bonus_window`s active now (a "+5" badge).
+ * - Party Crasher `phantom_share`s active now (a black band in the bar's pin),
+ *   shown to every team.
  *
  * Ordered by effect id, then bar key, for a stable render.
  */
@@ -356,6 +367,25 @@ export function selectMapOverlays(
           effectId: effect.effectId,
           barKey: effect.targetBarKey,
           label: "Happy Hour +5",
+        });
+        break;
+      }
+
+      case "phantom_share": {
+        // Party Crasher: a black band in the bar's pin while the phantom share
+        // is active (14.x). A phantom has no end time, so `isEffectActive`
+        // reflects only the start / cancellation. Shown to every team.
+        if (
+          effect.targetBarKey === null ||
+          !isEffectActive(effect, serverNowMs)
+        ) {
+          break;
+        }
+        overlays.push({
+          kind: "phantom_share",
+          effectId: effect.effectId,
+          barKey: effect.targetBarKey,
+          label: "Party Crasher (phantom share)",
         });
         break;
       }

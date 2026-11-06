@@ -131,6 +131,44 @@ export function colorSegments(
   }));
 }
 
+/** The fill color of a Party Crasher phantom share band. */
+export const PHANTOM_SHARE_COLOR = "#1a1a1a";
+
+/** The synthetic team id of the phantom band (never a real team). */
+export const PHANTOM_SHARE_TEAM_ID = "__phantom_share__";
+
+/**
+ * Fold a Party Crasher phantom share into a bar's color segments (card decision:
+ * a black band). The phantom shares the pin as if one more team were claiming
+ * (mirroring the scoring model, {@link computeBarAllocation}), so it becomes one
+ * extra equal band:
+ *
+ *   - an unclaimed phantom bar → a single solid black band (the whole pin), and
+ *   - a partially claimed phantom bar → the team bands plus one equal black band.
+ *
+ * When `phantom` is false the segments are returned unchanged. The black band is
+ * not a real team, so it carries the synthetic {@link PHANTOM_SHARE_TEAM_ID}.
+ */
+export function withPhantomSegment(
+  segments: readonly ColorSegment[],
+  phantom: boolean,
+): readonly ColorSegment[] {
+  if (!phantom) {
+    return segments;
+  }
+  const count = segments.length + 1;
+  const percent = 100 / count;
+  const rescaled = segments.map((seg) => ({ ...seg, percent }));
+  return [
+    ...rescaled,
+    {
+      teamId: PHANTOM_SHARE_TEAM_ID,
+      color: PHANTOM_SHARE_COLOR,
+      percent,
+    },
+  ];
+}
+
 /**
  * Build a CSS `linear-gradient(...)` value that paints a pin as hard-edged equal
  * bands, one per claiming team (left→right). One team yields a solid fill; N

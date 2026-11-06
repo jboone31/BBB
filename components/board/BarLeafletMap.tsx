@@ -53,6 +53,7 @@ import {
   colorSegments,
   isClaimedBy,
   segmentsToGradient,
+  withPhantomSegment,
   type ClaimState,
 } from "@/lib/map/claims";
 
@@ -245,6 +246,19 @@ export default function BarLeafletMap({
     return byId;
   }, []);
 
+  // Bars carrying an active Party Crasher phantom share: their pins get a black
+  // band composited into the fill (an unclaimed one becomes solid black). Taken
+  // from the phantom_share overlays so the map and the effect stay in sync.
+  const phantomBarKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const overlay of overlays) {
+      if (overlay.kind === "phantom_share") {
+        keys.add(overlay.barKey);
+      }
+    }
+    return keys;
+  }, [overlays]);
+
   return (
     <MapContainer
       center={center}
@@ -262,7 +276,10 @@ export default function BarLeafletMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {CANDIDATE_BARS.map((bar: CandidateBar) => {
-        const segments = colorSegments(claims, bar.id, teams);
+        const segments = withPhantomSegment(
+          colorSegments(claims, bar.id, teams),
+          phantomBarKeys.has(bar.id),
+        );
         const fill = segmentsToGradient(segments);
         const claimedByOwn = isClaimedBy(claims, bar.id, ownTeamId);
         const claimerCount = claimersOf(claims, bar.id).length;
@@ -302,6 +319,14 @@ export default function BarLeafletMap({
                     ? "Unclaimed"
                     : `Claimed by ${claimerCount} team${claimerCount === 1 ? "" : "s"}`}
                 </span>
+                {phantomBarKeys.has(bar.id) ? (
+                  // Text label for the black band so the phantom share never
+                  // depends on color alone (accessibility).
+                  <span style={{ fontSize: "0.8rem", color: "#1a1a1a" }}>
+                    Party Crasher: a phantom share (black) is splitting this
+                    bar.
+                  </span>
+                ) : null}
                 {showBlocked ? (
                   <div
                     role="alert"

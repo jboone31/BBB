@@ -196,6 +196,60 @@ describe("BarLeafletMap claim-blocked messaging viewport bands (Requirement 24.5
   });
 });
 
+describe("BarLeafletMap — Party Crasher phantom share", () => {
+  // The black band itself is drawn in the pin's DivIcon (not observable through
+  // the inert leaflet mock), so assert the accessible text label that always
+  // accompanies it, so the phantom share never depends on color alone.
+  it("shows a phantom-share note in the affected bar's popup", () => {
+    render(
+      <BarLeafletMap
+        claims={{}}
+        teams={TEAMS}
+        ownTeamId="team-a"
+        onMutate={vi.fn()}
+        overlays={[
+          {
+            kind: "phantom_share",
+            effectId: "eff-1",
+            barKey: BLOCKED_BAR.id,
+            label: "Party Crasher (phantom share)",
+          },
+        ]}
+      />,
+    );
+    const name = screen.getByText(BLOCKED_BAR.name, { selector: "strong" });
+    const popup = name.parentElement as HTMLElement;
+    expect(
+      within(popup).getByText(/party crasher: a phantom share/i),
+    ).toBeTruthy();
+  });
+
+  it("shows no phantom note on a bar with no phantom overlay", () => {
+    render(
+      <BarLeafletMap
+        claims={{}}
+        teams={TEAMS}
+        ownTeamId="team-a"
+        onMutate={vi.fn()}
+        overlays={[
+          {
+            kind: "phantom_share",
+            effectId: "eff-1",
+            barKey: CANDIDATE_BARS[1].id,
+            label: "Party Crasher (phantom share)",
+          },
+        ]}
+      />,
+    );
+    // The first bar carries no phantom overlay, so no note.
+    const name = screen.getByText(CANDIDATE_BARS[0].name, {
+      selector: "strong",
+    });
+    const popup = name.parentElement as HTMLElement;
+    expect(within(popup).queryByText(/phantom share/i)).toBeNull();
+  });
+});
+
 describe("BarLeafletMap — a resolved block no longer shows", () => {
   // Once a Use It or Lose It challenge completes (the team's hand emptied), the
   // board pre-check returns no blocks for the bar and there is no matching
