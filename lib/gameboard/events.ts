@@ -335,6 +335,17 @@ export interface GameBoardView {
   readonly activeClaims: BoardClaimView[];
   readonly scoreEntries: BoardScoreEntryView[];
   /**
+   * Each team's current pending-draw resolution mode, folded from the inventory
+   * events. `"keep_all"` is a Power Hour draw (keeping a card discards nothing;
+   * the others stay waiting), `"choose_one"` is an ordinary draw (keeping one
+   * discards the rest). A team with no entry has no pending draw / the default
+   * `"choose_one"`. The Cards_Region reads the viewing team's mode to show
+   * accurate keep text (R17.2).
+   */
+  readonly pendingModeByTeam: Readonly<
+    Record<string, "choose_one" | "keep_all">
+  >;
+  /**
    * The card-behavior fold (design.md §Projection Changes): embedded challenge /
    * offer / effect / award records, card plays, and toast descriptors. The
    * `activeChallenges` / `activeEffects` / `activeRestrictions` / `notifications`
@@ -377,6 +388,7 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     notifications: [],
     activeClaims: [],
     scoreEntries: [],
+    pendingModeByTeam: {},
     cardBehavior: initialCardBehaviorView(),
     lastSeenSequence: NO_EVENTS_SEQ,
   };
@@ -808,10 +820,27 @@ function applyCardInventoryEvent(
     .map((record) => cardFromRecord(record, fallbackState))
     .filter((card): card is BoardCardView => card !== undefined)
     .reduce(upsertCard, view.cards);
-  return cards.length === view.cards.length &&
-    cards.every((card, index) => card === view.cards[index])
-    ? view
-    : { ...view, cards };
+
+  // Fold the acting team's pending-draw mode so the board can distinguish a
+  // Power Hour "keep all" reveal from an ordinary "choose one" reveal (R17.2).
+  // The event carries the team's resolved mode after this transition.
+  const eventTeamId = readString(event.payload, "teamId");
+  const pendingModeRaw = readString(event.payload, "pendingMode");
+  let pendingModeByTeam = view.pendingModeByTeam;
+  if (eventTeamId !== undefined && pendingModeRaw !== undefined) {
+    const mode = pendingModeRaw === "keep_all" ? "keep_all" : "choose_one";
+    if (view.pendingModeByTeam[eventTeamId] !== mode) {
+      pendingModeByTeam = { ...view.pendingModeByTeam, [eventTeamId]: mode };
+    }
+  }
+
+  const cardsUnchanged =
+    cards.length === view.cards.length &&
+    cards.every((card, index) => card === view.cards[index]);
+  if (cardsUnchanged && pendingModeByTeam === view.pendingModeByTeam) {
+    return view;
+  }
+  return { ...view, cards, pendingModeByTeam };
 }
 
 /**

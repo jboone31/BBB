@@ -94,6 +94,34 @@ describe("CardsRegion — pending draw choice (R1.1, R1.2)", () => {
     expect(onKeepCard.mock.calls[0][0].cardId).toBe(`${TEAM}:go-piss-girl`);
   });
 
+  it("an ordinary (choose_one) draw says keeping one discards the other", () => {
+    renderRegion({
+      cards: [card("go-piss-girl", "pending"), card("moneybags", "pending")],
+      pendingMode: "choose_one",
+    });
+    const group = screen.getByRole("group", { name: /choose a card to keep/i });
+    expect(within(group).getByText(/keep one/i)).toBeTruthy();
+    expect(
+      within(group).getByText(/keeping a card discards the other/i),
+    ).toBeTruthy();
+    // It must NOT claim both are kept.
+    expect(within(group).queryByText(/keep both/i)).toBeNull();
+  });
+
+  it("a Power Hour (keep_all) draw says you keep both and discards nothing", () => {
+    renderRegion({
+      cards: [card("go-piss-girl", "pending"), card("moneybags", "pending")],
+      pendingMode: "keep_all",
+    });
+    const group = screen.getByRole("group", { name: /choose a card to keep/i });
+    expect(within(group).getByText(/you keep both cards/i)).toBeTruthy();
+    expect(within(group).getByText(/nothing is discarded/i)).toBeTruthy();
+    // It must NOT claim the other card is discarded (the QA inaccuracy).
+    expect(
+      within(group).queryByText(/keeping a card discards the other/i),
+    ).toBeNull();
+  });
+
   it("shows each drawn card's effect text at selection time (R2.2)", () => {
     renderRegion({
       cards: [card("go-piss-girl", "pending"), card("moneybags", "pending")],

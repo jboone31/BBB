@@ -1952,6 +1952,11 @@ export default function BoardPage(): React.JSX.Element {
             }}
             readOnly={readOnly}
             pendingCardId={cardMutationPending}
+            pendingMode={
+              myTeamId !== null
+                ? (view.pendingModeByTeam[myTeamId] ?? "choose_one")
+                : "choose_one"
+            }
           />
           {cardMutationError !== null ? (
             <p

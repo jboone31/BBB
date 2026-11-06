@@ -495,6 +495,11 @@ export async function persistDeckTransition(
     payload: {
       teamId,
       cards: records,
+      // The resolved pending-draw mode so the board can tell a Power Hour
+      // "keep all" reveal (nothing is discarded on keep) from an ordinary
+      // "choose one" reveal. The engine resets this to "choose_one" once a draw
+      // resolves, so the board always mirrors the server's current mode.
+      pendingMode: after.pendingMode,
       ...followUpExtra,
       ...(eventExtra ?? {}),
     },

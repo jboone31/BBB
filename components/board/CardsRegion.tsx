@@ -11,9 +11,13 @@
  *
  *   1. **Pending draw (R1.1, R1.2).** When the team has drawn cards awaiting a
  *      choice (`state === "pending"`), it presents each drawn card with its real
- *      catalog name and a Keep action. Keeping one card discards the rest of that
- *      draw — the component only reports the chosen card to `onKeepCard`; the
- *      server (and the pure engine behind it) performs the keep/discard.
+ *      catalog name and a Keep action. For an ordinary draw, keeping one card
+ *      discards the rest of that draw; for a Power Hour draw (`pendingMode:
+ *      "keep_all"`) keeping one discards nothing — the others stay pending until
+ *      the team makes room or forfeits (R17.2). The component only reports the
+ *      chosen card to `onKeepCard`; the server (and the pure engine behind it)
+ *      performs the keep/discard. The reveal copy branches on `pendingMode` so
+ *      it never claims the other card is discarded when Power Hour keeps it.
  *   2. **Hand (R2.3).** The team's held cards (`state === "hand"`, at most two)
  *      are listed, each with a Play control reported via `onPlayCard`.
  *
@@ -76,7 +80,12 @@ export interface CardsRegionProps {
    * game; a hand belongs to players, so no hand is shown (R5.4).
    */
   readonly adminNotPlayer: boolean;
-  /** Keep a specific pending card (the server discards the rest of the draw). */
+  /**
+   * Keep a specific pending card. For an ordinary draw (`pendingMode:
+   * "choose_one"`) the server discards the rest of the draw; for a Power Hour
+   * draw (`pendingMode: "keep_all"`) nothing is discarded — the others stay
+   * pending until the team makes room or forfeits (R17.2).
+   */
   readonly onKeepCard: (card: BoardCardView) => void;
   /**
    * Discard a specific held or pending card. While the team has an open Use It
@@ -97,6 +106,15 @@ export interface CardsRegionProps {
   readonly readOnly?: boolean;
   /** The card id currently awaiting a server response, if any (disables it). */
   readonly pendingCardId?: string | null;
+  /**
+   * How the current pending draw resolves (R17.2). `"keep_all"` is a Power Hour
+   * draw: keeping a card discards nothing; every other drawn card stays waiting
+   * until the team frees a slot (plays or discards a held card) or forfeits.
+   * `"choose_one"` (the default) is an ordinary draw: keeping one discards the
+   * rest. Drives the reveal copy so it never tells the player the other card is
+   * discarded when, under Power Hour, it is kept.
+   */
+  readonly pendingMode?: "choose_one" | "keep_all";
 }
 
 /** The human-facing catalog name for a card slug, falling back to the slug. */
@@ -126,6 +144,7 @@ export default function CardsRegion({
   onForfeitDraw,
   readOnly = false,
   pendingCardId = null,
+  pendingMode = "choose_one",
 }: CardsRegionProps): React.JSX.Element {
   const pending = cards.filter((card) => card.state === "pending");
   const hand = cards.filter((card) => card.state === "hand");
@@ -200,8 +219,9 @@ export default function CardsRegion({
                 You drew {pending.length} cards, but your hand is full.
               </p>
               <p style={{ margin: 0, fontSize: "0.85rem", color: "#555" }}>
-                Play or discard a held card below to make room and see your new
-                cards, or forfeit this draw to discard both without looking.
+                {pendingMode === "keep_all"
+                  ? "Power Hour lets you keep both. Play or discard a held card below to make room and see your new cards (one at a time), or forfeit this draw to discard them without looking."
+                  : "Play or discard a held card below to make room and see your new cards, or forfeit this draw to discard both without looking."}
               </p>
               <button
                 type="button"
@@ -233,13 +253,33 @@ export default function CardsRegion({
                 background: "#fffbea",
               }}
             >
-              <p style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>
-                You drew {pending.length} cards — keep one.
-              </p>
-              <p style={{ margin: 0, fontSize: "0.8rem", color: "#555" }}>
-                Keeping a card discards the other{pending.length > 2 ? "s" : ""}
-                .
-              </p>
+              {pendingMode === "keep_all" ? (
+                <>
+                  <p
+                    style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}
+                  >
+                    Power Hour: you keep both cards.
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.8rem", color: "#555" }}>
+                    Keep one now — nothing is discarded. The other
+                    {pending.length > 2 ? "s" : ""} stay
+                    {pending.length > 2 ? "" : "s"} waiting until you make room
+                    (play or discard a held card), or forfeit the draw.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p
+                    style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}
+                  >
+                    You drew {pending.length} cards — keep one.
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.8rem", color: "#555" }}>
+                    Keeping a card discards the other
+                    {pending.length > 2 ? "s" : ""}.
+                  </p>
+                </>
+              )}
 
               <ul
                 aria-label="Drawn cards"
