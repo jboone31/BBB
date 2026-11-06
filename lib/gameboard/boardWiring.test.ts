@@ -250,6 +250,38 @@ describe("buildSelectorContext and mirrorIsLegalInView", () => {
     };
   }
 
+  function viewWithBars(
+    start: string | null,
+    finish: string | null,
+  ): GameBoardView {
+    return { ...wiredView(), startBarKey: start, finishBarKey: finish };
+  }
+
+  it("carries the view's finish coords and start/finish keys into the contexts", () => {
+    const view = viewWithBars("bar-1", "bar-2");
+    const selectorCtx = buildSelectorContext(view, BARS);
+    // The finish bar's coordinates are resolved from the candidate map.
+    expect(selectorCtx.finishCoords).toEqual({ lat: 33.77, lng: -84.36 });
+
+    const targetCtx = buildCardTargetContext(view, selectorCtx, 0);
+    expect(targetCtx.finishBarKey).toBe("bar-2");
+    expect(targetCtx.startBarKey).toBe("bar-1");
+    // A team with no claim falls back to the designated start bar (not "").
+    expect(targetCtx.previousBars?.get(TARGET)?.barKey).toBe("bar-1");
+    expect(targetCtx.previousBars?.get(TARGET)?.kind).toBe("start");
+  });
+
+  it("leaves keys null and finish coords null when no designation is folded", () => {
+    const view = viewWithBars(null, null);
+    const selectorCtx = buildSelectorContext(view, BARS);
+    expect(selectorCtx.finishCoords).toBeNull();
+    const targetCtx = buildCardTargetContext(view, selectorCtx, 0);
+    expect(targetCtx.finishBarKey).toBeNull();
+    expect(targetCtx.startBarKey).toBeNull();
+    // Falls back to the empty-key start ref when there is no designated start.
+    expect(targetCtx.previousBars?.get(TARGET)?.barKey).toBe("");
+  });
+
   it("uses each team's most recent claim as its previous bar", () => {
     const ctx = buildSelectorContext(
       viewWithClaims([

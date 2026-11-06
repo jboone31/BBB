@@ -48,6 +48,7 @@ import { validateBarDesignation } from "@/lib/games";
 import { isLobbyPhase } from "@/lib/lobby/gate";
 import { LOBBY_EVENT_TYPES } from "@/lib/lobby/events";
 import { CANDIDATE_BARS } from "@/lib/map/bars";
+import { resolveGameBar } from "@/lib/map/barResolver";
 
 import {
   applied,
@@ -312,6 +313,21 @@ export async function POST(
         designation.finishBarId,
       ]);
 
+      // Resolve the board-facing keys (candidate slugs) the Game_Board view keys
+      // bars by, so the board's card-target eligibility can exclude the start /
+      // finish bar and supply the finish coordinates (the raw uuids in the
+      // payload do not match the board's candidate-slug keys). A bar that is not
+      // a known candidate resolves to its uuid, which the board simply never
+      // matches against a candidate pin — the server stays authoritative.
+      const startBar =
+        designation.startBarId === null
+          ? null
+          : await resolveGameBar(tx, gameId, designation.startBarId);
+      const finishBar =
+        designation.finishBarId === null
+          ? null
+          : await resolveGameBar(tx, gameId, designation.finishBarId);
+
       const event = await appendEvent(tx, {
         gameId,
         type: LOBBY_EVENT_TYPES.barsDesignated,
@@ -319,6 +335,8 @@ export async function POST(
         payload: {
           startBarId: designation.startBarId,
           finishBarId: designation.finishBarId,
+          startBarKey: startBar?.barKey ?? null,
+          finishBarKey: finishBar?.barKey ?? null,
         },
       });
 

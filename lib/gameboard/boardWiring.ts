@@ -49,12 +49,14 @@ import type { LatLng } from "@/lib/map/geo";
 /**
  * Build the selector context from the candidate bars and the folded claims.
  *
- * The board does not know which candidate bar is the game's start or finish bar
- * (designations reference game bar rows, not candidate keys), so every bar is a
- * `scoring` bar and `finishCoords` is null here. The server remains the
- * authority: a claim the pre-check allows can still come back `blocked`, and the
- * board then shows the server's blocks. A team's previous bar is its most
- * recently folded active claim.
+ * The start / finish bar keys come from the folded `bars_designated` event
+ * (`view.startBarKey` / `view.finishBarKey`), so `finishCoords` is the finish
+ * bar's coordinates once the designation is folded (null before then). Every bar
+ * is still modelled as a `scoring` ref in the map; the start/finish distinction
+ * is carried by the keys the selector reads. The server remains the authority: a
+ * claim the pre-check allows can still come back `blocked`, and the board then
+ * shows the server's blocks. A team's previous bar is its most recently folded
+ * active claim.
  */
 export function buildSelectorContext(
   view: GameBoardView,
@@ -84,9 +86,14 @@ export function buildSelectorContext(
     }
   }
 
+  const finishCoords =
+    view.finishBarKey !== null
+      ? (barMap.get(view.finishBarKey)?.coords ?? null)
+      : null;
+
   return {
     bars: barMap,
-    finishCoords: null,
+    finishCoords,
     activeClaims,
     previousBarByTeam,
   };
@@ -167,8 +174,11 @@ export function mirrorIsLegalInView(
  * team's previous bar (the start bar when the team has no active claim, as in
  * {@link mirrorIsLegalInView}), and each team's active Pioneer / Scenic rules,
  * so the picker can gray out a team that would be left with no Legal_Next_Bar.
- * The finish bar is unknown on the board (see {@link buildSelectorContext}); the
- * server stays authoritative.
+ * The start and finish bar keys come from the folded `bars_designated` event
+ * (`view.startBarKey` / `view.finishBarKey`), so the picker can exclude the
+ * start bar (Voted Off the Island) and the finish bar (every bar card) and
+ * evaluate the Cancel Culture radius against the finish coordinates. They are
+ * null until the designation is folded; the server stays authoritative.
  */
 export function buildCardTargetContext(
   view: GameBoardView,
@@ -187,7 +197,14 @@ export function buildCardTargetContext(
     (claimState[claim.barKey] ??= []).push(claim.teamId);
   }
 
-  const startRef: ResolvedBarRef = { barKey: "", kind: "start", coords: null };
+  const startRef: ResolvedBarRef =
+    view.startBarKey !== null
+      ? {
+          barKey: view.startBarKey,
+          kind: "start",
+          coords: ctx.bars.get(view.startBarKey)?.coords ?? null,
+        }
+      : { barKey: "", kind: "start", coords: null };
   const previousBars = new Map<string, ResolvedBarRef>();
   for (const team of view.teams) {
     previousBars.set(team.id, ctx.previousBarByTeam.get(team.id) ?? startRef);
@@ -211,7 +228,8 @@ export function buildCardTargetContext(
   }
 
   return {
-    finishBarKey: null,
+    finishBarKey: view.finishBarKey,
+    startBarKey: view.startBarKey,
     barCoords,
     claimState,
     teamIds: view.teams.map((team) => team.id),

@@ -58,6 +58,7 @@ import type { CardSlug } from "@/lib/cards/catalog";
  */
 export const GAME_BOARD_EVENT_TYPES = {
   gameCreated: "game_created",
+  barsDesignated: "bars_designated",
   teamCreated: "team_created",
   playerJoined: "player_joined",
   teamChanged: "team_changed",
@@ -306,6 +307,20 @@ export interface GameBoardView {
   readonly gameId: string;
   readonly lifecycle: GameBoardLifecycle;
   readonly joinCode: string | null;
+  /**
+   * The board-facing key of the game's start bar (a candidate slug), or null
+   * until a `bars_designated` event carries it. Excludes the start bar from
+   * Voted Off the Island targeting (design.md section 9) and classifies it as a
+   * `start` bar in the selector context.
+   */
+  readonly startBarKey: string | null;
+  /**
+   * The board-facing key of the game's finish bar (a candidate slug), or null
+   * until a `bars_designated` event carries it. Excludes the finish bar from
+   * every bar-target card and supplies the finish coordinates the Cancel Culture
+   * radius rule needs.
+   */
+  readonly finishBarKey: string | null;
   readonly teams: BoardTeamView[];
   readonly players: BoardPlayerView[];
   /** Notices whose `targetTeamId` is the viewing team; one per targeting event (R7.8). */
@@ -349,6 +364,8 @@ export function initialGameBoardView(gameId: string): GameBoardView {
     gameId,
     lifecycle: "lobby",
     joinCode: null,
+    startBarKey: null,
+    finishBarKey: null,
     teams: [],
     players: [],
     targetedNotices: [],
@@ -407,6 +424,8 @@ export function applyGameBoardEvent(
     switch (event.eventType) {
       case GAME_BOARD_EVENT_TYPES.gameCreated:
         return applyGameCreated(advanced, event.payload);
+      case GAME_BOARD_EVENT_TYPES.barsDesignated:
+        return applyBarsDesignated(advanced, event.payload);
       case GAME_BOARD_EVENT_TYPES.teamCreated:
         return applyTeamFromPayload(advanced, event.payload);
       case GAME_BOARD_EVENT_TYPES.playerJoined:
@@ -511,6 +530,30 @@ export function applyGameBoardEvent(
   ): GameBoardView {
     const joinCode = readString(payload, "joinCode");
     return joinCode === undefined ? view : { ...view, joinCode };
+  }
+
+  /**
+   * Fold `bars_designated`: record the board-facing start/finish bar keys
+   * (candidate slugs) the bars route resolves alongside the raw bar uuids. The
+   * board keys bars by candidate slug, so the raw `startBarId` / `finishBarId`
+   * uuids in the payload are ignored here; only `startBarKey` / `finishBarKey`
+   * feed the eligibility selectors. Each side only changes when its key is
+   * present, so re-designating one side leaves the other untouched.
+   */
+  function applyBarsDesignated(
+    view: GameBoardView,
+    payload: unknown,
+  ): GameBoardView {
+    const startBarKey = readString(payload, "startBarKey");
+    const finishBarKey = readString(payload, "finishBarKey");
+    if (startBarKey === undefined && finishBarKey === undefined) {
+      return view;
+    }
+    return {
+      ...view,
+      startBarKey: startBarKey ?? view.startBarKey,
+      finishBarKey: finishBarKey ?? view.finishBarKey,
+    };
   }
 }
 
