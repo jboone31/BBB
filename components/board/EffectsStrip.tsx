@@ -22,6 +22,10 @@
 import { useEffect, useState } from "react";
 
 import { getCardMetadata } from "@/lib/cards/catalog";
+import {
+  countedFromParams,
+  PATIENT_INVESTOR_THRESHOLD,
+} from "@/lib/cards/claimEffects";
 import { serverNow } from "@/lib/cards/clockOffset";
 import { effectPhase, type EffectRecord } from "@/lib/cards/effects";
 import type { BoardTeamView } from "@/lib/gameboard/events";
@@ -88,6 +92,49 @@ export function selectEffectsStripItems(
   return items;
 }
 
+/** One Patient Investor progress marker: its counter effect and current count. */
+export interface ClaimCounterItem {
+  readonly effectId: string;
+  readonly effect: EffectRecord;
+  /** Distinct bars counted so far (0..threshold). */
+  readonly counted: number;
+  /** The payout threshold (4). */
+  readonly threshold: number;
+}
+
+/**
+ * The Patient Investor progress markers to show: every active (not consumed,
+ * not cancelled) `claim_counter` effect, with its distinct-bar count toward the
+ * payout threshold. These are untimed effects, so they are not in
+ * {@link selectEffectsStripItems}; the strip lists them separately so every team
+ * can watch each counter climb toward {@link PATIENT_INVESTOR_THRESHOLD} (16.2).
+ * Ordered by effect id for a stable render.
+ */
+export function selectClaimCounterItems(
+  effects: readonly EffectRecord[],
+): ClaimCounterItem[] {
+  const items: ClaimCounterItem[] = [];
+  for (const effect of effects) {
+    if (
+      effect.kind !== "claim_counter" ||
+      effect.consumedAt !== null ||
+      effect.cancelledAt !== null
+    ) {
+      continue;
+    }
+    items.push({
+      effectId: effect.effectId,
+      effect,
+      counted: countedFromParams(effect.params ?? {}).length,
+      threshold: PATIENT_INVESTOR_THRESHOLD,
+    });
+  }
+  items.sort((a, b) =>
+    a.effectId < b.effectId ? -1 : a.effectId > b.effectId ? 1 : 0,
+  );
+  return items;
+}
+
 /** Format a remaining duration as `m:ss`, or `h:mm:ss` from one hour up. */
 export function formatCountdown(remainingMs: number): string {
   const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1_000));
@@ -140,10 +187,16 @@ export default function EffectsStrip({
     effects,
     serverNow(deviceNowMs, offsetMs),
   );
-  const hasItems = items.length > 0;
+  // Patient Investor progress markers are untimed, so they live alongside the
+  // timed items (shown to every team).
+  const counterItems = selectClaimCounterItems(effects);
+  const hasTimed = items.length > 0;
+  const hasAnything = hasTimed || counterItems.length > 0;
 
+  // Only the timed items tick every second; a counter marker is static between
+  // claims, so the interval runs whenever there is a timed item.
   useEffect(() => {
-    if (!hasItems) {
+    if (!hasTimed) {
       return;
     }
     const handle = setInterval(
@@ -151,9 +204,9 @@ export default function EffectsStrip({
       EFFECTS_STRIP_TICK_MS,
     );
     return () => clearInterval(handle);
-  }, [hasItems, now]);
+  }, [hasTimed, now]);
 
-  if (!hasItems) {
+  if (!hasAnything) {
     return null;
   }
 
@@ -180,52 +233,98 @@ export default function EffectsStrip({
         id="effects-strip-heading"
         style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700 }}
       >
-        Timed effects
+        Effects
       </h2>
-      <ul
-        style={{
-          margin: 0,
-          padding: 0,
-          listStyle: "none",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.3rem",
-        }}
-      >
-        {items.map((item) => {
-          const subject = subjectLabel(item.effect, teams);
-          const verb = item.phase === "pending" ? "Starts in" : "Ends in";
-          return (
-            <li
-              key={item.effectId}
-              data-effect-id={item.effectId}
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "space-between",
-                gap: "0.25rem 0.75rem",
-                fontSize: "0.85rem",
-                minWidth: 0,
-                overflowWrap: "anywhere",
-              }}
-            >
-              <span style={{ minWidth: 0 }}>
-                <strong>{cardName(item.effect.slug)}</strong>
-                {subject !== null ? ` ${subject}` : null}
-              </span>
-              <span>
-                {`${verb} `}
-                <time
-                  dateTime={new Date(item.targetMs).toISOString()}
-                  style={{ fontVariantNumeric: "tabular-nums" }}
-                >
-                  {formatCountdown(item.targetMs - serverNowMs)}
-                </time>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      {hasTimed ? (
+        <ul
+          style={{
+            margin: 0,
+            padding: 0,
+            listStyle: "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+          }}
+        >
+          {items.map((item) => {
+            const subject = subjectLabel(item.effect, teams);
+            const verb = item.phase === "pending" ? "Starts in" : "Ends in";
+            return (
+              <li
+                key={item.effectId}
+                data-effect-id={item.effectId}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  gap: "0.25rem 0.75rem",
+                  fontSize: "0.85rem",
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <strong>{cardName(item.effect.slug)}</strong>
+                  {subject !== null ? ` ${subject}` : null}
+                </span>
+                <span>
+                  {`${verb} `}
+                  <time
+                    dateTime={new Date(item.targetMs).toISOString()}
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {formatCountdown(item.targetMs - serverNowMs)}
+                  </time>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {counterItems.length > 0 ? (
+        <ul
+          aria-label="Progress markers"
+          style={{
+            margin: 0,
+            padding: 0,
+            listStyle: "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+          }}
+        >
+          {counterItems.map((item) => {
+            const owner =
+              item.effect.ownerTeamId === null
+                ? null
+                : (teams.find((t) => t.id === item.effect.ownerTeamId)?.name ??
+                  item.effect.ownerTeamId);
+            return (
+              <li
+                key={item.effectId}
+                data-counter-id={item.effectId}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  gap: "0.25rem 0.75rem",
+                  fontSize: "0.85rem",
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <strong>{cardName(item.effect.slug)}</strong>
+                  {owner !== null ? ` (${owner})` : null}
+                </span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {`${item.counted}/${item.threshold} bars`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </section>
   );
 }

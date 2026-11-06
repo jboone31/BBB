@@ -17,6 +17,7 @@ import { CANDIDATE_BARS } from "@/lib/map/bars";
 import EffectsStrip, {
   EFFECTS_STRIP_TICK_MS,
   formatCountdown,
+  selectClaimCounterItems,
   selectEffectsStripItems,
 } from "./EffectsStrip";
 
@@ -138,7 +139,7 @@ describe("EffectsStrip", () => {
         now={() => DEVICE_NOW}
       />,
     );
-    const list = screen.getByRole("region", { name: "Timed effects" });
+    const list = screen.getByRole("region", { name: "Effects" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     // With device time used directly these would read 90 s longer.
@@ -175,5 +176,116 @@ describe("EffectsStrip", () => {
       vi.advanceTimersByTime(EFFECTS_STRIP_TICK_MS);
     });
     expect(screen.queryByRole("listitem")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Patient Investor progress markers (untimed claim_counter effects).
+// ---------------------------------------------------------------------------
+
+function counter(overrides: Partial<EffectRecord> = {}): EffectRecord {
+  return effect({
+    effectId: "ctr-1",
+    slug: "patient-investor",
+    kind: "claim_counter",
+    ownerTeamId: "team-a",
+    targetBarKey: null,
+    startsAt: iso(-60_000),
+    endsAt: null, // a counter is untimed
+    params: { counted: [] },
+    ...overrides,
+  });
+}
+
+/** Build a `counted` params list of `n` distinct bars. */
+function counted(n: number): {
+  counted: { claimId: string; barKey: string }[];
+} {
+  return {
+    counted: Array.from({ length: n }, (_, i) => ({
+      claimId: `claim-${i}`,
+      barKey: `bar-${i}`,
+    })),
+  };
+}
+
+describe("selectClaimCounterItems", () => {
+  it("lists active counters with their distinct-bar count and threshold", () => {
+    const items = selectClaimCounterItems([
+      counter({ effectId: "ctr-1", params: counted(2) }),
+      effect({ effectId: "timed", kind: "bar_lock" }), // not a counter
+    ]);
+    expect(items).toEqual([
+      expect.objectContaining({ effectId: "ctr-1", counted: 2, threshold: 4 }),
+    ]);
+  });
+
+  it("drops consumed or cancelled counters", () => {
+    const items = selectClaimCounterItems([
+      counter({
+        effectId: "paid",
+        consumedAt: iso(-1_000),
+        params: counted(4),
+      }),
+      counter({
+        effectId: "gone",
+        cancelledAt: iso(-1_000),
+        params: counted(1),
+      }),
+    ]);
+    expect(items).toEqual([]);
+  });
+});
+
+describe("EffectsStrip — Patient Investor marker", () => {
+  it("shows N/4 progress for an active counter, visible with no timed effect", () => {
+    render(
+      <EffectsStrip
+        effects={[counter({ params: counted(2) })]}
+        offsetMs={OFFSET_MS}
+        teams={TEAMS}
+        now={() => DEVICE_NOW}
+      />,
+    );
+    const markers = screen.getByRole("list", { name: /progress markers/i });
+    const item = within(markers).getByRole("listitem");
+    expect(item.textContent).toContain("Patient Investor");
+    // Owner team name is shown so every team knows whose counter it is.
+    expect(item.textContent).toContain("Team Alpha");
+    expect(item.textContent).toContain("2/4 bars");
+  });
+
+  it("increments the marker as the counted list grows", () => {
+    const { rerender } = render(
+      <EffectsStrip
+        effects={[counter({ params: counted(2) })]}
+        offsetMs={OFFSET_MS}
+        teams={TEAMS}
+        now={() => DEVICE_NOW}
+      />,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain("2/4 bars");
+    rerender(
+      <EffectsStrip
+        effects={[counter({ params: counted(3) })]}
+        offsetMs={OFFSET_MS}
+        teams={TEAMS}
+        now={() => DEVICE_NOW}
+      />,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain("3/4 bars");
+  });
+
+  it("drops the marker once the counter pays out (is consumed)", () => {
+    const { container } = render(
+      <EffectsStrip
+        effects={[counter({ consumedAt: iso(-1_000), params: counted(4) })]}
+        offsetMs={OFFSET_MS}
+        teams={TEAMS}
+        now={() => DEVICE_NOW}
+      />,
+    );
+    // No timed effect and no live counter → the strip renders nothing.
+    expect(container.innerHTML).toBe("");
   });
 });

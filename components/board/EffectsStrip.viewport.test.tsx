@@ -139,7 +139,7 @@ describe("EffectsStrip viewport bands (Requirements 20.7, 24.5)", () => {
       setViewportWidth(width);
       renderStrip();
 
-      const region = screen.getByRole("region", { name: "Timed effects" });
+      const region = screen.getByRole("region", { name: "Effects" });
       const items = within(region).getAllByRole("listitem");
       expect(items).toHaveLength(4);
       // Device time used directly would read 90 s longer on each countdown.
@@ -164,7 +164,7 @@ describe("EffectsStrip viewport bands (Requirements 20.7, 24.5)", () => {
       setViewportWidth(width);
       const { container } = renderStrip();
 
-      const region = screen.getByRole("region", { name: "Timed effects" });
+      const region = screen.getByRole("region", { name: "Effects" });
       expect(region.style.width).toBe("100%");
       expect(region.style.minWidth).toMatch(/^0(px)?$/);
       expect(region.style.boxSizing).toBe("border-box");

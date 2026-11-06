@@ -124,7 +124,7 @@ function parseMs(iso: string | null): number | null {
 }
 
 /** Read a Patient Investor counter's persisted `counted` list from its params. */
-function countedFromParams(
+export function countedFromParams(
   params: Readonly<Record<string, unknown>>,
 ): CountedClaim[] {
   const raw = params.counted;
@@ -149,7 +149,7 @@ function countedFromParams(
 }
 
 /** The number of distinct claims to count before a Patient Investor pays out. */
-const PATIENT_INVESTOR_THRESHOLD = 4;
+export const PATIENT_INVESTOR_THRESHOLD = 4;
 
 // ---------------------------------------------------------------------------
 // Claim side effects.
