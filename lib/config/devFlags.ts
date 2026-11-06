@@ -32,12 +32,12 @@ export const DEV_FLAGS = Object.freeze({
    * When `false` the inject button is not rendered and the inject route refuses
    * the operation even if called directly. When `true` both are enabled.
    *
-   * ⚠️ REMINDER: this is currently `true` for prototype testing on the Vercel
-   * deployment. Flip it back to `false` once you're done exercising card
-   * injection — leaving it on lets anyone with the board open force cards into a
-   * hand, bypassing the normal claim/draw flow.
+   * Shipped value is `false`: the inject button is hidden and the inject route
+   * refuses the operation. Flip to `true` only for a dev build when you need to
+   * exercise card injection — leaving it on lets anyone with the board open
+   * force cards into a hand, bypassing the normal claim/draw flow.
    */
-  DEV_CARD_INJECTION: true,
+  DEV_CARD_INJECTION: false,
 } as const);
 
 /** The name of a committed dev flag. */

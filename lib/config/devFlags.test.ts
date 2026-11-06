@@ -22,12 +22,12 @@ import {
 } from "./devFlags";
 
 describe("devFlags: committed PR-controlled flags (R5.1)", () => {
-  it("has DEV_CARD_INJECTION enabled (prototype testing toggle)", () => {
-    // REMINDER: this flag is intentionally ON for prototype testing on Vercel.
-    // Flip DEV_FLAGS.DEV_CARD_INJECTION back to `false` (and update this
-    // expectation to match) once card-injection testing is done.
-    expect(DEV_FLAGS.DEV_CARD_INJECTION).toBe(true);
-    expect(isDevCardInjectionEnabled()).toBe(true);
+  it("ships with DEV_CARD_INJECTION disabled (prod default is off)", () => {
+    // Shipped default is OFF: the inject button is hidden and the inject route
+    // refuses the operation. Flip DEV_FLAGS.DEV_CARD_INJECTION to `true` (and
+    // this expectation with it) only for a dev build exercising card injection.
+    expect(DEV_FLAGS.DEV_CARD_INJECTION).toBe(false);
+    expect(isDevCardInjectionEnabled()).toBe(false);
   });
 
   it("isDevFlagEnabled reports exactly the committed constant for every flag", () => {
@@ -49,7 +49,7 @@ describe("devFlags: committed PR-controlled flags (R5.1)", () => {
       DEV_FLAGS.DEV_CARD_INJECTION = false;
     }).toThrow(TypeError);
     // The mutation attempt did not take effect: the committed value is unchanged.
-    expect(DEV_FLAGS.DEV_CARD_INJECTION).toBe(true);
+    expect(DEV_FLAGS.DEV_CARD_INJECTION).toBe(false);
   });
 
   it("flipping the underlying value flips the reported value (faithful mapping)", () => {
