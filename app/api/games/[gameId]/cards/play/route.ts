@@ -13,6 +13,8 @@
  *      step 3) at that same `now`, so the loaded snapshot reflects the flipped
  *      announcement flags and every boundary at or before `now` is announced
  *      with its transition events ordered before this mutation's own events;
+ *      then materialize the target bar (`resolveGameBar`) when the card targets
+ *      a bar, so a candidate bar nobody has claimed yet exists in the snapshot;
  *   4. load the single {@link BehaviorState} snapshot (`loadBehaviorState`);
  *   5. plan the play (`planCardPlay`) — pure, returns a {@link PlayPlan} or a
  *      Stable_Error;
@@ -61,6 +63,7 @@ import {
   type PlayRequest,
 } from "@/lib/cards/playPlan";
 import type { StableError } from "@/lib/cards/behaviorState";
+import { resolveGameBar } from "@/lib/map/barResolver";
 
 import {
   applied,
@@ -382,6 +385,18 @@ export async function POST(
       // Pipeline step 3: lazily settle due effect transitions at this `now`,
       // under the lock the caller already holds, before loading state.
       await settleDueTransitions(tx, gameId, nowIso);
+
+      // Pipeline step 3b: materialize the target bar on first touch. A bar-target
+      // card (Happy Hour, Party Crasher, Cancel Culture, Voted Off) may name a
+      // candidate bar nobody has claimed yet, so no `bars` row exists. The claim
+      // route does the same resolve; without it the bar is absent from
+      // `loadBehaviorState`'s snapshot and `planCardPlay` rejects an otherwise
+      // legal play with `invalid_input`. `resolveGameBar` only materializes a
+      // known candidate key, so an unknown key still misses and the planner
+      // rejects it as before.
+      if (targetBarKey !== undefined) {
+        await resolveGameBar(tx, gameId, targetBarKey);
+      }
 
       // Pipeline step 4: the single loaded snapshot, reflecting the settled flags.
       const state = await loadBehaviorState(tx, gameId, nowIso);

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Beltline Bar Brawl web application — Next.js (App Router) + TypeScript, targeting Vercel with a Supabase backend.",
   "engines": {
-    "node": ">=22.0.0 <23"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "next dev",

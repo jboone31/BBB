@@ -102,6 +102,12 @@ class FakeDb {
     { id: BAR_1, name: "Bar One", location: null as string | null },
     { id: FINISH_BAR, name: "Finish Place", location: null as string | null },
   ];
+  /** Candidate bars `resolveGameBar` materialized during this run. */
+  readonly materializedBars: Array<{
+    id: string;
+    name: string;
+    location: string | null;
+  }> = [];
   readonly claims: ClaimRecordRow[] = [];
 
   /** How many transition events the fake settle function reports appending. */
@@ -217,6 +223,18 @@ class FakeDb {
         name: b.name,
         location: b.location,
       }));
+    }
+    // resolveGameBar materializes a candidate bar on first touch: params are
+    // ($1 gameId, $2 name, $3 "lat,lng"). Record the insert and add the row to
+    // the in-memory table so a subsequent loadBehaviorState sees it.
+    if (text.includes("insert into bars")) {
+      this.seq += 1;
+      const id = `bar-materialized-${this.seq}`;
+      const name = String(params[1]);
+      const location = params[2] == null ? null : String(params[2]);
+      this.materializedBars.push({ id, name, location });
+      this.bars.push({ id, name, location });
+      return [{ id, name, location }];
     }
     if (text.includes("from teams")) {
       return [
@@ -922,6 +940,75 @@ describe("POST card/play: lazy settle ordering", () => {
     const playedIdx = db.events.findIndex((e) => e.eventType === "card_played");
     expect(transitionIdx).toBeGreaterThanOrEqual(0);
     expect(playedIdx).toBeGreaterThan(transitionIdx);
+  });
+
+  it("materializes the target bar before loadBehaviorState for a bar-target play", async () => {
+    // Party Crasher on a candidate bar nobody has claimed: no `bars` row exists
+    // yet, so the route must resolve (and materialize) it before the snapshot
+    // load, otherwise the planner would reject an otherwise-legal play.
+    okPlan(
+      emptyPlan({
+        slug: "party-crasher",
+        targetBar: { barKey: "park-tavern", kind: "scoring", coords: null },
+        effects: [
+          effectRecord({
+            effectId: "eff-phantom",
+            slug: "party-crasher",
+            kind: "phantom_share",
+            targetBarKey: "park-tavern",
+            endsAt: null,
+          }),
+        ],
+        reconcileBars: ["park-tavern"],
+      }),
+    );
+
+    const response = await POST(
+      request({
+        cardId: `${TEAM_A}:party-crasher`,
+        targetBarId: "park-tavern",
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    // The candidate bar was materialized: one insert into bars with the
+    // candidate name and coordinates.
+    expect(db.materializedBars).toHaveLength(1);
+    expect(db.materializedBars[0].name).toBe("Park Tavern");
+    expect(db.materializedBars[0].location).toContain(",");
+    // The insert ran before the loadBehaviorState game read (GAME_SQL), so the
+    // snapshot that the planner saw already had the bar.
+    const insertIdx = db.firstSqlIndex("insert into bars");
+    const loadIdx = db.firstSqlIndex("lifecycle, admin_session_id");
+    expect(insertIdx).toBeGreaterThanOrEqual(0);
+    expect(insertIdx).toBeLessThan(loadIdx);
+  });
+
+  it("does not materialize a bar for a self/none-target play", async () => {
+    // Insurance targets neither a team nor a bar, so no bar resolve should run.
+    okPlan(
+      emptyPlan({
+        slug: "insurance",
+        effects: [
+          effectRecord({
+            effectId: "eff-ins",
+            slug: "insurance",
+            kind: "score_protection",
+            targetBarKey: null,
+            endsAt: null,
+          }),
+        ],
+      }),
+    );
+
+    const response = await POST(
+      request({ cardId: `${TEAM_A}:insurance` }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.materializedBars).toHaveLength(0);
   });
 
   it("commits no domain rows and no mutation event on rejection, but allows the settle transition events", async () => {
