@@ -418,7 +418,7 @@ describe("POST /claims — blocked details (19.3)", () => {
     // was blocked, then emptied its hand. The discard/play route now completes
     // the challenge, so the challenge row is `completed` here — and a completed
     // challenge must no longer gate the claim (it goes through).
-    const fake = setup({
+    setup({
       challenges: [
         {
           id: "ch-uioli",

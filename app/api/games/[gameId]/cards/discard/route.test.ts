@@ -135,9 +135,11 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
     expect(settleIdx).toBeLessThan(loadIdx);
   });
 
-  it("rejects a cannot_play discard with conflict while a Fairest offer is pending, writing nothing", async () => {
+  it("rejects an ordinary discard with conflict while a Fairest offer is pending, writing nothing", async () => {
     // Team A has an open UIOLI with a live Fairest offer it still holds, so the
-    // Fairest decision must resolve first (R5.5).
+    // Fairest decision must resolve first (R9.3 / R5.5). The freeze now applies
+    // to any discard — the dedicated "cannot_play" shortcut was removed — so a
+    // plain discard (no reason) is what triggers it.
     freshDb({
       instances: [
         { slug: "moneybags", deckState: "hand", drawPosition: 0 },
@@ -166,10 +168,7 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
       dueTransitions: 1,
     });
 
-    const response = await POST(
-      request({ cardId: CARD, reason: "cannot_play" }),
-      params(),
-    );
+    const response = await POST(request({ cardId: CARD }), params());
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
@@ -183,7 +182,7 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
     expect(db.mutationEvents).toHaveLength(0);
   });
 
-  it("allows a cannot_play discard when no Fairest offer is pending", async () => {
+  it("allows an ordinary discard during an open UIOLI when no Fairest offer is pending", async () => {
     freshDb({
       instances: [{ slug: "moneybags", deckState: "hand", drawPosition: 0 }],
       challenges: [
@@ -198,10 +197,7 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
       ],
     });
 
-    const response = await POST(
-      request({ cardId: CARD, reason: "cannot_play" }),
-      params(),
-    );
+    const response = await POST(request({ cardId: CARD }), params());
 
     expect(response.status).toBe(200);
     expect(db.mutationEvents).toHaveLength(1);

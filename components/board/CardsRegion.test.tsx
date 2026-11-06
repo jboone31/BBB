@@ -295,39 +295,29 @@ describe("CardsRegion — hand full while a draw is pending (R2.4)", () => {
 });
 
 describe("CardsRegion — Use It or Lose It + Fairest (R8.2, R9.3, R9.11)", () => {
-  it("shows a 'Can't play, discard' control per held card during an open UIOLI", () => {
-    const { onDiscardCard } = renderRegion({
-      cards: [card("wired", "hand")],
-      hasOpenUioli: true,
-    });
+  it("shows a single Discard control per held card and no 'Can't play, discard'", () => {
+    // The dedicated "Can't play, discard" control was removed as redundant: the
+    // ordinary Discard button already discards a held card, satisfying the UIOLI
+    // "play or discard every card" rule. The server owns the Fairest freeze.
+    const { onDiscardCard } = renderRegion({ cards: [card("wired", "hand")] });
     const hand = screen.getByRole("list", { name: /your hand/i });
     const name = getCardMetadata("wired").name;
-    const button = within(hand).getByRole("button", {
-      name: new RegExp(`can't play ${name}, discard`, "i"),
+
+    // No "Can't play, discard" control exists any more.
+    expect(
+      screen.queryByRole("button", { name: /can't play .*discard/i }),
+    ).toBeNull();
+
+    // Exactly one Discard control for the card, and it reports a plain discard
+    // (no reason argument).
+    const discards = within(hand).getAllByRole("button", {
+      name: new RegExp(`discard ${name}`, "i"),
     });
-    fireEvent.click(button);
-    // The discard intent carries the "cannot_play" reason (R8.2).
+    expect(discards).toHaveLength(1);
+    fireEvent.click(discards[0]);
     expect(onDiscardCard).toHaveBeenCalledTimes(1);
     expect(onDiscardCard.mock.calls[0][0].cardId).toBe(`${TEAM}:wired`);
-    expect(onDiscardCard.mock.calls[0][1]).toBe("cannot_play");
-  });
-
-  it("hides the 'Can't play, discard' control while a Fairest prompt is pending (R9.3)", () => {
-    renderRegion({
-      cards: [card("wired", "hand")],
-      hasOpenUioli: true,
-      fairestPromptPending: true,
-    });
-    expect(
-      screen.queryByRole("button", { name: /can't play .*discard/i }),
-    ).toBeNull();
-  });
-
-  it("does not show the 'Can't play, discard' control without an open UIOLI", () => {
-    renderRegion({ cards: [card("wired", "hand")] });
-    expect(
-      screen.queryByRole("button", { name: /can't play .*discard/i }),
-    ).toBeNull();
+    expect(onDiscardCard.mock.calls[0][1]).toBeUndefined();
   });
 
   it("renders a held Fairest card with no Play button and the challenge-prompt note (R9.11)", () => {

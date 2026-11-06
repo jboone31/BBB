@@ -84,9 +84,7 @@ import CardPlayPanel, {
   type CardPlayServerError,
   type PlayTargets,
 } from "@/components/board/CardPlayPanel";
-import CardsRegion, {
-  type DiscardReason,
-} from "@/components/board/CardsRegion";
+import CardsRegion from "@/components/board/CardsRegion";
 import MapRegion, {
   type ClaimAction,
   type ClaimAttestation,
@@ -115,7 +113,6 @@ import {
   selectClaimBlocksForBar,
   selectMapOverlays,
   selectHostItems,
-  selectOpenChallengesFor,
 } from "@/lib/gameboard/cardBehavior";
 import {
   buildCardTargetContext,
@@ -983,24 +980,10 @@ export default function BoardPage(): React.JSX.Element {
     [isAdmin, isLive, serverNowMs, view.cardBehavior],
   );
 
-  // Use It or Lose It hand state for the Cards_Region (8.2, 9.3).
-  const uioliState = useMemo(() => {
-    if (myTeamId === null) {
-      return { hasOpenUioli: false, fairestPromptPending: false };
-    }
-    const open = selectOpenChallengesFor(view.cardBehavior, myTeamId).filter(
-      (challenge) => challenge.slug === "use-it-or-lose-it",
-    );
-    const openIds = new Set(open.map((challenge) => challenge.challengeId));
-    const fairestPromptPending = Object.values(view.cardBehavior.offers).some(
-      (offer) =>
-        offer.status === "pending" &&
-        offer.holderTeamId === myTeamId &&
-        offer.challengeId !== null &&
-        openIds.has(offer.challengeId),
-    );
-    return { hasOpenUioli: open.length > 0, fairestPromptPending };
-  }, [myTeamId, view.cardBehavior]);
+  // The Use It or Lose It "play or discard every card" rule (8.2) is satisfied
+  // by the Cards_Region's ordinary Discard button; the server freezes a discard
+  // while a Fairest prompt is pending for the challenge (9.3,
+  // checkCannotPlayDiscard), so no client-side UIOLI prop is needed here.
 
   // Boundary_Toasts (3.7, 20.3a, 20.10-20.12): the local toast timer advances
   // `serverNowMs` (offset-corrected), with the folded announced flags as the
@@ -1172,11 +1155,7 @@ export default function BoardPage(): React.JSX.Element {
   // event back into view.cards, so the projection updates without local hand
   // state. A failed update surfaces an explicit error and never looks applied.
   const handleCardMutation = useCallback(
-    async (
-      action: "keep" | "discard",
-      cardId: string,
-      reason?: DiscardReason,
-    ): Promise<void> => {
+    async (action: "keep" | "discard", cardId: string): Promise<void> => {
       if (
         sessionId === null ||
         cardMutationPending !== null ||
@@ -1193,9 +1172,7 @@ export default function BoardPage(): React.JSX.Element {
             "content-type": "application/json",
             [SESSION_HEADER]: sessionId,
           },
-          body: JSON.stringify(
-            reason === undefined ? { cardId } : { cardId, reason },
-          ),
+          body: JSON.stringify({ cardId }),
         });
         const body = (await response.json()) as
           { applied: true; seq?: number } | { applied: false; error: string };
@@ -1959,8 +1936,8 @@ export default function BoardPage(): React.JSX.Element {
             onKeepCard={(card) => {
               void handleCardMutation("keep", card.cardId);
             }}
-            onDiscardCard={(card, reason) => {
-              void handleCardMutation("discard", card.cardId, reason);
+            onDiscardCard={(card) => {
+              void handleCardMutation("discard", card.cardId);
             }}
             onForfeitDraw={() => {
               void handleForfeitDraw();
@@ -1975,8 +1952,6 @@ export default function BoardPage(): React.JSX.Element {
             }}
             readOnly={readOnly}
             pendingCardId={cardMutationPending}
-            hasOpenUioli={uioliState.hasOpenUioli}
-            fairestPromptPending={uioliState.fairestPromptPending}
           />
           {cardMutationError !== null ? (
             <p

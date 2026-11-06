@@ -34,16 +34,15 @@
  * every interactive control is at least 44×44 CSS pixels.
  *
  * Use It or Lose It + Fairest (card-behavior R8.2, R9.3, R9.11). When the
- * viewing team has an OPEN Use-It-or-Lose-It challenge (`hasOpenUioli`), each
- * held card gains a "Can't play, discard" honor-system control that discards the
- * card through the normal discard callback with the reason `"cannot_play"`
- * (R8.2). That control is HIDDEN while a Fairest prompt is pending for the same
- * challenge (`fairestPromptPending`), because the Fairest flow owns the decision
- * then (R9.3). A held Fairest of Them All card is never played from the hand: it
- * shows no Play button and, in its place, the note "Played from a challenge
- * prompt" (R9.11). As with everything else here, the component enforces nothing;
- * it receives these two facts as props from the folded view and reports the
- * discard intent back to the page.
+ * viewing team has an OPEN Use-It-or-Lose-It challenge it must play or discard
+ * every held card (R8.2). No dedicated "Can't play, discard" control is shown:
+ * the ordinary Discard button on each held card already does exactly that, and
+ * the server freezes the discard while a Fairest prompt is pending for the
+ * challenge (`checkCannotPlayDiscard`, R9.3) — so the honor-system freeze holds
+ * without a second button. A held Fairest of Them All card is never played from
+ * the hand: it shows no Play button and, in its place, the note "Played from a
+ * challenge prompt" (R9.11). As with everything else here, the component
+ * enforces nothing; it reports the discard intent back to the page.
  */
 
 import { useState } from "react";
@@ -65,13 +64,6 @@ export const MAX_HAND_SIZE = 2;
 /** The catalog slug for Fairest of Them All (card-behavior R9.11). */
 const FAIREST_SLUG: CardSlug = "fairest-of-them-all";
 
-/**
- * The discard reason recorded for the Use-It-or-Lose-It "Can't play, discard"
- * action (card-behavior R8.2). Passed through `onDiscardCard` so the page can
- * forward it as `{ reason: "cannot_play" }` to `/cards/discard`.
- */
-export type DiscardReason = "cannot_play";
-
 export interface CardsRegionProps {
   /**
    * The current team's cards from the folded projection (R2.1). The component
@@ -87,13 +79,12 @@ export interface CardsRegionProps {
   /** Keep a specific pending card (the server discards the rest of the draw). */
   readonly onKeepCard: (card: BoardCardView) => void;
   /**
-   * Discard a specific held or pending card. The optional `reason` is set to
-   * `"cannot_play"` only when the player uses the Use-It-or-Lose-It "Can't play,
-   * discard" action (card-behavior R8.2); the page forwards it to
-   * `/cards/discard` as `{ reason: "cannot_play" }`. An ordinary hand/pending
-   * discard passes no reason.
+   * Discard a specific held or pending card. While the team has an open Use It
+   * or Lose It challenge, the ordinary Discard button satisfies the "play or
+   * discard every card" rule (R8.2); the server freezes it when a Fairest prompt
+   * is pending for that challenge (R9.3).
    */
-  readonly onDiscardCard: (card: BoardCardView, reason?: DiscardReason) => void;
+  readonly onDiscardCard: (card: BoardCardView) => void;
   /** Play a specific held card (targeting flow is owned by the page). */
   readonly onPlayCard: (card: BoardCardView) => void;
   /**
@@ -106,21 +97,6 @@ export interface CardsRegionProps {
   readonly readOnly?: boolean;
   /** The card id currently awaiting a server response, if any (disables it). */
   readonly pendingCardId?: string | null;
-  /**
-   * `true` when the viewing team has an OPEN Use-It-or-Lose-It challenge that
-   * requires it to play or discard every card in hand (card-behavior R8.2). When
-   * set, each held card shows a "Can't play, discard" control. This fact comes
-   * from the folded view, not from this component.
-   */
-  readonly hasOpenUioli?: boolean;
-  /**
-   * `true` when a Fairest prompt is pending for that same Use-It-or-Lose-It
-   * challenge — i.e. the team holds Fairest of Them All and an offer is pending
-   * (card-behavior R9.3). While set, the "Can't play, discard" control is hidden
-   * because the Fairest flow owns the decision. Also sourced from the folded
-   * view.
-   */
-  readonly fairestPromptPending?: boolean;
 }
 
 /** The human-facing catalog name for a card slug, falling back to the slug. */
@@ -150,8 +126,6 @@ export default function CardsRegion({
   onForfeitDraw,
   readOnly = false,
   pendingCardId = null,
-  hasOpenUioli = false,
-  fairestPromptPending = false,
 }: CardsRegionProps): React.JSX.Element {
   const pending = cards.filter((card) => card.state === "pending");
   const hand = cards.filter((card) => card.state === "hand");
@@ -162,12 +136,6 @@ export default function CardsRegion({
   // frees a slot or forfeits (R2.4): the prompt to play/discard/forfeit comes
   // BEFORE the two newly drawn cards are revealed.
   const revealPending = hasPendingDraw && !handFull;
-  // The Use-It-or-Lose-It "Can't play, discard" control shows on each held card
-  // only while the team has an open UIOLI challenge AND no Fairest prompt is
-  // pending for it; the Fairest flow owns the decision while pending (R8.2,
-  // R9.3).
-  const showCannotPlayDiscard = hasOpenUioli && !fairestPromptPending;
-
   // The card whose detail panel is open (R2.2) — a held card or a revealed
   // pending card. Toggled by selecting a card's name; at most one at a time.
   const [inspectedCardId, setInspectedCardId] = useState<string | null>(null);
@@ -535,21 +503,13 @@ export default function CardsRegion({
                         </span>
                       </div>
 
-                      {/* Use It or Lose It honor-system control (R8.2): while
-                          the team has an open UIOLI challenge, each held card can
-                          be discarded with the reason "cannot_play". Hidden while
-                          a Fairest prompt is pending for that challenge (R9.3). */}
-                      {showCannotPlayDiscard ? (
-                        <button
-                          type="button"
-                          aria-label={`Can't play ${name}, discard`}
-                          disabled={readOnly || busy}
-                          onClick={() => onDiscardCard(card, "cannot_play")}
-                          style={cannotPlayDiscardButtonStyle(readOnly || busy)}
-                        >
-                          Can&apos;t play, discard
-                        </button>
-                      ) : null}
+                      {/* Use It or Lose It honor-system flow (R8.2): while the
+                          team has an open UIOLI challenge it must play or discard
+                          every held card. No separate "Can't play, discard"
+                          control is needed — the ordinary Discard button above
+                          already discards the card, and the server freezes that
+                          discard while a Fairest prompt is pending for the
+                          challenge (checkCannotPlayDiscard, R9.3). */}
 
                       {/* Card detail panel: real catalog effect + playing
                           requirement text (R2.2). */}
@@ -667,24 +627,6 @@ function discardButtonStyle(disabled: boolean): React.CSSProperties {
     border: "1px solid #888",
     background: disabled ? "#f0f0f0" : "#ffffff",
     color: "#1a1a1a",
-    cursor: disabled ? "not-allowed" : "pointer",
-  };
-}
-
-function cannotPlayDiscardButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    alignSelf: "flex-start",
-    minHeight: TOUCH_TARGET,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0.6rem 0.9rem",
-    fontSize: "0.9rem",
-    fontWeight: 600,
-    borderRadius: "0.5rem",
-    border: "1px solid #7a1a1a",
-    background: disabled ? "#f0e0e0" : "#fff0f0",
-    color: "#7a1a1a",
     cursor: disabled ? "not-allowed" : "pointer",
   };
 }

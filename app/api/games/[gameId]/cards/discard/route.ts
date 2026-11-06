@@ -7,14 +7,17 @@
  * hand slot — R2.4) or a card still pending from a draw (which also resolves the
  * rest of that draw into the hand).
  *
- * The body may carry an optional `reason: "cannot_play"` — the "Can't play,
- * discard" shortcut a team uses when a held card cannot meet its playing
- * requirements. While that team's open Use It or Lose It challenge has a live
- * Fairest offer pending, the Fairest decision must resolve first, so
- * {@link checkCannotPlayDiscard} rejects the shortcut with `conflict` and nothing
- * is written (R5.5). The guard runs on the loaded snapshot before the deck
- * transition, so a rejection commits no domain rows or mutation event (the
- * step-3 transition events still commit).
+ * Fairest freeze (R9.3 / R5.5): while the team's open Use It or Lose It
+ * challenge has a live Fairest offer pending, the Fairest decision must resolve
+ * first, so {@link checkCannotPlayDiscard} rejects the discard with `conflict`
+ * and nothing is written. This previously gated only a dedicated "Can't play,
+ * discard" control; that control was removed (the Cards_Region's ordinary
+ * Discard button already satisfies the UIOLI "play or discard every card" rule),
+ * so the guard now runs for every discard. It is a no-op unless such a
+ * pending-offer freeze is active, so an ordinary discard is unaffected. The
+ * guard runs on the loaded snapshot before the deck transition, so a rejection
+ * commits no domain rows or mutation event (the step-3 transition events still
+ * commit).
  *
  * The whole thing is one transaction: the shared pipeline preamble
  * ({@link loadCardMutationContext}: authorize + lock, server `now`, lazy settle,
@@ -58,14 +61,10 @@ import { deckRejectionReason, loadCardMutationContext } from "../_shared";
 export const runtime = "nodejs";
 
 interface DiscardBody {
+  // (A legacy `reason` field is ignored: the Fairest freeze now applies to every
+  // discard, so no caller needs to flag a "can't play" discard specially.)
   /** The held or pending card id to discard (engine id `${teamId}:${slug}`). */
   readonly cardId?: unknown;
-  /**
-   * Optional discard reason. `"cannot_play"` is the "Can't play, discard"
-   * shortcut, guarded by {@link checkCannotPlayDiscard} while a Fairest decision
-   * is pending (R5.5). Any other / absent value is an ordinary discard.
-   */
-  readonly reason?: unknown;
 }
 
 type DiscardOutcome =
@@ -97,7 +96,6 @@ export async function POST(
   if (!cardId) {
     return notApplied("invalid_card");
   }
-  const cannotPlay = body.reason === "cannot_play";
 
   try {
     const outcome = await withTransaction<DiscardOutcome>(async (tx) => {
@@ -107,14 +105,18 @@ export async function POST(
       }
       const { teamId, nowIso, state } = ctx;
 
-      // "Can't play, discard" shortcut: reject while a Fairest decision for the
-      // team's open UIOLI challenge is still pending (R5.5). Runs before any
-      // write, so a rejection leaves no domain rows or mutation event.
-      if (cannotPlay) {
-        const guard = checkCannotPlayDiscard(state, teamId);
-        if (!guard.ok) {
-          return { ok: false, reason: guard.error };
-        }
+      // Fairest freeze (R9.3 / R5.5): while the team's open Use It or Lose It
+      // challenge has a live Fairest offer, the Fairest decision must resolve
+      // first, so a discard that would otherwise satisfy UIOLI is rejected with
+      // `conflict`. This used to gate only the dedicated "Can't play, discard"
+      // control; that control was removed (the ordinary Discard button covers
+      // it), so the guard now applies to every discard. `checkCannotPlayDiscard`
+      // is a no-op unless such a pending-offer freeze is active, so an ordinary
+      // discard is unaffected. Runs before any write, so a rejection leaves no
+      // domain rows or mutation event.
+      const guard = checkCannotPlayDiscard(state, teamId);
+      if (!guard.ok) {
+        return { ok: false, reason: guard.error };
       }
 
       const { state: before, seeded } = await loadDeckStateWithOrigin(tx, {
