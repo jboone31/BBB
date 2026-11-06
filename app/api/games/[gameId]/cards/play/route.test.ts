@@ -123,6 +123,10 @@ class FakeDb {
   readonly ledgerRows: Record<string, unknown>[] = [];
   readonly revokedClaimIds: string[] = [];
   readonly releasedEffectIds: string[] = [];
+  /** UIOLI challenge ids the inventory follow-up completed in place. */
+  readonly completedChallengeIds: string[] = [];
+  /** Fairest offer ids the inventory follow-up voided in place. */
+  readonly voidedOfferIds: string[] = [];
   readonly events: AppendedEvent[] = [];
 
   /** Every SQL statement the route issued, lower-cased, in order. */
@@ -289,6 +293,31 @@ class FakeDb {
       });
       return [];
     }
+    // applyInventoryFollowUp: complete an open UIOLI challenge in place. params:
+    // $1 challengeId, $2 gameId. Flips the staged row's status to 'completed'.
+    if (
+      text.includes("update card_challenges") &&
+      text.includes("status = 'completed'")
+    ) {
+      const id = String(params[0]);
+      const row = this.challengeRows.get(id);
+      if (row !== undefined && row.status === "open") {
+        this.challengeRows.set(id, { ...row, status: "completed" });
+        this.completedChallengeIds.push(id);
+      }
+      return [];
+    }
+    // applyInventoryFollowUp: void a pending Fairest offer in place. params: $1
+    // offerId, $2 gameId.
+    if (text.includes("update fairest_offers") && text.includes("'void'")) {
+      const id = String(params[0]);
+      const row = this.offerRows.get(id);
+      if (row !== undefined && row.status === "pending") {
+        this.offerRows.set(id, { ...row, status: "void" });
+        this.voidedOfferIds.push(id);
+      }
+      return [];
+    }
     if (text.includes("insert into fairest_offers")) {
       const id = String(params[0]);
       this.offerRows.set(id, {
@@ -399,8 +428,31 @@ vi.mock("@/lib/cards/persistence", async () => {
     ...actual,
     applyDeckRowsOnly: vi.fn(async () =>
       deckTransitionOk
-        ? { ok: true, state: {}, records: [] }
-        : { ok: false, reason: "card_not_in_hand", state: {} },
+        ? {
+            ok: true,
+            // A valid (empty) post-play deck state so the route's
+            // settleInventoryChange can read `.cards` (the play emptied the
+            // hand). A test overrides this to stage an open UIOLI completion.
+            state: {
+              teamId: TEAM_A,
+              cards: [],
+              drawnBarIds: [],
+              pendingBarId: null,
+              pendingMode: "choose_one",
+            },
+            records: [],
+          }
+        : {
+            ok: false,
+            reason: "card_not_in_hand",
+            state: {
+              teamId: TEAM_A,
+              cards: [],
+              drawnBarIds: [],
+              pendingBarId: null,
+              pendingMode: "choose_one",
+            },
+          },
     ),
   };
 });
@@ -983,6 +1035,42 @@ describe("POST card/play: lazy settle ordering", () => {
     const loadIdx = db.firstSqlIndex("lifecycle, admin_session_id");
     expect(insertIdx).toBeGreaterThanOrEqual(0);
     expect(insertIdx).toBeLessThan(loadIdx);
+  });
+
+  it("completes an open UIOLI when playing the last card empties the hand", async () => {
+    // The caster (team A) has an open Use It or Lose It; playing its last held
+    // card empties the hand, which must complete the challenge in the same
+    // transaction (R8.5) — otherwise the claim gate keeps blocking it.
+    db.challengeRows.set("chal-uioli", {
+      id: "chal-uioli",
+      slug: "use-it-or-lose-it",
+      source_play_id: "play-prior",
+      caster_team_id: TEAM_B,
+      target_team_id: TEAM_A,
+      params: { kind: "none" },
+      status: "open",
+      created_at: "2024-01-01T11:00:00.000Z",
+    });
+    // The planner returns a plain self/none play; the route derives the UIOLI
+    // completion from the emptied hand (applyDeckRowsOnly is mocked to an empty
+    // post-play deck by default).
+    okPlan(
+      emptyPlan({ slug: "go-piss-girl", challenges: [challengeRecord()] }),
+    );
+
+    const response = await POST(
+      request({ cardId: `${TEAM_A}:go-piss-girl`, targetTeamId: TEAM_B }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    // The challenge row was durably completed ...
+    expect(db.completedChallengeIds).toEqual(["chal-uioli"]);
+    expect(db.challengeRows.get("chal-uioli")?.status).toBe("completed");
+    // ... and the completion id rides on the single card_played event so the
+    // board fold unblocks the team too.
+    const played = db.events.find((e) => e.eventType === "card_played");
+    expect(played?.payload.completeChallenges).toEqual(["chal-uioli"]);
   });
 
   it("does not materialize a bar for a self/none-target play", async () => {

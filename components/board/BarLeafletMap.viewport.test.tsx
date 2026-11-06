@@ -195,3 +195,52 @@ describe("BarLeafletMap claim-blocked messaging viewport bands (Requirement 24.5
     });
   });
 });
+
+describe("BarLeafletMap — a resolved block no longer shows", () => {
+  // Once a Use It or Lose It challenge completes (the team's hand emptied), the
+  // board pre-check returns no blocks for the bar and there is no matching
+  // `blocked` mutationError. The bar's popup must then carry no claim-blocked
+  // notice, so a stale block from an earlier attempt does not linger.
+  it("renders no claim-blocked notice when blocks clear and no blocked error matches", () => {
+    render(
+      <BarLeafletMap
+        claims={{}}
+        teams={TEAMS}
+        ownTeamId="team-a"
+        onMutate={vi.fn()}
+        // No blocks for any bar (the challenge completed) ...
+        claimBlocksByBar={{}}
+        // ... and an unrelated non-blocked error for a different bar.
+        mutationError={{
+          barId: CANDIDATE_BARS[1].id,
+          message: "not delivered",
+        }}
+      />,
+    );
+    expect(screen.queryByText(CLAIM_BLOCKED_HEADLINE)).toBeNull();
+  });
+
+  it("does not resurrect a block from a stale blocked error on a different bar", () => {
+    render(
+      <BarLeafletMap
+        claims={{}}
+        teams={TEAMS}
+        ownTeamId="team-a"
+        onMutate={vi.fn()}
+        claimBlocksByBar={{}}
+        // A blocked error, but for a DIFFERENT bar than the one we inspect; the
+        // blocked notice is scoped to the erroring bar only.
+        mutationError={{
+          barId: CANDIDATE_BARS[1].id,
+          message: "claim blocked",
+        }}
+      />,
+    );
+    // The first bar (no error, no blocks) shows no notice.
+    const firstName = screen.getByText(CANDIDATE_BARS[0].name, {
+      selector: "strong",
+    });
+    const firstPopup = firstName.parentElement as HTMLElement;
+    expect(within(firstPopup).queryByText(CLAIM_BLOCKED_HEADLINE)).toBeNull();
+  });
+});

@@ -33,6 +33,7 @@
 import { appendEvent, type QueryRunner } from "@/lib/events";
 import { GAME_BOARD_EVENT_TYPES } from "@/lib/gameboard/events";
 
+import { applyInventoryFollowUp } from "./behaviorStore";
 import type { InventoryFollowUp } from "./behaviorState";
 import { CARD_SLUGS, type CardSlug } from "./catalog";
 import {
@@ -475,6 +476,12 @@ export async function persistDeckTransition(
     barId,
     seeded,
   });
+
+  // Durably apply the follow-up (UIOLI completion + Fairest offer voids) so the
+  // card_challenges / fairest_offers rows reflect the settle, not just the event
+  // payload. Without this the challenge row stays `open` and the claim gate
+  // keeps blocking claims after the hand empties (Requirements 8.5, 9.12).
+  await applyInventoryFollowUp(tx, gameId, inventoryFollowUp);
 
   // Only ride a follow-up on the event when something actually settled, so an
   // ordinary transition's payload stays unchanged (keeps existing folds/tests

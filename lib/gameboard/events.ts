@@ -747,6 +747,17 @@ function readRecord(payload: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+/** Read a string-array field from an unknown payload (empty when absent). */
+function readStringArray(payload: unknown, key: string): string[] {
+  if (payload === null || typeof payload !== "object") {
+    return [];
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
 function cardFromRecord(
   record: Record<string, unknown>,
   fallbackState: BoardCardState,
@@ -1106,6 +1117,13 @@ function applyRecordSections(
     }
   }
 
+  // Fold the inventory follow-up (design.md sections 7 & 15): a UIOLI challenge
+  // the team's emptied hand completed, and a Fairest offer it voided. These ride
+  // on the inventory / play event as id arrays, not full records, so flip the
+  // already-folded challenge / offer status here. Without this the board's claim
+  // pre-check keeps gating the team on a challenge the server already completed.
+  cardBehavior = applyInventoryFollowUpFold(cardBehavior, event.payload);
+
   let next: GameBoardView =
     cardBehavior === view.cardBehavior ? view : { ...view, cardBehavior };
 
@@ -1118,6 +1136,45 @@ function applyRecordSections(
     next = applyClaimRemoved(next, removed);
   }
 
+  return next;
+}
+
+/**
+ * Fold a `completeChallenges` / `voidOffers` inventory follow-up (id arrays) by
+ * flipping the status of each already-folded challenge / offer. A completed
+ * UIOLI challenge (`status: "completed"`) no longer gates claims in the board
+ * pre-check; a voided Fairest offer (`status: "void"`) no longer prompts. An id
+ * that names no folded record is ignored (the record may arrive later; the next
+ * fold of this same event re-applies the flip idempotently).
+ */
+function applyInventoryFollowUpFold(
+  view: CardBehaviorView,
+  payload: unknown,
+): CardBehaviorView {
+  let next = view;
+  for (const challengeId of readStringArray(payload, "completeChallenges")) {
+    const challenge = next.challenges[challengeId];
+    if (challenge === undefined || challenge.status === "completed") {
+      continue;
+    }
+    next = {
+      ...next,
+      challenges: {
+        ...next.challenges,
+        [challengeId]: { ...challenge, status: "completed" },
+      },
+    };
+  }
+  for (const offerId of readStringArray(payload, "voidOffers")) {
+    const offer = next.offers[offerId];
+    if (offer === undefined || offer.status === "void") {
+      continue;
+    }
+    next = {
+      ...next,
+      offers: { ...next.offers, [offerId]: { ...offer, status: "void" } },
+    };
+  }
   return next;
 }
 

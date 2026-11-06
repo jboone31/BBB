@@ -55,8 +55,11 @@ import {
   writeOffers,
   writeEffects,
   reconcileBarsInTx,
+  applyInventoryFollowUp,
   type BehaviorState,
 } from "@/lib/cards/behaviorStore";
+import { settleInventoryChange } from "@/lib/cards/challenges";
+import type { InventoryFollowUp } from "@/lib/cards/behaviorState";
 import {
   planCardPlay,
   type PlayPlan,
@@ -234,6 +237,22 @@ async function writePlanAndAppend(
     return { ok: false, reason: "conflict" };
   }
 
+  // 2b. Inventory follow-up from the play's hand change: playing the last held
+  //     card empties the hand, which must complete any open Use It or Lose It
+  //     challenge targeting the caster (R8.5) and void a pending Fairest offer
+  //     the caster no longer backs (R9.12). The planner's own follow-up is
+  //     empty for a play (emptyPlan), so this is where a play-driven completion
+  //     is derived. It is applied durably AND embedded on the event below so the
+  //     server rows and the board fold agree. The `now` arg is unused by the
+  //     settle, so the empty string is a harmless placeholder.
+  const followUp: InventoryFollowUp = settleInventoryChange(
+    state,
+    casterTeamId,
+    played.state,
+    "",
+  );
+  await applyInventoryFollowUp(tx, gameId, followUp);
+
   // 3. Challenges, Fairest offers, effects.
   await writeChallenges(tx, gameId, plan.challenges);
   await writeOffers(tx, gameId, plan.offers);
@@ -289,7 +308,7 @@ async function writePlanAndAppend(
       castingTeamId: casterTeamId,
       teamId: casterTeamId,
       cards: played.records,
-      ...followUpPayload(plan.inventoryFollowUp),
+      ...followUpPayload(followUp),
       slug: plan.slug,
       targetTeamId: req.targetTeamId ?? null,
       targetBarKey: plan.targetBar?.barKey ?? null,

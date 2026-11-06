@@ -537,6 +537,38 @@ export class FakeMutationDb {
       return [];
     }
 
+    // --- applyInventoryFollowUp: complete an open UIOLI challenge. ----------
+    // `update card_challenges set status = 'completed', ... where id = $1 ...
+    //  and status = 'open'`. params: $1 challengeId, $2 gameId.
+    if (
+      sql.includes("update card_challenges") &&
+      sql.includes("status = 'completed'")
+    ) {
+      this.challengeUpserts.push({
+        id: String(params[0]),
+        status: "completed",
+        failureEffectId: null,
+      });
+      return [];
+    }
+    // --- applyInventoryFollowUp: void a pending Fairest offer. --------------
+    // `update fairest_offers set status = 'void', ... where id = $1 ... and
+    //  status = 'pending'`. params: $1 offerId, $2 gameId.
+    if (
+      sql.includes("update fairest_offers") &&
+      sql.includes("status = 'void'")
+    ) {
+      this.offerUpserts.push({
+        id: String(params[0]),
+        slug: "fairest-of-them-all",
+        holderTeamId: "",
+        status: "void",
+        mirroredChallengeId: null,
+        mirroredEffectId: null,
+      });
+      return [];
+    }
+
     // --- writeChallenges: challenge upsert (challenge-resolution route). ----
     // params: id, gameId, sourcePlayId, slug, caster, target, params,
     //   mirroredFromChallenge, mirroredFromPlay, status(9), createdAt,

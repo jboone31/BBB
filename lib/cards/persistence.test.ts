@@ -88,6 +88,10 @@ class FakeDb {
   readonly decks = new Map<string, DeckRow>(); // `${game}:${team}` -> row
   readonly draws: DrawRow[] = [];
   readonly events: AppendedEvent[] = [];
+  /** Challenge ids the inventory follow-up completed in place. */
+  readonly completedChallengeIds: string[] = [];
+  /** Offer ids the inventory follow-up voided in place. */
+  readonly voidedOfferIds: string[] = [];
   private seq = 0;
   private drawClock = 0;
 
@@ -238,6 +242,19 @@ class FakeDb {
           drawn_at: this.drawClock++,
         });
       }
+      return [];
+    }
+    // applyInventoryFollowUp: complete an open UIOLI challenge / void a pending
+    // offer in place. params: $1 recordId, $2 gameId.
+    if (
+      sql.includes("update card_challenges") &&
+      sql.includes("status = 'completed'")
+    ) {
+      this.completedChallengeIds.push(String(params[0]));
+      return [];
+    }
+    if (sql.includes("update fairest_offers") && sql.includes("'void'")) {
+      this.voidedOfferIds.push(String(params[0]));
       return [];
     }
     if (sql.includes("insert into game_events")) {
@@ -621,6 +638,12 @@ describe("deck persistence: inventory follow-up merge (R8.3, R8.5, R9.12)", () =
     };
     expect(payload.completeChallenges).toEqual(["chal-1", "chal-2"]);
     expect(payload.voidOffers).toEqual(["offer-1"]);
+
+    // The follow-up is also applied durably (not just carried on the event), so
+    // the card_challenges / fairest_offers rows reflect the settle and the claim
+    // gate stops blocking the team.
+    expect(db.completedChallengeIds).toEqual(["chal-1", "chal-2"]);
+    expect(db.voidedOfferIds).toEqual(["offer-1"]);
   });
 
   it("omits empty follow-up lists so an ordinary event payload is unchanged", async () => {

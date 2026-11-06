@@ -413,6 +413,29 @@ describe("POST /claims — blocked details (19.3)", () => {
     expect(domainWrites(fake)).toEqual([]);
   });
 
+  it("does not block a claim once a Use It or Lose It challenge is completed (QA: hand emptied)", async () => {
+    // The QA scenario: a team with an OPEN Use It or Lose It tried to claim and
+    // was blocked, then emptied its hand. The discard/play route now completes
+    // the challenge, so the challenge row is `completed` here — and a completed
+    // challenge must no longer gate the claim (it goes through).
+    const fake = setup({
+      challenges: [
+        {
+          id: "ch-uioli",
+          slug: "use-it-or-lose-it",
+          casterTeamId: TEAM_B,
+          targetTeamId: TEAM_A,
+          status: "completed",
+        },
+      ],
+    });
+
+    const response = await claim(BARS.a.id);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ applied: true });
+  });
+
   it("stops enforcing a timed block once its end passes at server time, with no expiry event yet (20.3c)", async () => {
     const fake = setup({
       dueTransitions: 0,

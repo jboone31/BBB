@@ -56,6 +56,7 @@ import type {
   AwardRecord,
   ClaimRow,
   PlayRow,
+  InventoryFollowUp,
 } from "./behaviorState";
 
 // Re-export the behavior-state vocabulary so callers have a single import for
@@ -685,6 +686,58 @@ export async function writeOffers(
       r.mirroredChallengeId,
       r.mirroredEffectId,
     ]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Write: inventory follow-up (UIOLI completion + Fairest offer voids).
+// ---------------------------------------------------------------------------
+
+/**
+ * Complete a Use It or Lose It challenge as `resolvedByKind: "system"`. The
+ * update is scoped to an `open` row so a re-run (or a race that already resolved
+ * it another way) is a no-op, keeping the whole transition idempotent.
+ * Positional parameters: $1 challengeId, $2 gameId.
+ */
+const COMPLETE_UIOLI_CHALLENGE_SQL = `
+update card_challenges
+set status = 'completed', resolved_at = now(), resolved_by_kind = 'system'
+where id = $1 and game_id = $2 and status = 'open'
+`;
+
+/**
+ * Void a pending Fairest offer (the holder no longer holds Fairest of Them All).
+ * Scoped to a `pending` row so a re-run is a no-op. $1 offerId, $2 gameId.
+ */
+const VOID_FAIREST_OFFER_SQL = `
+update fairest_offers
+set status = 'void', decided_at = now()
+where id = $1 and game_id = $2 and status = 'pending'
+`;
+
+/**
+ * Apply an {@link InventoryFollowUp} in the caller's transaction: complete each
+ * open UIOLI challenge and void each pending Fairest offer it names (design.md
+ * sections 7 and 15; Requirements 8.5, 9.12). This is the durable counterpart to
+ * {@link followUpPayload}, which only carries the ids on the event — without it
+ * the `card_challenges` row stays `open` and the claim gate
+ * (`evaluateClaimBlocks`) keeps blocking claims after the team's hand empties.
+ * Each statement is status-scoped, so applying the same follow-up twice is a
+ * no-op.
+ */
+export async function applyInventoryFollowUp(
+  tx: QueryRunner,
+  gameId: string,
+  followUp: InventoryFollowUp | undefined,
+): Promise<void> {
+  if (followUp === undefined) {
+    return;
+  }
+  for (const challengeId of followUp.completeChallenges) {
+    await tx.query(COMPLETE_UIOLI_CHALLENGE_SQL, [challengeId, gameId]);
+  }
+  for (const offerId of followUp.voidOffers) {
+    await tx.query(VOID_FAIREST_OFFER_SQL, [offerId, gameId]);
   }
 }
 

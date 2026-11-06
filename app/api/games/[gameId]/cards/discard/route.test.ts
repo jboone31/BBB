@@ -98,6 +98,14 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
     expect(event.eventType).toBe("card_discarded");
     // The UIOLI completion rides on that single event (R8.3, R8.5).
     expect(event.payload.completeChallenges).toEqual(["chal-uioli"]);
+    // The challenge row is also durably flipped to `completed`, so the claim
+    // gate (evaluateClaimBlocks) stops blocking the team on a later claim — not
+    // just the event payload carries the id (the QA "still blocks claims" bug).
+    expect(db.challengeUpserts).toContainEqual({
+      id: "chal-uioli",
+      status: "completed",
+      failureEffectId: null,
+    });
     // One instance row changed (moneybags -> discarded).
     expect(db.instanceUpserts).toEqual([
       { slug: "moneybags", deckState: "discarded" },
@@ -227,6 +235,15 @@ describe("POST /api/games/[gameId]/cards/discard — pipeline", () => {
     expect(response.status).toBe(200);
     expect(db.mutationEvents).toHaveLength(1);
     expect(db.mutationEvents[0].payload.voidOffers).toEqual(["offer-void"]);
+    // The offer row is also durably voided, not just named on the event.
+    expect(db.offerUpserts).toContainEqual({
+      id: "offer-void",
+      slug: "fairest-of-them-all",
+      holderTeamId: "",
+      status: "void",
+      mirroredChallengeId: null,
+      mirroredEffectId: null,
+    });
   });
 
   it("rolls back and returns unavailable when the mutation append fails", async () => {
