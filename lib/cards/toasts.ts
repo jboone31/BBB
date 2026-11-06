@@ -503,6 +503,10 @@ function playTemplateValues(
   }
   if (play.barKey !== null) {
     values.Bar = barName(play.barKey);
+  } else if (play.returnBarKey !== null) {
+    // Spin Cycle has no target bar; {Bar} is the target team's return bar (its
+    // most recent claim, or the start bar), resolved by the server at play time.
+    values.Bar = barName(play.returnBarKey);
   }
   mergeParamValues(values, play.params);
   mergeEffectClockTimes(values, view, play.playId, timeZone);
@@ -526,6 +530,10 @@ function mirrorTemplateValues(
     mergeParamValues(values, play.params);
     if (play.barKey !== null) {
       values.Bar = barName(play.barKey);
+    } else if (play.returnBarKey !== null) {
+      // Spin Cycle mirror: name the return bar carried on the source play so the
+      // body's {Bar} is filled (the original target's return bar).
+      values.Bar = barName(play.returnBarKey);
     }
     mergeEffectClockTimes(values, view, play.playId, timeZone);
   }

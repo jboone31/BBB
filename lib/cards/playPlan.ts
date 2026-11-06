@@ -123,6 +123,14 @@ export interface PlayPlan {
   readonly releaseProtections: readonly string[]; // effect ids
   readonly reconcileBars: readonly string[]; // bar keys
   readonly inventoryFollowUp: InventoryFollowUp; // caster's own hand change
+  /**
+   * The board key of the bar a Spin Cycle target must return to — the target
+   * team's most recently claimed bar, or the start bar when it has none
+   * (18.x). Resolved at play time so the toast can name it. Null for every other
+   * card. Kept separate from `targetBar`/`targetBarKey`, which drive the
+   * same-name-once rule and the bar-headline templates.
+   */
+  readonly returnBarKey: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +139,7 @@ export interface PlayPlan {
 
 const FAIREST_SLUG: CardSlug = "fairest-of-them-all";
 const UIOLI_SLUG: CardSlug = "use-it-or-lose-it";
+const SPIN_CYCLE_SLUG: CardSlug = "spin-cycle";
 const PIONEER_SLUG: CardSlug = "pioneer";
 const SCENIC_SLUG: CardSlug = "scenic-route";
 
@@ -364,6 +373,7 @@ function emptyPlan(
     releaseProtections: [],
     reconcileBars: [],
     inventoryFollowUp: { completeChallenges: [], voidOffers: [] },
+    returnBarKey: null,
   };
 }
 
@@ -467,12 +477,22 @@ function resolveGatedTeam(ctx: ResolverContext): Plan<PlayPlan> {
 
   const offers = maybeOffer(ctx, { challengeId, restrictionEffectId: null });
 
+  // Spin Cycle sends the target back to the bar it most recently claimed, so
+  // resolve that bar now (excluding ordinary unclaims, keeping voted_off, and
+  // falling back to the start bar when the team has no qualifying claim) and
+  // record its key so the toast can name it (18.x).
+  const returnBarKey =
+    slug === SPIN_CYCLE_SLUG
+      ? previousBarFor(target, state.claimHistory, startBarRef(state)).barKey
+      : null;
+
   return {
     ok: true,
     plan: {
       ...emptyPlan(slug, params, null),
       challenges: [challenge],
       offers,
+      returnBarKey,
     },
   };
 }

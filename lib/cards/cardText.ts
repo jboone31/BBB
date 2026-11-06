@@ -218,7 +218,7 @@ const CARD_TEXT_ENTRIES: Readonly<Record<CardSlug, CardText>> = {
       "The target team must immediately return to the entrance of the bar they most recently claimed.",
     targetNote: "An opposing team.",
     targetToastBody:
-      "Your team must immediately return to the entrance of the bar you most recently claimed.",
+      "Your team must immediately return to the entrance of {Bar}.",
   },
   "dirty-bird": {
     requires: null,

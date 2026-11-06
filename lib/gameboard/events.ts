@@ -219,6 +219,12 @@ export interface PlayView {
   readonly casterTeamId: string;
   readonly targetTeamId: string | null;
   readonly barKey: string | null;
+  /**
+   * The Spin Cycle return bar's board key (the target team's most recent claim
+   * or the start bar), resolved by the server at play time so the toast can name
+   * it. Null for every other card.
+   */
+  readonly returnBarKey: string | null;
   readonly params: CastingParams;
   readonly seq: number;
   readonly createdAt: string;
@@ -894,6 +900,7 @@ function applyCardPlayed(view: GameBoardView, event: GameEvent): GameBoardView {
       readString(event.payload, "barKey") ??
       readString(event.payload, "targetBarKey") ??
       null,
+    returnBarKey: readString(event.payload, "returnBarKey") ?? null,
     params: readCastingParams(event.payload),
     seq: event.seq,
     createdAt: event.createdAt,

@@ -115,6 +115,7 @@ function playCaseArb(
         casterTeamId,
         targetTeamId,
         barKey,
+        returnBarKey: null,
         params: noneParams,
         seq,
         createdAt: new Date(seq * 1000).toISOString(),

@@ -108,8 +108,7 @@ name. Per-card entries below only list toasts that differ from these.
 - **Effect:** The target team must immediately return to the entrance of the bar they most
   recently claimed.
 - **Target:** An opposing team.
-- **Target toast:** Your team must immediately return to the entrance of the bar you most
-  recently claimed.
+- **Target toast:** Your team must immediately return to the entrance of {Bar}.
 
 ## Everyone's a Critic
 

@@ -312,6 +312,9 @@ async function writePlanAndAppend(
       slug: plan.slug,
       targetTeamId: req.targetTeamId ?? null,
       targetBarKey: plan.targetBar?.barKey ?? null,
+      // Spin Cycle's resolved return bar (the target's most recent claim / the
+      // start bar), so the toast can name it. Null for every other card.
+      returnBarKey: plan.returnBarKey,
       params: plan.params,
       challenges: plan.challenges,
       offers: plan.offers,

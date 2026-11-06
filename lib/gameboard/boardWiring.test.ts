@@ -45,6 +45,7 @@ function play(id: string, slug: CardSlug, seq: number): PlayView {
     casterTeamId: CASTER,
     targetTeamId: TARGET,
     barKey: null,
+    returnBarKey: null,
     params: { kind: "none" },
     seq,
     createdAt: "2024-01-01T00:00:00.000Z",
@@ -124,6 +125,65 @@ function wiredView(
 }
 
 const NO_DISMISSAL = { floorSeq: -1, dismissed: [] as string[] };
+
+describe("composeBoardToasts — Spin Cycle names the return bar", () => {
+  /** A live view with one Spin Cycle play carrying a resolved return bar key. */
+  function spinCycleView(returnBarKey: string | null): GameBoardView {
+    const base = initialGameBoardView(GAME);
+    const spinPlay: PlayView = {
+      playId: "p1",
+      slug: "spin-cycle",
+      casterTeamId: CASTER,
+      targetTeamId: TARGET,
+      barKey: null,
+      returnBarKey,
+      params: { kind: "none" },
+      seq: 5,
+      createdAt: "2024-01-01T00:00:00.000Z",
+    };
+    return {
+      ...base,
+      lifecycle: "live",
+      teams: [
+        { id: CASTER, name: "Alpha", color: "#f00" },
+        { id: TARGET, name: "Bravo", color: "#0f0" },
+      ] as GameBoardView["teams"],
+      cardBehavior: {
+        ...base.cardBehavior,
+        plays: { p1: spinPlay },
+        challenges: { c1: challenge("c1", "spin-cycle", "p1") },
+        toastEvents: [playToastEvent("p1", 5)],
+      },
+      lastSeenSequence: 5,
+    };
+  }
+
+  it("fills {Bar} with the candidate bar's name in the target toast", () => {
+    const toasts = composeBoardToasts({
+      view: spinCycleView("park-tavern"),
+      viewerTeamId: TARGET,
+      boundaryToasts: [],
+      dismissal: NO_DISMISSAL,
+    });
+    const target = toasts.find((t) => t.kind === "target");
+    expect(target?.body).toBe(
+      "Your team must immediately return to the entrance of Park Tavern.",
+    );
+    // The raw placeholder must not leak through.
+    expect(target?.body).not.toContain("{Bar}");
+  });
+
+  it("names the start bar when the return bar is the start bar", () => {
+    const toasts = composeBoardToasts({
+      view: spinCycleView("the-independent"),
+      viewerTeamId: TARGET,
+      boundaryToasts: [],
+      dismissal: NO_DISMISSAL,
+    });
+    const target = toasts.find((t) => t.kind === "target");
+    expect(target?.body).toContain("The Independent");
+  });
+});
 
 describe("composeBoardToasts", () => {
   it("attaches Mark complete to the target team's toast and keeps it past the floor", () => {

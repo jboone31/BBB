@@ -476,6 +476,7 @@ function emptyPlan(overrides: Partial<PlayPlan> = {}): PlayPlan {
     releaseProtections: [],
     reconcileBars: [],
     inventoryFollowUp: { completeChallenges: [], voidOffers: [] },
+    returnBarKey: null,
     ...overrides,
   };
 }
