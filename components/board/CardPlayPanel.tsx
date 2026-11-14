@@ -12,7 +12,7 @@
  * Flow (top to bottom):
  *   1. **Input step** (card-behavior R6.1/R6.2/R6.3) — shown BEFORE targeting
  *      when the card's {@link CardInput} needs a caster value:
- *        - `colors`: seven ROYGBIV `aria-pressed` toggles; exactly THREE must be
+ *        - `colors`: six color `aria-pressed` toggles (ROYGBIV minus indigo); exactly THREE must be
  *          selected to proceed (Art School Dropout).
  *        - `duration_seconds`: minutes/seconds number inputs for 0:00–5:00,
  *          shown as `m:ss` (Bird Guide); clamped to 0–300s.

@@ -13,7 +13,7 @@
  * | From | Action | Guard | To | Side effects |
  * | --- | --- | --- | --- | --- |
  * | open | complete | actor on target team, no pending offer, slug ≠ UIOLI | completed | none |
- * | open | fail | slug = everyone's-a-critic, actor on target team, no pending offer | failed | `team_claim_block` for target, `[now, now+15m)` |
+ * | open | fail | slug = everyone's-a-critic, actor on target team, no pending offer | failed | `team_claim_block` for target, `[now, now+10m)` |
  * | open | (inventory) | slug = UIOLI, hand = 0 and pending = 0 | completed (`system`) | embedded in the inventory event |
  * | open | host clear | host | cleared_by_host | voids the pending offer on this challenge |
  * | completed / failed | host reset | host; UIOLI also needs a non-empty hand or a pending draw | open | failed critic: cancel `failureEffectId` |
@@ -180,7 +180,7 @@ function pendingOfferForChallenge(
  * may complete a challenge (or fail an Everyone's a Critic challenge); the
  * challenge must be `open`; and no live Fairest offer may be outstanding. A
  * `fail` is accepted only for Everyone's a Critic and creates a `team_claim_block`
- * effect on the target team for `[now, now+15m)`. The resolution provenance
+ * effect on the target team for `[now, now+10m)`. The resolution provenance
  * (session, team, time, kind) is recorded on the returned record.
  */
 export function resolveChallenge(

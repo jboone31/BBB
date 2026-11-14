@@ -114,17 +114,18 @@ name. Per-card entries below only list toasts that differ from these.
 
 - **Effect:** The target team must take a picture on the premises of a place with at least 4.5
   stars on Google. They can't use the internet for research until they make an attempt. If
-  they fail, they can't claim a bar for 15 minutes.
+  they fail, they can't claim a bar for 10 minutes.
 - **Target:** An opposing team.
 - **Target toast:** Your team must take a picture on the premises of a place with at least 4.5
   stars on Google. You can't use the internet for research until you make an attempt. If you
-  fail, you can't claim a bar for 15 minutes.
-- **Target toast actions:** Mark complete / We failed (starts the 15-minute block).
+  fail, you can't claim a bar for 10 minutes.
+- **Target toast actions:** Mark complete / We failed (starts the 10-minute block).
 
 ## Art School Dropout
 
 - **Requires:** Take a photo of a mural, graffiti, or art installation containing three
-  distinct ROYGBIV colors, then enter those three colors.
+  distinct colors from red, orange, yellow, green, blue, and violet, then enter those three
+  colors.
 - **Effect:** The target team must photograph a different mural, graffiti, or art installation
   containing the same three colors.
 - **Target:** An opposing team.
@@ -178,7 +179,7 @@ name. Per-card entries below only list toasts that differ from these.
 
 - **Requires:** Your team must be inside the bar you target.
 - **Effect:** No other team may enter or claim this bar for 15 minutes.
-- **Target:** The bar you're in. Can't be the finish bar.
+- **Target:** The bar you're in. Can be the finish bar.
 - **Others' toast body:** No team may enter or claim {Bar} until {endTime}.
 - **End toast (all teams):** CROP DUSTING has ended. {Bar} can be claimed again.
 
@@ -224,7 +225,7 @@ name. Per-card entries below only list toasts that differ from these.
 
 ## Power Hour
 
-- **Effect:** For the next 20 minutes, every team that claims a bar draws two cards and keeps
+- **Effect:** For the next 15 minutes, every team that claims a bar draws two cards and keeps
   both.
 - **Target:** All teams.
 - **Toast (all teams):** {Caster} played POWER HOUR! Until {endTime}, every team that claims a

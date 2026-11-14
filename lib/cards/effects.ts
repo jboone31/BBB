@@ -71,9 +71,9 @@ export const DURATIONS_MS = {
   cropDusting: 15 * 60_000,
   cancelCultureDelay: 15 * 60_000,
   cancelCultureLock: 15 * 60_000,
-  criticBlock: 15 * 60_000,
+  criticBlock: 10 * 60_000,
   happyHour: 60 * 60_000,
-  powerHour: 20 * 60_000,
+  powerHour: 15 * 60_000,
 } as const;
 
 // ---------------------------------------------------------------------------

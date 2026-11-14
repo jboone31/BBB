@@ -42,7 +42,7 @@
  * - **Insurance** adds an unattached `score_protection` owned by the caster.
  * - **Patient Investor** adds a `claim_counter` owned by the caster with
  *   `params.counted = []`.
- * - **Power Hour** adds a `draw_override` `[now, now+20m)`.
+ * - **Power Hour** adds a `draw_override` `[now, now+15m)`.
  * - **Voted Off the Island** revokes the target's active claim on the bar
  *   (`voted_off`), releases any Insurance attached to that claim, reconciles the
  *   bar, and opens no challenge.
@@ -698,7 +698,7 @@ function resolvePatientInvestor(ctx: ResolverContext): Plan<PlayPlan> {
   };
 }
 
-/** Power Hour: a `draw_override` `[now, now+20m)`. */
+/** Power Hour: a `draw_override` `[now, now+15m)`. */
 function resolvePowerHour(ctx: ResolverContext): Plan<PlayPlan> {
   const { now, nowMs, slug, params, sourcePlayId } = ctx;
   const effectId = deterministicUuid(`draw-override:${sourcePlayId}`);

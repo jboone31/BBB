@@ -890,7 +890,7 @@ describe("Game_Board card-behavior UI viewport bands (Requirement 24.5)", () => 
         name: /choose three colors/i,
       });
       const toggles = within(group).getAllByRole("button");
-      expect(toggles).toHaveLength(7);
+      expect(toggles).toHaveLength(6);
       // The toggle row wraps instead of overflowing a 320px dialog.
       expect((toggles[0].parentElement as HTMLElement).style.flexWrap).toBe(
         "wrap",

@@ -22,9 +22,9 @@
 import type { CardInput } from "./catalog";
 
 /**
- * The seven ROYGBIV colors Art School Dropout draws from, in spectral order. This
- * tuple is the single source of truth for the color set and for the {@link Color}
- * type.
+ * The six colors Art School Dropout draws from, in spectral order (ROYGBIV
+ * without indigo). This tuple is the single source of truth for the color set
+ * and for the {@link Color} type.
  */
 export const ROYGBIV = [
   "red",
@@ -32,7 +32,6 @@ export const ROYGBIV = [
   "yellow",
   "green",
   "blue",
-  "indigo",
   "violet",
 ] as const;
 

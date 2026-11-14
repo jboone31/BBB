@@ -57,7 +57,7 @@ Each team�s deck contains identical cards, with one of each of the following:
 o At least one member of the target team must enter a publicly accessible restroom that is not located inside any bar.
 * CROP DUSTING
 o Special Rule: This card does not target a team.
-o Requirements: Must be played physically inside any bar that is not the finish bar.
+o Requirements: Must be played physically inside any bar, including the finish bar.
 o Once this card is played in a bar, no other team may enter that bar for 15 minutes.
 * MONEYBAGS
 o The target team must find a product with a visible price tag of more than $150 inside any retail store.
@@ -68,7 +68,7 @@ o If a card has a playing requirement that the team cannot meet at that moment, 
 * WIRED
 o The target team must order a shot of espresso from a location that is not a bar.
 * ART SCHOOL DROPOUT
-o Requirements: The casting team must take a photo of a mural, graffiti, or art installation that contains three distinct colors (ROYGBIV only).
+o Requirements: The casting team must take a photo of a mural, graffiti, or art installation that contains three distinct colors (red, orange, yellow, green, blue, or violet only).
 o The target team must take a photo of a different mural, graffiti, or art installation that contains these three colors.
 * BROAD SHOULDERS
 o The target team must take a photo with at least one team member standing next to an official ATL Tiny Door installation.
@@ -83,7 +83,7 @@ o Requirements: The casting team must take a picture next to a restaurant.
 o The target team must take a picture of a restaurant whose cuisine is from the same continent as the casting team�s restaurant.
 * EVERYONE'S A CRITIC
 o The target team must take a picture on the premises of a location with at least 4.5 stars on Google.
-o If they fail, they may not claim a bar for 15 minutes.
+o If they fail, they may not claim a bar for 10 minutes.
 o The cursed team may not use the internet for research until making an attempt.
 * FAIREST OF THEM ALL
 o Requirements: May only be played immediately after your team is targeted by a challenge card.
@@ -115,7 +115,7 @@ o Special Rule: This card targets the casting team only.
 o After your team claims four more bars, gain +6 points.
 * POWER HOUR
 o Special Rule: This card does not have a target and is a persistent effect.
-o For the next twenty minutes, whenever any team claims a bar, that team draws two cards and keeps both.
+o For the next fifteen minutes, whenever any team claims a bar, that team draws two cards and keeps both.
 * VOTED OFF THE ISLAND
 o Requirements: All teams have claimed a non-starting bar.
 o The target team un-claims a bar that all teams have claimed.

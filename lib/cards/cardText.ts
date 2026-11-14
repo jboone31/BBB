@@ -87,7 +87,7 @@ const CARD_TEXT_ENTRIES: Readonly<Record<CardSlug, CardText>> = {
   "crop-dusting": {
     requires: "Your team must be inside the bar you target.",
     effect: "No other team may enter or claim this bar for 15 minutes.",
-    targetNote: "The bar you're in. Can't be the finish bar.",
+    targetNote: "The bar you're in. Can be the finish bar.",
     targetToastBody: null,
     toasts: {
       othersBody: "No team may enter or claim {Bar} until {endTime}.",
@@ -120,7 +120,7 @@ const CARD_TEXT_ENTRIES: Readonly<Record<CardSlug, CardText>> = {
   },
   "art-school-dropout": {
     requires:
-      "Take a photo of a mural, graffiti, or art installation containing three distinct ROYGBIV colors, then enter those three colors.",
+      "Take a photo of a mural, graffiti, or art installation containing three distinct colors from red, orange, yellow, green, blue, and violet, then enter those three colors.",
     effect:
       "The target team must photograph a different mural, graffiti, or art installation containing the same three colors.",
     targetNote: "An opposing team.",
@@ -163,14 +163,14 @@ const CARD_TEXT_ENTRIES: Readonly<Record<CardSlug, CardText>> = {
   "everyones-a-critic": {
     requires: null,
     effect:
-      "The target team must take a picture on the premises of a place with at least 4.5 stars on Google. They can't use the internet for research until they make an attempt. If they fail, they can't claim a bar for 15 minutes.",
+      "The target team must take a picture on the premises of a place with at least 4.5 stars on Google. They can't use the internet for research until they make an attempt. If they fail, they can't claim a bar for 10 minutes.",
     targetNote: "An opposing team.",
     targetToastBody:
-      "Your team must take a picture on the premises of a place with at least 4.5 stars on Google. You can't use the internet for research until you make an attempt. If you fail, you can't claim a bar for 15 minutes.",
+      "Your team must take a picture on the premises of a place with at least 4.5 stars on Google. You can't use the internet for research until you make an attempt. If you fail, you can't claim a bar for 10 minutes.",
     toasts: {
       actions: {
         complete: "Mark complete",
-        failed: "We failed (starts the 15-minute block)",
+        failed: "We failed (starts the 10-minute block)",
       },
     },
   },
@@ -279,7 +279,7 @@ const CARD_TEXT_ENTRIES: Readonly<Record<CardSlug, CardText>> = {
   "power-hour": {
     requires: null,
     effect:
-      "For the next 20 minutes, every team that claims a bar draws two cards and keeps both.",
+      "For the next 15 minutes, every team that claims a bar draws two cards and keeps both.",
     targetNote: "All teams.",
     targetToastBody: null,
     toasts: {

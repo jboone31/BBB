@@ -7,7 +7,7 @@ _**App Mechanics:**_ Targets a team, toast message + confirmation by target team
 ## Crop Dusting
 
 **Special Rule:** Does not target a team.
-**Requirements:** Must be played physically inside any bar that is not the finish bar.
+**Requirements:** Must be played physically inside any bar, including the finish bar.
 Once played in a bar, no other team may enter that bar for 15 minutes.
 
 _**App Mechanics:**_ Targets a bar, toast message alert to all non-casting teams. Prevent target bar from being claimed for 15 minutes.
@@ -32,7 +32,7 @@ _**App Mechanics:**_ Targets a team, toast message + confirmation by target team
 
 ## Art School Dropout
 
-**Requirements:** The casting team must take a photo of a mural, graffiti, or art installation that contains three distinct colors (ROYGBIV only).
+**Requirements:** The casting team must take a photo of a mural, graffiti, or art installation that contains three distinct colors (red, orange, yellow, green, blue, or violet only).
 The target team must take a photo of a different mural, graffiti, or art installation that contains these three colors.
 
 _**App Mechanics:**_ Casting team inputs three colors, targets a team, toast message + confirmation by target team. Informational toast message to non-target/casting teams.
@@ -65,7 +65,7 @@ _**App Mechanics:**_ Casting team inputs a cuisine type, targets a team, toast m
 
 ## Everyone's a Critic
 
-The target team must take a picture on the premises of a location with at least 4.5 stars on Google. If they fail, they may not claim a bar for 15 minutes. The cursed team may not use the internet for research until making an attempt.
+The target team must take a picture on the premises of a location with at least 4.5 stars on Google. If they fail, they may not claim a bar for 10 minutes. The cursed team may not use the internet for research until making an attempt.
 
 _**App Mechanics:**_ Targets a team, toast message + confirmation by target team. Informational toast message to non-target/casting teams.
 
@@ -138,9 +138,9 @@ _**App Mechanics:**_ Toast message to all non-casting teams. Tracks when casting
 ## Power Hour
 
 **Special Rule:** No target; persistent effect.
-For the next twenty minutes, whenever any team claims a bar, that team draws two cards and keeps both.
+For the next fifteen minutes, whenever any team claims a bar, that team draws two cards and keeps both.
 
-_**App Mechanics:**_ Toast message to all teams. Ensures cards are not discarded whenever any team claims a bar for twenty minutes.
+_**App Mechanics:**_ Toast message to all teams. Ensures cards are not discarded whenever any team claims a bar for fifteen minutes.
 
 ## Voted Off the Island
 

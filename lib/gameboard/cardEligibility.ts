@@ -18,7 +18,8 @@
  *   - Pioneer and Scenic Route may not target a team that would be left with no
  *     Legal_Next_Bar once the played rule is added (10.10-10.12, 22.5).
  *   - Bar-targeting cards enforce their per-card geographic/claim rules: finish
- *     bar (Crop Dusting, Happy Hour, Party Crasher), near-finish / no-coordinates
+ *     bar (Happy Hour, Party Crasher; Crop Dusting may target the finish bar),
+ *     near-finish / no-coordinates
  *     (Cancel Culture), four claimants (Party Crasher), and start-bar /
  *     not-claimed-by-all (Voted Off the Island), plus the existing same-name bar
  *     rule (11.1, 12.1, 12.2, 13.1, 14.1, 18.1-18.3).
@@ -304,6 +305,24 @@ export function selectBarsTargetedByCard(
   return targeted;
 }
 
+/** Bar cards exempt from the finish-bar targeting rule. */
+const FINISH_BAR_TARGETABLE: ReadonlySet<CardSlug> = new Set<CardSlug>([
+  "crop-dusting",
+]);
+
+/** Whether the finish-bar rule rejects `barId` as a target for `slug`. */
+function isBlockedFinishTarget(
+  slug: CardSlug,
+  barId: string,
+  ctx: CardTargetContext,
+): boolean {
+  return (
+    ctx.finishBarKey !== null &&
+    barId === ctx.finishBarKey &&
+    !FINISH_BAR_TARGETABLE.has(slug)
+  );
+}
+
 /**
  * The per-card bar rule for `slug`, evaluated against `barId` and the context.
  * Returns the ineligibility reason or null when the card's own bar rules permit
@@ -369,8 +388,8 @@ function barCardReason(
       return null;
     }
     default:
-      // Crop Dusting, Happy Hour, and any other bar card rely on the finish-bar
-      // and same-name rules applied by the caller; no extra constraint here.
+      // Crop Dusting (finish bar allowed), Happy Hour, and any other bar card
+      // rely on the finish-bar and same-name rules applied by the caller.
       return null;
   }
 }
@@ -388,7 +407,7 @@ export function isBarTargetEligible(
   ctxArg: TargetContextArg,
 ): boolean {
   const ctx = toContext(ctxArg);
-  if (ctx.finishBarKey !== null && barId === ctx.finishBarKey) {
+  if (isBlockedFinishTarget(slug, barId, ctx)) {
     return false;
   }
   if (selectBarsTargetedByCard(view, slug).has(barId)) {
@@ -417,7 +436,7 @@ export function selectBarTargetEligibility(
   const alreadyTargeted = selectBarsTargetedByCard(view, slug);
   return barIds.map((barId) => {
     let reason: BarIneligibilityReason | null = null;
-    if (ctx.finishBarKey !== null && barId === ctx.finishBarKey) {
+    if (isBlockedFinishTarget(slug, barId, ctx)) {
       reason = "finish_bar";
     } else {
       reason = barCardReason(slug, barId, ctx);

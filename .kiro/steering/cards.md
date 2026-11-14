@@ -35,7 +35,7 @@ toast to non-target and casting teams.
 
 ### Crop Dusting
 
-**Special Rule:** Does not target a team. Must be played physically inside a bar that is not
+**Special Rule:** Does not target a team. Must be played physically inside a bar, which may be
 the finish bar. Once played in a bar, no other team may enter that bar for 15 minutes.
 
 **App Mechanics:** Targets a bar; alerts all non-casting teams; prevents the target bar from
@@ -67,7 +67,7 @@ to non-target and casting teams.
 ### Art School Dropout
 
 The casting team must take a photo of a mural, graffiti, or art installation containing
-three distinct ROYGBIV colors. The target team must then photograph a different one containing
+three distinct colors from red, orange, yellow, green, blue, and violet (no indigo). The target team must then photograph a different one containing
 the same three colors.
 
 **App Mechanics:** The caster inputs three colors, then targets a team; toast plus target-team
@@ -108,7 +108,7 @@ team confirmation; informational toast to non-target and casting teams.
 ### Everyone's a Critic
 
 The target team must take a picture on the premises of a location with at least 4.5 Google
-stars. If it fails, it may not claim a bar for 15 minutes and may not use the internet for
+stars. If it fails, it may not claim a bar for 10 minutes and may not use the internet for
 research until making an attempt.
 
 **App Mechanics:** Targets a team; toast plus target-team confirmation; informational toast
@@ -196,10 +196,10 @@ immutable points when the threshold is reached.
 
 ### Power Hour
 
-**Special Rule:** No target; persistent effect. For the next 20 minutes, every team claiming
+**Special Rule:** No target; persistent effect. For the next 15 minutes, every team claiming
 a bar draws two cards and keeps both.
 
-**App Mechanics:** Toast to all teams; modifies draw resolution for 20 minutes so neither
+**App Mechanics:** Toast to all teams; modifies draw resolution for 15 minutes so neither
 card is discarded.
 
 ### Voted Off the Island
