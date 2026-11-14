@@ -338,7 +338,7 @@ function playView(
     barKey: null,
     // Spin Cycle resolves a return bar at play time; the toast names it via
     // {Bar}. Other cards carry no return bar.
-    returnBarKey: slug === "spin-cycle" ? "park-tavern" : null,
+    returnBarKey: slug === "spin-cycle" ? "real-tacos" : null,
     params: paramsFor(slug),
     seq,
     createdAt: "2024-01-01T00:00:00.000Z",
@@ -401,9 +401,9 @@ function expectedValues(slug: CardSlug): Record<string, string> {
     Target: "Bravo",
     CARD: getCardMetadata(slug).name.toUpperCase(),
   };
-  // Spin Cycle's body names the return bar (the playView carries park-tavern).
+  // Spin Cycle's body names the return bar (the playView carries real-tacos).
   if (slug === "spin-cycle") {
-    values.Bar = "Park Tavern";
+    values.Bar = "Real Tacos";
   }
   const params = paramsFor(slug);
   if (params.kind === "colors") {

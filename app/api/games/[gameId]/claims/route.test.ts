@@ -220,10 +220,10 @@ describe("POST /claims — claim basics", () => {
 
   it("materializes a candidate bar on first touch before claiming it", async () => {
     const fake = setup();
-    const response = await claim("park-tavern");
+    const response = await claim("real-tacos");
     expect(response.status).toBe(200);
     expect(fake.writesTo("bars")).toHaveLength(1);
-    expect(fake.mutationEvents[0].payload.barId).toBe("park-tavern");
+    expect(fake.mutationEvents[0].payload.barId).toBe("real-tacos");
   });
 
   it("awards the finish bar, ends the game and its effects, and does not draw", async () => {

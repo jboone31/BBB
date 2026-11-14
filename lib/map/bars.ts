@@ -57,12 +57,13 @@ export function slug(name: string): string {
  */
 export const CANDIDATE_BARS: readonly CandidateBar[] = (
   [
-    { name: "Park Tavern", lat: 33.782225, lng: -84.369289 },
-    { name: "Taqueria Lobito", lat: 33.779978, lng: -84.367354 },
-    { name: "The Independent", lat: 33.779226, lng: -84.3672 },
-    { name: "Apres Diem", lat: 33.779167, lng: -84.367222 },
-    { name: "Buddy Buddy", lat: 33.778858, lng: -84.367193 },
-    { name: "Midtown Butcher Shoppe", lat: 33.78142, lng: -84.368363 },
+    // Temporarily disabled: bars north of Ponce City Market.
+    // { name: "Park Tavern", lat: 33.782225, lng: -84.369289 },
+    // { name: "Taqueria Lobito", lat: 33.779978, lng: -84.367354 },
+    // { name: "The Independent", lat: 33.779226, lng: -84.3672 },
+    // { name: "Apres Diem", lat: 33.779167, lng: -84.367222 },
+    // { name: "Buddy Buddy", lat: 33.778858, lng: -84.367193 },
+    // { name: "Midtown Butcher Shoppe", lat: 33.78142, lng: -84.368363 },
     { name: "Real Tacos", lat: 33.773, lng: -84.364238 },
     { name: "Rina", lat: 33.772659, lng: -84.364304 },
     { name: "12 Cocktail Bar", lat: 33.773113, lng: -84.365543 },

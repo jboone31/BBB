@@ -282,7 +282,7 @@ describe.skipIf(!LIVE_DB_CONFIGURED)(
       // Designate start + finish by name (route creates the bar rows).
       const res1 = await bars.POST(
         post(game.adminSessionId, {
-          startBarName: "Park Tavern",
+          startBarName: "Real Tacos",
           finishBarName: "New Realm Brewing Company",
         }),
         ctx(game.gameId),

@@ -1002,24 +1002,24 @@ describe("POST card/play: lazy settle ordering", () => {
     okPlan(
       emptyPlan({
         slug: "party-crasher",
-        targetBar: { barKey: "park-tavern", kind: "scoring", coords: null },
+        targetBar: { barKey: "real-tacos", kind: "scoring", coords: null },
         effects: [
           effectRecord({
             effectId: "eff-phantom",
             slug: "party-crasher",
             kind: "phantom_share",
-            targetBarKey: "park-tavern",
+            targetBarKey: "real-tacos",
             endsAt: null,
           }),
         ],
-        reconcileBars: ["park-tavern"],
+        reconcileBars: ["real-tacos"],
       }),
     );
 
     const response = await POST(
       request({
         cardId: `${TEAM_A}:party-crasher`,
-        targetBarId: "park-tavern",
+        targetBarId: "real-tacos",
       }),
       params(),
     );
@@ -1028,7 +1028,7 @@ describe("POST card/play: lazy settle ordering", () => {
     // The candidate bar was materialized: one insert into bars with the
     // candidate name and coordinates.
     expect(db.materializedBars).toHaveLength(1);
-    expect(db.materializedBars[0].name).toBe("Park Tavern");
+    expect(db.materializedBars[0].name).toBe("Real Tacos");
     expect(db.materializedBars[0].location).toContain(",");
     // The insert ran before the loadBehaviorState game read (GAME_SQL), so the
     // snapshot that the planner saw already had the bar.

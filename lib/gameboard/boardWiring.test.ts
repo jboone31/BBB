@@ -160,14 +160,14 @@ describe("composeBoardToasts — Spin Cycle names the return bar", () => {
 
   it("fills {Bar} with the candidate bar's name in the target toast", () => {
     const toasts = composeBoardToasts({
-      view: spinCycleView("park-tavern"),
+      view: spinCycleView("real-tacos"),
       viewerTeamId: TARGET,
       boundaryToasts: [],
       dismissal: NO_DISMISSAL,
     });
     const target = toasts.find((t) => t.kind === "target");
     expect(target?.body).toBe(
-      "Your team must immediately return to the entrance of Park Tavern.",
+      "Your team must immediately return to the entrance of Real Tacos.",
     );
     // The raw placeholder must not leak through.
     expect(target?.body).not.toContain("{Bar}");
@@ -175,13 +175,13 @@ describe("composeBoardToasts — Spin Cycle names the return bar", () => {
 
   it("names the start bar when the return bar is the start bar", () => {
     const toasts = composeBoardToasts({
-      view: spinCycleView("the-independent"),
+      view: spinCycleView("rina"),
       viewerTeamId: TARGET,
       boundaryToasts: [],
       dismissal: NO_DISMISSAL,
     });
     const target = toasts.find((t) => t.kind === "target");
-    expect(target?.body).toContain("The Independent");
+    expect(target?.body).toContain("Rina");
   });
 });
 

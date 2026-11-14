@@ -324,7 +324,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Park Tavern",
+      start: "Real Tacos",
       finish: "Delbar",
       displayName: "  Alex  ",
     });
@@ -362,7 +362,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     // Bars body carries the raw (un-normalized) bar names.
     const bars = requestsTo("/bars")[0];
-    expect(bars.body.startBarName).toBe("Park Tavern");
+    expect(bars.body.startBarName).toBe("Real Tacos");
     expect(bars.body.finishBarName).toBe("Delbar");
   });
 
@@ -384,7 +384,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Park Tavern",
+      start: "Real Tacos",
       finish: "Delbar",
       displayName: "Host",
     });
@@ -420,7 +420,7 @@ describe("Lobby create→bars→join orchestration (Requirements 2.1, 2.2, 2.3, 
 
     render(<LobbyPage />);
     await fillAndSubmitCreate({
-      start: "Park Tavern",
+      start: "Real Tacos",
       finish: "Delbar",
       displayName: "Host",
     });

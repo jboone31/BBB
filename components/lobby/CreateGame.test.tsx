@@ -150,7 +150,7 @@ describe("CreateGame bar pickers support touch-safe option menus", () => {
     expect(
       screen.getByRole("listbox", { name: /start bar options/i }),
     ).not.toBeNull();
-    fireEvent.click(screen.getByRole("option", { name: "Park Tavern" }));
+    fireEvent.click(screen.getByRole("option", { name: "Real Tacos" }));
 
     fireEvent.click(
       screen.getByRole("button", { name: /show finish bar options/i }),
@@ -165,7 +165,7 @@ describe("CreateGame bar pickers support touch-safe option menus", () => {
     expect(
       (screen.getByRole("textbox", { name: /start bar/i }) as HTMLInputElement)
         .value,
-    ).toBe("Park Tavern");
+    ).toBe("Real Tacos");
     expect(
       (screen.getByRole("textbox", { name: /finish bar/i }) as HTMLInputElement)
         .value,
